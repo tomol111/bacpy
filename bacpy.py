@@ -163,11 +163,11 @@ class Game:
             input_ = input_.strip()
 
             # detect special input
-            if re.match('^%q(u(it?)?)?$', input_, flags=re.I):
+            if re.match(input_, '%quit', flags=re.I):
                 return 'quit'
-            if re.match('^%r(e(s(t(a(rt?)?)?)?)?)?$', input_, flags=re.I):
+            if re.match(input_, '%restart', flags=re.I):
                 return 'restart'
-            if re.match('^%', input_, flags=re.I):
+            if re.match('%', input_, flags=re.I):
                 print(
                     '%q[uit]    - quit\n'
                     '%r[estart] - restart\n',
