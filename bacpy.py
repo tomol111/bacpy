@@ -1,18 +1,15 @@
-#!/usr/bin/env python3
-
-# -*- coding: utf-8 -*-
-
 "Terminal implementation of 'Bulls and Cows' game"
 
 __version__ = '0.1'
 __author__ = 'Tomasz Olszewski'
 
+
 import random
 import re
 from collections import Counter
-from consolemenu import SelectionMenu
 from terminaltables import SingleTable
 import numpy as pd
+
 
 MODES = {
     'easy': {
@@ -42,8 +39,7 @@ class Game:
         self.possible_digits = None
         self.digits_range = None
         self.number = None
-        self.player = None
-        self.steps = 1
+        self.steps = None
 
 
     def draw_number(self):
@@ -52,36 +48,49 @@ class Game:
         )
 
 
-    def set_difficulty(self):
-        # creating options table
-        options_dict = dict(zip(range(1,len(MODES)+1), MODES))
-        table_data = [['key', 'difficulty', 'size', 'digits']]
-        for key, difficulty in options_dict.items():
-            table_data.append([
-                str(key),
-                difficulty,
-                MODES[difficulty]['number_size'],
-                MODES[difficulty]['digits_range']
-            ])
-        selection_table = SingleTable(table_data)
-        selection_table.title = 'Difficulty selection'
-        print(selection_table.table)
+    def set_difficulty(self, difficulty=None):
+        """Setting game difficulty
 
-        # taking input
-        while True:
-            input_ = input('Enter key: ').strip()
-            if not input_.isdigit():
-                print('Input is not a digit!')
-                continue
-            input_ = int(input_)
-            if input_ not in options_dict:
-                print('Valid key!')
-                continue
-            break
+        ask user if not given directly
+        """
+        # ask for difficulty if not given directly
+        if difficulty == None:
+            # creating options table
+            options_dict = dict(zip(range(1,len(MODES)+1), MODES))
+            table_data = [['key', 'difficulty', 'size', 'digits']]
+            for key, difficulty in options_dict.items():
+                table_data.append([
+                   str(key),
+                    difficulty,
+                    MODES[difficulty]['number_size'],
+                    MODES[difficulty]['digits_range']
+                ])
+            selection_table = SingleTable(table_data)
+            selection_table.title = 'Difficulty selection'
+            print(selection_table.table)
+
+            # taking input
+            while True:
+                input_ = input('Enter key: ').strip()
+                if not input_.isdigit():
+                    print(
+                        'Input is not a digit!\n',
+                        end='',
+                    )
+                    continue
+                input_ = int(input_)
+                if input_ not in options_dict:
+                    print(
+                        'Valid key!\n',
+                        end='')
+                    continue
+                break
+
+            difficulty = options_dict[input_]
 
         # setting difficulty
-        self.difficulty = options_dict[input_]
-        mode = MODES[self.difficulty]
+        self.difficulty = difficulty
+        mode = MODES[difficulty]
         self.number_size = mode['number_size']
         self.possible_digits = mode['possible_digits']
         self.digits_range = mode['digits_range']
@@ -94,7 +103,7 @@ class Game:
         for i in range(self.number_size):
             if guess[i] == self.number[i]:
                 bulls += 1
-            elif guess[j] in self.number:
+            elif guess[i] in self.number:
                 cows += 1
 
         return {'bulls': bulls, 'cows': cows}
@@ -105,30 +114,86 @@ class Game:
 
         # check if number have wrong characters
         list_ = []
-        list_ = [i for i in other if i not in self.possible_digits if i not in list_]
+        for i in other:
+            if i not in self.possible_digits and i not in list_:
+                list_.append(i)
         if list_:    # check if list is not empty
-            wrong_chars = ', '.join(map(lambda x: '"'+x+'"', list_))
-            return (f'Found wrong characters: {wrong_chars}\n'
-                    f'"{self.digits_range}" only available.')
+            wrong_chars = ', '.join(map(lambda x: "'"+x+"'", list_))
+            print(
+                'Found wrong characters: {wrong_chars}\n'
+                '"{digits_range}" only available.\n'\
+                    .format(wrong_chars=wrong_chars, **self.__dict__),
+                end='',
+            )
+            return False
 
         # check length
         if len(other) != self.number_size:
-            return f"Number should have {self.number_size} digits. You entered {len(other)}."
+            print(
+                "Number should have {number_size} digits."\
+                "You entered {len_}\n."\
+                    .format(len_=len(other), **self.__dict__),
+                end='',
+            )
+            return False
 
         # check that digits don`t repeat
         counter = Counter(other)
         list_ = [i for i in counter.keys() if counter[i] > 1]
-        if list_:    # check if list is not empty
-            rep_digs = ', '.join(map(lambda x: '"'+x+'"', list_))
+        if list_:
+            rep_digs = ', '.join(map(lambda x: "'"+x+"'", list_))
             print(
                 "Number can`t have repeated digits. {} repeated."\
-                .format(rep_digs),
-                end=''
+                    .format(rep_digs),
+                end='',
             )
             return False
 
         # finally number is correct
         return True
+
+    def round(self):
+        """Handle inserting answers and taking special commands
+
+        '%quit'
+        '%restart'
+        """
+        while True: # round loop
+            input_ = input("[{steps}] ".format(**self.__dict__))
+            input_ = input_.strip()
+
+            # detect special input
+            if re.match('^%q(u(it?)?)?$', input_, flags=re.I):
+                return 'quit'
+            if re.match('^%r(e(s(t(a(rt?)?)?)?)?)?$', input_, flags=re.I):
+                return 'restart'
+            if re.match('^%', input_, flags=re.I):
+                print(
+                    '%q[uit]    - quit\n'
+                    '%r[estart] - restart\n',
+                    end='',
+                )
+                continue
+
+            if not self.is_syntax_corect(input_):
+                continue
+
+            bulscows = self.comput_bullscows(input_)
+            if bulscows['bulls'] == self.number_size:
+                print(
+                    "You guessed it in {steps} steps.\n\n"\
+                        .format(**self.__dict__),
+                    end='',
+                )
+                return 'end'
+
+            print(
+                "bulls: {bulls:>2}, cows: {cows:>2}\n"\
+                    .format(**bulscows, **self.__dict__),
+                end='',
+            )
+
+            self.steps += 1
 
 
     def play(self):
@@ -137,48 +202,34 @@ class Game:
 
         while True: # game loop
             self.draw_number()
+            self.steps = 1
             print(
-                '====== Game started ======\n'
                 '\n'
-                '- Difficulty: {difficulty}\n'
-                '- Number size: {number_size}\n'
-                '- Digits range: {digits_range}\n'
+                '====== Game started =====\n'
                 '\n'
-                '<- Enter numbers ->\n'\
-                .format(**self.__dict__),
+                '  Difficulty:  {difficulty:>7}\n'
+                '  Number size: {number_size:>7}\n'
+                '  Digits range:{digits_range:>7}\n'
+                '\n'
+                ' v--- Enter numbers ---v\n'\
+                    .format(**self.__dict__),
                 end=''
             )
-            while True: # round loop
-                input_ = input("[{}] ".format(self.steps)).strip()
-
-                # detect special input
-                if re.match('^%q(u(it?)?)?$', input_, flags=re.I):
-                    return
-                if re.match('^%r(e(s(t(a(rt?)?)?)?)?)?$', input_, flags=re.I):
-                    self.steps = 1
-                    break
-                if re.match('^%', input_, flags=re.I):
-                    print('%q[uit] - quit\n'
-                          '%r[estart] - restart')
-                    continue
-
-                if not self.is_syntax_corect(input_):
-                    continue
-
-                bulscows = self.comput_bullscows(input_)
-                if bulscows['bulls'] == self.number_size:
-                    print(
-                        "You guessed it in {self.steps} steps."\
-                        .format(**self.__dict__),
-                        end=''
-                    )
-                    _ = input('')
-                    break
-                else:
-                    print("bulls: {bulls:>2}, cows: {cows:>2}".format(**bulscows))
-
-                self.steps += 1
-
+            return_ = self.round()
+            if return_ == 'end':
+                while True:
+                    input_ = input('Do you want to continue? [y/n]: ')
+                    input_ = input_.strip()
+                    if re.match('^y(es?)?$', input_, flags=re.I):
+                        break
+                    elif re.match('^no?$', input_, flags=re.I):
+                        return
+                    else:
+                        print('Valid key!\n'.format(input_=input_), end='')
+            elif return_ == 'restart':
+                pass
+            else:
+                return
 
 # Run game
 game = Game()
