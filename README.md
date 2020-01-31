@@ -1,8 +1,15 @@
 # BacPy
 
-Implementation of Bulls and Cows in Python3 - Creating just for lern git and programing :)
+Implementation of Bulls and Cows in Python3 - Creating just for learn git and programing :)
+
+# Rules
+
+Computer draw secret number and you have to try to guess it. Digits don`t repeat.
 
 ## Features:
 
-- 3 types of difficulty
-- handling special commends like *quit* and *restart*
+* 3 types of difficulty
+	- easy: 3-size number, 1-6 digits range
+	- normal: 4-size number, 1-9 digits range
+	- hard: 5-size number, 1-9,A-F digits range
+* handling special commends like `quit` and `restart`
