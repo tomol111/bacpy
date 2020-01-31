@@ -23,7 +23,7 @@ MODES = {
         'number_size': 4,
     },
     'hard': {
-        'possible_digits': '123456789AaBbCcDdEeFf',
+        'possible_digits': '123456789ABCDEF',
         'digits_range': '1-9,A-F',
         'number_size': 5,
     },
@@ -101,9 +101,9 @@ class Game:
         bulls, cows = 0, 0
 
         for i in range(self.number_size):
-            if guess[i] == self.number[i]:
+            if re.match(guess[i], self.number[i], flags=re.I):
                 bulls += 1
-            elif guess[i] in self.number:
+            elif re.search(guess[i], self.number, flags=re.I):
                 cows += 1
 
         return {'bulls': bulls, 'cows': cows}
@@ -130,8 +130,8 @@ class Game:
         # check length
         if len(other) != self.number_size:
             print(
-                "Number should have {number_size} digits."\
-                "You entered {len_}\n."\
+                "Number should have {number_size} digits. "\
+                "You entered {len_}.\n"\
                     .format(len_=len(other), **self.__dict__),
                 end='',
             )
@@ -202,14 +202,15 @@ class Game:
 
         while True: # game loop
             self.draw_number()
+            print(self.number)
             self.steps = 1
             print(
                 '\n'
                 '====== Game started =====\n'
                 '\n'
-                '  Difficulty:  {difficulty:>7}\n'
-                '  Number size: {number_size:>7}\n'
-                '  Digits range:{digits_range:>7}\n'
+                '  Difficulty:  {difficulty:>8}\n'
+                '  Number size: {number_size:>8}\n'
+                '  Digits range:{digits_range:>8}\n'
                 '\n'
                 ' v--- Enter numbers ---v\n'\
                     .format(**self.__dict__),
