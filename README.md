@@ -6,6 +6,8 @@ Implementation of Bulls and Cows in Python3 - Creating just for learn git and pr
 
 Computer draw secret number and you have to try to guess it. Digits don't repeat.
 
+Read more [here](https://en.wikipedia.org/wiki/Bulls_and_Cows)
+
 ## Features:
 
 * 3 types of difficulty
