@@ -10,6 +10,7 @@ Read more [here](https://en.wikipedia.org/wiki/Bulls_and_Cows)
 
 ## Features:
 
+* terminal interface
 * 3 types of difficulty
 	- easy: 3-size number, 1-6 digits range
 	- normal: 4-size number, 1-9 digits range
