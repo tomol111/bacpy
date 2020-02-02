@@ -61,12 +61,16 @@ class Game:
             for key, dif in options_dict.items():
                 table_data.append([
                     str(key),
-                    difficulty,
+                    dif,
                     MODES[dif]['number_size'],
                     MODES[dif]['digits_range']
                 ])
             selection_table = SingleTable(table_data)
             selection_table.title = 'Difficulty selection'
+            selection_table.justify_columns = {
+                0: 'left', 1: 'left', 2: 'center', 3: 'center'
+            }
+            selection_table.inner_column_border = False
             print(selection_table.table)
 
             # taking input
@@ -183,7 +187,7 @@ class Game:
             bulscows = self.comput_bullscows(input_)
             if bulscows['bulls'] == self.number_size:
                 print(
-                    "You guessed it in {steps} steps.\n\n"\
+                    "\nYou guessed it in {steps} steps.\n\n"\
                         .format(**self.__dict__),
                     end='',
                 )
@@ -199,7 +203,7 @@ class Game:
 
 
     def play(self):
-        """Start playing game
+        """Starts game.
 
         Handle multi-round game, setting difficulty, drawing number,
         printing start-game and end-game message.
