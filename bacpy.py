@@ -8,14 +8,13 @@ import random
 import re
 from collections import Counter
 from terminaltables import SingleTable
-import numpy as pd
 
 
 MODES = {
     'easy': {
-         'possible_digits': '123456',
-         'digits_range': '1-6',
-         'number_size': 3,
+        'possible_digits': '123456',
+        'digits_range': '1-6',
+        'number_size': 3,
     },
     'normal': {
         'possible_digits': '123456789',
@@ -43,27 +42,28 @@ class Game:
 
 
     def draw_number(self):
+        """Draw number digits from self.possible_digits."""
         self.number = ''.join(
             random.sample(self.possible_digits, self.number_size)
         )
 
 
     def set_difficulty(self, difficulty=None):
-        """Setting game difficulty
+        """Setting game difficulty.
 
-        ask user if not given directly
+        Ask user if not given directly.
         """
         # ask for difficulty if not given directly
-        if difficulty == None:
+        if difficulty is None:
             # creating options table
-            options_dict = dict(zip(range(1,len(MODES)+1), MODES))
+            options_dict = dict(zip(range(1, len(MODES)+1), MODES))
             table_data = [['key', 'difficulty', 'size', 'digits']]
-            for key, difficulty in options_dict.items():
+            for key, dif in options_dict.items():
                 table_data.append([
-                   str(key),
+                    str(key),
                     difficulty,
-                    MODES[difficulty]['number_size'],
-                    MODES[difficulty]['digits_range']
+                    MODES[dif]['number_size'],
+                    MODES[dif]['digits_range']
                 ])
             selection_table = SingleTable(table_data)
             selection_table.title = 'Difficulty selection'
@@ -97,7 +97,7 @@ class Game:
 
 
     def comput_bullscows(self, guess):
-        """Return bulls and cows for given string comparing to self"""
+        """Return bulls and cows for given string comparing to self."""
         bulls, cows = 0, 0
 
         for i in range(self.number_size):
@@ -110,14 +110,14 @@ class Game:
 
 
     def is_syntax_corect(self, other):
-        """Check if given string have correct syntax and can be compared to self"""
+        """Check if given string have correct syntax and can be compared to self."""
 
         # check if number have wrong characters
         list_ = []
         for i in other:
             if i not in self.possible_digits and i not in list_:
                 list_.append(i)
-        if list_:    # check if list is not empty
+        if list_:
             wrong_chars = ', '.join(map(lambda x: "'"+x+"'", list_))
             print(
                 'Found wrong characters: {wrong_chars}\n'
@@ -153,10 +153,12 @@ class Game:
         return True
 
     def round(self):
-        """Handle inserting answers and taking special commands
+        """Handle inserting answers and taking special commands.
 
-        '%quit'
-        '%restart'
+        RETURN:
+            'quit' - if player inserted '%quit'
+            'restart' - if player inserted '%restart'
+            'end' - if game ended successfully
         """
         while True: # round loop
             input_ = input("[{steps}] ".format(**self.__dict__))
@@ -169,8 +171,8 @@ class Game:
                 return 'restart'
             if re.match('%', input_, flags=re.I):
                 print(
-                    '%q[uit]    - quit\n'
-                    '%r[estart] - restart\n',
+                    '%q[uit]    - quit game\n'
+                    '%r[estart] - restart game\n',
                     end='',
                 )
                 continue
@@ -197,12 +199,17 @@ class Game:
 
 
     def play(self):
-        if self.difficulty == None:
+        """Start playing game
+
+        Handle multi-round game, setting difficulty, drawing number,
+        printing start-game and end-game message.
+        """
+        if self.difficulty is None:
             self.set_difficulty()
 
         while True: # game loop
             self.draw_number()
-            print(self.number)
+            print(self.number) # TESTING PRINT
             self.steps = 1
             print(
                 '\n'
@@ -218,20 +225,32 @@ class Game:
             )
             return_ = self.round()
             if return_ == 'end':
+                print(
+                    '======= Game ended ======\n'\
+                        .format(**self.__dict__),
+                    end='',
+                )
                 while True:
-                    input_ = input('Do you want to continue? [y/n]: ')
+                    input_ = input(
+                        'Do you want to continue? [y/n]: '\
+                            .format(**self.__dict__)
+                    )
                     input_ = input_.strip()
-                    if re.match('^y(es?)?$', input_, flags=re.I):
+                    if re.match(input_, 'yes', flags=re.I):
                         break
-                    elif re.match('^no?$', input_, flags=re.I):
+                    elif re.match(input_, 'no', flags=re.I):
                         return
                     else:
-                        print('Valid key!\n'.format(input_=input_), end='')
+                        print(
+                            'Valid key!\n'.format(input_=input_),
+                            end='',
+                        )
             elif return_ == 'restart':
                 pass
             else:
                 return
 
-# Run game
-game = Game()
-game.play()
+
+if __name__ == '__main__':
+    # Run game
+    Game().play()
