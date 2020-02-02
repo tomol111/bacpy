@@ -157,7 +157,10 @@ class Game:
         return True
 
     def round(self):
-        """Handle inserting answers and taking special commands.
+        """Round metod.
+
+        Handle inserting answers, taking special commands, printing prompt
+        and printing results.
 
         RETURN:
             'quit' - if player inserted '%quit'
@@ -187,7 +190,7 @@ class Game:
             bulscows = self.comput_bullscows(input_)
             if bulscows['bulls'] == self.number_size:
                 print(
-                    "\nYou guessed it in {steps} steps.\n\n"\
+                    "\nYou guessed in {steps} steps.\n\n"\
                         .format(**self.__dict__),
                     end='',
                 )
@@ -217,23 +220,23 @@ class Game:
             self.steps = 1
             print(
                 '\n'
-                '====== Game started =====\n'
+                '===== Starting round =====\n'
                 '\n'
-                '  Difficulty:  {difficulty:>8}\n'
-                '  Number size: {number_size:>8}\n'
-                '  Digits range:{digits_range:>8}\n'
+                '  Difficulty:  {difficulty:>9}\n'
+                '  Number size: {number_size:>9}\n'
+                '  Digits range:{digits_range:>9}\n'
                 '\n'
-                ' v--- Enter numbers ---v\n'\
+                '   -- Enter numbers --\n'\
                     .format(**self.__dict__),
                 end=''
             )
             return_ = self.round()
+            print(
+                '======= Round ended ======\n'\
+                    .format(**self.__dict__),
+                end='',
+            )
             if return_ == 'end':
-                print(
-                    '======= Game ended ======\n'\
-                        .format(**self.__dict__),
-                    end='',
-                )
                 while True:
                     input_ = input(
                         'Do you want to continue? [y/n]: '\
