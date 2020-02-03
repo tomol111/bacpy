@@ -77,16 +77,11 @@ class Game:
             while True:
                 input_ = input('Enter key: ').strip()
                 if not input_.isdigit():
-                    print(
-                        'Input is not a digit!\n',
-                        end='',
-                    )
+                    print('Input is not a digit!')
                     continue
                 input_ = int(input_)
                 if input_ not in options_dict:
-                    print(
-                        'Valid key!\n',
-                        end='')
+                    print('Valid key!')
                     continue
                 break
 
@@ -123,21 +118,15 @@ class Game:
                 list_.append(i)
         if list_:
             wrong_chars = ', '.join(map(lambda x: "'"+x+"'", list_))
-            print(
-                'Found wrong characters: {wrong_chars}\n'
-                '"{digits_range}" only available.\n'\
-                    .format(wrong_chars=wrong_chars, **self.__dict__),
-                end='',
-            )
+            print(f'Found wrong characters: {wrong_chars}\n'
+                  f'"{self.digits_range}" only available.')
             return False
 
         # check length
         if len(other) != self.number_size:
             print(
-                "Number should have {number_size} digits. "\
-                "You entered {len_}.\n"\
-                    .format(len_=len(other), **self.__dict__),
-                end='',
+                f"Number should have {self.number_size} digits. "
+                f"You entered {len(other)}."
             )
             return False
 
@@ -146,11 +135,7 @@ class Game:
         list_ = [i for i in counter.keys() if counter[i] > 1]
         if list_:
             rep_digs = ', '.join(map(lambda x: "'"+x+"'", list_))
-            print(
-                "Number can`t have repeated digits. {} repeated."\
-                    .format(rep_digs),
-                end='',
-            )
+            print("Number can`t have repeated digits. {rep_digs} repeated.")
             return False
 
         # finally number is correct
@@ -179,8 +164,7 @@ class Game:
             if re.match('%', input_, flags=re.I):
                 print(
                     '%q[uit]    - quit game\n'
-                    '%r[estart] - restart game\n',
-                    end='',
+                    '%r[estart] - restart game'
                 )
                 continue
 
@@ -189,18 +173,10 @@ class Game:
 
             bulscows = self.comput_bullscows(input_)
             if bulscows['bulls'] == self.number_size:
-                print(
-                    "\nYou guessed in {steps} steps.\n\n"\
-                        .format(**self.__dict__),
-                    end='',
-                )
+                print('\n'+f"You guessed in {self.steps} steps.", end='\n\n')
                 return 'end'
 
-            print(
-                "bulls: {bulls:>2}, cows: {cows:>2}\n"\
-                    .format(**bulscows, **self.__dict__),
-                end='',
-            )
+            print(f"bulls: {bulscows['bulls']:>2}, cows: {bulscows['cows']:>2}")
 
             self.steps += 1
 
@@ -216,42 +192,30 @@ class Game:
 
         while True: # game loop
             self.draw_number()
-            print(self.number) # TESTING PRINT
+            #print(self.number) # TESTING PRINT
             self.steps = 1
             print(
-                '\n'
-                '===== Starting round =====\n'
-                '\n'
-                '  Difficulty:  {difficulty:>9}\n'
-                '  Number size: {number_size:>9}\n'
-                '  Digits range:{digits_range:>9}\n'
-                '\n'
-                '   -- Enter numbers --\n'\
-                    .format(**self.__dict__),
-                end=''
+                f'\n'
+                f'===== Starting round =====\n'
+                f'\n'
+                f'  Difficulty:  {self.difficulty:>9}\n'
+                f'  Number size: {self.number_size:>9}\n'
+                f'  Digits range:{self.digits_range:>9}\n'
+                f'\n'
+                f'   -- Enter numbers --'
             )
             return_ = self.round()
-            print(
-                '======= Round ended ======\n'\
-                    .format(**self.__dict__),
-                end='',
-            )
+            print('======= Round ended ======')
             if return_ == 'end':
                 while True:
-                    input_ = input(
-                        'Do you want to continue? [y/n]: '\
-                            .format(**self.__dict__)
-                    )
+                    input_ = input('Do you want to continue? [y/n]: ')
                     input_ = input_.strip()
                     if re.match(input_, 'yes', flags=re.I):
                         break
                     elif re.match(input_, 'no', flags=re.I):
                         return
                     else:
-                        print(
-                            'Valid key!\n'.format(input_=input_),
-                            end='',
-                        )
+                        print('Valid key!')
             elif return_ == 'restart':
                 pass
             else:
