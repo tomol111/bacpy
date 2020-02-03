@@ -1,6 +1,6 @@
 "Terminal implementation of 'Bulls and Cows' game"
 
-__version__ = '0.1'
+__version__ = '0.2'
 __author__ = 'Tomasz Olszewski'
 
 
@@ -28,6 +28,7 @@ MODES = {
     },
 }
 
+# TODO: Create Messenger class that will heldle all I/O interface with user
 
 class Game:
     """Game class"""
