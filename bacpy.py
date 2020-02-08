@@ -156,6 +156,10 @@ class Game:
             input_ = input("[{steps}] ".format(**self.__dict__))
             input_ = input_.strip()
 
+            if not input_:
+                print('Input is empty!')
+                continue
+
             # detect special input
             if re.match(input_, '%quit', flags=re.I):
                 return 'quit'
