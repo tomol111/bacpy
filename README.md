@@ -1,6 +1,6 @@
 # BacPy
 
-Implementation of Bulls and Cows in Python3 - Creating just for learn git and programing :)
+Implementation of Bulls and Cows in Python3 - Creating just for learn git and programing :smile:
 
 ## Game rules
 
