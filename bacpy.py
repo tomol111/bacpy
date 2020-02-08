@@ -281,8 +281,7 @@ class Game:
     def round(self):
         """Round method.
 
-        Handle inserting answers, taking special commands, printing prompt
-        and printing results.
+        Handle inserting answers, taking special commands, viewing results.
 
         RETURN:
             'quit' - if player inserted '%quit'
@@ -327,8 +326,7 @@ class Game:
     def play(self):
         """Starts game.
 
-        Handle multi-round game, setting difficulty, drawing number,
-        printing start-game and end-game message.
+        Handle multi-round game, setting difficulty, drawing number.
         """
         if self.difficulty is None:
             self.set_difficulty()
