@@ -6,7 +6,6 @@ __author__ = 'Tomasz Olszewski'
 
 import random
 import re
-from collections import Counter
 from terminaltables import SingleTable
 
 
@@ -268,9 +267,14 @@ class Game:
             )
             return False
 
-        # check that digits don`t repeat
-        counter = Counter(other)
-        repeated_digits = [i for i in counter.keys() if counter[i] > 1]
+        # check that digits don't repeat
+        used_digits = set()
+        repeated_digits = set()
+        for i in other:
+            if i in used_digits:
+                repeated_digits.add(i)
+            else:
+                used_digits.add(i)
         if repeated_digits:
             IOManager.repeated_digits_in_number_message(repeated_digits)
             return False
