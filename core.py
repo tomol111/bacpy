@@ -1,6 +1,7 @@
 
 import random
 import re
+from collections import Counter
 
 
 class GameCore:
@@ -49,13 +50,13 @@ class GameCore:
 
         Ask user if not given directly.
         """
-        # ask for difficulty if not given directly
+        # Ask for difficulty if not given directly
         if difficulty is None:
-            self.difficulty = self.difficulty_menu_selection()
+            self.difficulty = self.difficulty_selection()
         else:
             self.difficulty = difficulty
 
-        # setting difficulty
+        # Other settings
         mode = self.DIFFICULTIES[self.difficulty]
         self.number_size = mode['number_size']
         self.possible_digits = mode['possible_digits']
@@ -75,15 +76,14 @@ class GameCore:
         return {'bulls': bulls, 'cows': cows}
 
 
-    def is_syntax_corect(self, other):
+    def is_number_syntax_corect(self, other):
         """Check if given string have correct syntax and can be compared to self."""
 
-        # check if number have wrong characters
-        wrong_chars = []
-        for i in other:
-            if not re.search(i, self.possible_digits, re.I):
-                if i not in wrong_chars:
-                    wrong_chars.append(i)
+        # Check if number have wrong characters
+        wrong_chars = {
+            i for i in other
+            if not re.search(i, self.possible_digits, re.I)
+        }
         if wrong_chars:
             self.wrong_characters_in_number_message(
                 wrong_chars,
@@ -91,26 +91,19 @@ class GameCore:
             )
             return False
 
-        # check length
+        # Check length
         if len(other) != self.number_size:
-            self.wrong_length_of_number_message(
-                other,
-            )
+            self.wrong_length_of_number_message(other)
             return False
 
-        # check that digits don't repeat
-        used_digits = set()
-        repeated_digits = set()
-        for i in other:
-            if i in used_digits:
-                repeated_digits.add(i)
-            else:
-                used_digits.add(i)
+        # Check that digits don't repeat
+        digits = Counter(other)
+        repeated_digits = {i for i, n in digits.items() if n > 1}
         if repeated_digits:
             self.repeated_digits_in_number_message(repeated_digits)
             return False
 
-        # finally number is correct
+        # Finally number is correct
         return True
 
     def round(self):
@@ -124,7 +117,7 @@ class GameCore:
             'end' - if game ended successfully
         """
         self.initing_round()
-        while True: # round loop
+        while True: # Round loop
             input_ = self.take_number()
             input_ = input_.strip()
 
@@ -132,7 +125,7 @@ class GameCore:
                 self.empty_input_message()
                 continue
 
-            # detect special input
+            # Detect special input
             if len(input_) > 1:
                 if re.match(input_, '!quit', flags=re.I):
                     self.ending_round()
@@ -144,7 +137,7 @@ class GameCore:
                 self.special_input_hint_message()
                 continue
 
-            if not self.is_syntax_corect(input_):
+            if not self.is_number_syntax_corect(input_):
                 continue
 
             bullscows = self.comput_bullscows(input_)
@@ -166,7 +159,7 @@ class GameCore:
         if self.difficulty is None:
             self.set_difficulty()
 
-        while True: # game loop
+        while True: # Game loop
             self.draw_number()
             print(self.number) # TESTING PRINT
             self.steps = 1

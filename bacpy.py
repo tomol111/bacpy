@@ -11,13 +11,13 @@ from core import GameCore
 
 
 class GameCli(GameCore):
-    """Handle all I/O interface with user by static methods"""
+    """Completed game class with CLI."""
 
     io_type = 'cli'
 
-    def difficulty_menu_selection(self):
+    def difficulty_selection(self):
         """Printing options table and taking from user difficulty option."""
-        # creating difficulty table
+        # Creating difficulty table
         options_dict = dict(zip(range(1, len(self.DIFFICULTIES)+1),
                 self.DIFFICULTIES))
         table_data = [['key', 'difficulty', 'size', 'digits']]
@@ -36,19 +36,19 @@ class GameCli(GameCore):
         selection_table.inner_column_border = False
         print(selection_table.table)
 
-        # taking input
+        # Taking input
         while True:
             input_ = input('Enter key: ').strip()
             if not input_.isdigit():
                 print(
-                    'Input is not a digit!\n',
+                    '  Input is not a digit!\n',
                     end='',
                 )
                 continue
             input_ = int(input_)
             if input_ not in options_dict:
                 print(
-                    'Valid key!\n',
+                    '  Valid key!\n',
                     end='')
                 continue
             break
@@ -57,8 +57,8 @@ class GameCli(GameCore):
     def wrong_characters_in_number_message(self, wrong_chars, wrong_input):
         wrong_chars = ', '.join(map(lambda x: "'"+x+"'", wrong_chars))
         print(
-            'Found wrong characters: {wrong_chars}\n'
-            '"{digits_range}" only available.\n'\
+            '  Found wrong characters: {wrong_chars}\n'
+            '  "{digits_range}" only available.\n'\
                 .format(
                     wrong_chars=wrong_chars,
                     wrong_input=wrong_input,
@@ -69,8 +69,8 @@ class GameCli(GameCore):
 
     def wrong_length_of_number_message(self, wrong_input):
         print(
-            "Number should have {number_size} digits. "\
-            "You entered {length}.\n"\
+            "  Number should have {number_size} digits. "\
+            "  You entered {length}.\n"\
                 .format(
                     length=len(wrong_input),
                     wrong_input=wrong_input,
@@ -84,14 +84,14 @@ class GameCli(GameCore):
             map(lambda x: "'"+x+"'", repeated_digits)
         )
         print(
-            "Number can`t have repeated digits. {} repeated.\n"\
+            "  Number can't have repeated digits. {} repeated.\n"\
                 .format(repeated_digits),
             end='',
         )
 
     def empty_input_message(self):
         print(
-            'Enter number!\n',
+            '  Enter number!\n',
             end='',
         )
 
@@ -100,8 +100,8 @@ class GameCli(GameCore):
 
     def special_input_hint_message(self):
         print(
-            '!q[uit]    - quit game\n'
-            '!r[estart] - restart game\n',
+            '  !q[uit]    - quit game\n'
+            '  !r[estart] - restart game\n',
             end='',
         )
 
@@ -115,7 +115,7 @@ class GameCli(GameCore):
 
     def bulls_and_cows_message(self, bullscows):
         print(
-            "bulls: {bulls:>2}, cows: {cows:>2}\n"\
+            "  bulls: {bulls:>2}, cows: {cows:>2}\n"\
                 .format(**bullscows, **self.__dict__),
             end='',
         )
@@ -129,7 +129,8 @@ class GameCli(GameCore):
             '  Number size: {number_size:>9}\n'
             '  Digits range:{digits_range:>9}\n'
             '\n'
-            '  --- Enter numbers ---\n'\
+            ' ---- Enter numbers ----\n'
+            '\n'\
                 .format(**self.__dict__),
             end=''
         )
@@ -144,23 +145,19 @@ class GameCli(GameCore):
     def ask_if_continue_playing(self):
         while True:
             input_ = input(
-                'Do you want to continue? [y/n]: '\
+                'Do you want to continue? [Y/n]: '\
                     .format(**self.__dict__)
             )
             input_ = input_.strip()
             if len(input_) == 0:
-                print(
-                    'Enter key!\n',
-                    end='',
-                )
-                continue
+                return True
             if re.match(input_, 'yes', flags=re.I):
                 return True
             elif re.match(input_, 'no', flags=re.I):
                 return False
             else:
                 print(
-                    'Valid key!\n'.format(input_=input_),
+                    '  Valid key!\n'.format(input_=input_),
                     end='',
                 )
 
