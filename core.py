@@ -124,12 +124,7 @@ class GameCore:
     def round(self):
         """Round method.
 
-        Handle inserting answers, taking special commands, viewing results.
-
-        RETURN:
-            'quit' - if player inserted '!quit'
-            'restart' - if player inserted '!restart'
-            'end' - if game ended successfully
+        Handle inserting answers, viewing results and GemeEvents.
         """
         self.initing_round()
         while True: # Round loop
