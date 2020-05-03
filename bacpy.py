@@ -7,7 +7,7 @@ __author__ = 'Tomasz Olszewski'
 import re
 from terminaltables import SingleTable
 
-from core import GameCore, RestartGame, QuitGame
+from core import GameCore, RestartGame, QuitGame, CancelOperation
 
 
 
@@ -18,9 +18,8 @@ class GameCli(GameCore):
 
     def difficulty_selection(self):
         """Printing options table and taking from user difficulty option."""
-        # Creating difficulty table
-        options_dict = dict(zip(range(1, len(self.DIFFICULTIES)+1),
-                self.DIFFICULTIES))
+        # Preparing table_data
+        options_dict = dict(enumerate(self.DIFFICULTIES, start=1))
         table_data = [['key', 'difficulty', 'size', 'digits']]
         for key, dif in options_dict.items():
             table_data.append([
@@ -29,31 +28,31 @@ class GameCli(GameCore):
                 self.DIFFICULTIES[dif]['number_size'],
                 self.DIFFICULTIES[dif]['digits_range']
             ])
+        table_data.append(['0', 'CANCEL', '-', '-'])
+
+        # Creating difficulty table
         selection_table = SingleTable(table_data)
         selection_table.title = 'Difficulty selection'
         selection_table.justify_columns = {
             0: 'left', 1: 'left', 2: 'center', 3: 'center'
         }
         selection_table.inner_column_border = False
+
         print(selection_table.table)
 
         # Taking input
         while True:
             input_ = input('Enter key: ').strip()
-            if not input_.isdigit():
-                print(
-                    '  Input is not a digit!\n',
-                    end='',
-                )
-                continue
-            input_ = int(input_)
-            if input_ not in options_dict:
-                print(
-                    '  Valid key!\n',
-                    end='')
+            if (not input_.isdigit()
+                    or int(input_) not in options_dict
+                    and input == '0'):
+                print('  Valid key!\n', end='')
                 continue
             break
-        return options_dict[input_]
+        if input_ == '0':
+            raise CancelOperation
+
+        return options_dict[int(input_)]
 
     def wrong_characters_in_number_message(self, wrong_chars, wrong_input):
         wrong_chars = ', '.join(map(lambda x: "'"+x+"'", wrong_chars))

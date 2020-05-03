@@ -18,6 +18,9 @@ class RestartGame(GameEvent):
     """Restart game event."""
     pass
 
+class CancelOperation(GameEvent):
+    """Operation canceled event."""
+
 
 class GameCore:
     """Core game class
@@ -67,9 +70,9 @@ class GameCore:
         """
         # Ask for difficulty if not given directly
         if difficulty is None:
-            self.difficulty = self.difficulty_selection()
-        else:
-            self.difficulty = difficulty
+            difficulty = self.difficulty_selection()
+
+        self.difficulty = difficulty
 
         # Setting difficulty
         mode = self.DIFFICULTIES[self.difficulty]
@@ -151,7 +154,10 @@ class GameCore:
         Handle multi-round game, setting difficulty, drawing number.
         """
         if self.difficulty is None:
-            self.set_difficulty()
+            try:
+                self.set_difficulty()
+            except CancelOperation:
+                return
 
         while True: # Game loop
             self.draw_number()
