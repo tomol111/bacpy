@@ -7,7 +7,8 @@ __author__ = 'Tomasz Olszewski'
 import re
 from terminaltables import SingleTable
 
-from core import GameCore
+from core import GameCore, RestartGame, QuitGame
+
 
 
 class GameCli(GameCore):
@@ -87,14 +88,31 @@ class GameCli(GameCore):
             end='',
         )
 
-    def empty_input_message(self):
-        print(
-            '  Enter number!\n',
-            end='',
-        )
 
     def take_number(self):
-        return input("[{steps}] ".format(**self.__dict__))
+        while True:
+            input_ = input("[{steps}] ".format(**self.__dict__)).strip()
+
+            # Detect special input
+            if len(input_) > 1:
+                if re.match(input_, '!quit', flags=re.I):
+                    raise QuitGame
+                if re.match(input_, '!restart', flags=re.I):
+                    raise RestartGame
+            if re.match('!', input_, flags=re.I):
+                self.special_input_hint_message()
+                continue
+
+            if not input_:
+                print('  Enter number!\n', end='')
+                continue
+
+            # Remove whitespace characters and check number syntax
+            input_ = re.sub(re.compile(r'\s+'), '', input_)
+            if not self.is_number_syntax_corect(input_):
+                continue
+
+            return input_
 
     def special_input_hint_message(self):
         print(

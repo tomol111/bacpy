@@ -4,6 +4,21 @@ import re
 from collections import Counter
 
 
+class GameEvent(Exception):
+    """Base game event class."""
+    pass
+
+
+class QuitGame(GameEvent):
+    """Quit game event."""
+    pass
+
+
+class RestartGame(GameEvent):
+    """Restart game event."""
+    pass
+
+
 class GameCore:
     """Core game class
 
@@ -118,33 +133,17 @@ class GameCore:
         """
         self.initing_round()
         while True: # Round loop
-            input_ = self.take_number()
-            input_ = input_.strip()
-
-            if not input_:
-                self.empty_input_message()
-                continue
-
-            # Detect special input
-            if len(input_) > 1:
-                if re.match(input_, '!quit', flags=re.I):
-                    self.ending_round()
-                    return 'quit'
-                if re.match(input_, '!restart', flags=re.I):
-                    self.ending_round()
-                    return 'restart'
-            if re.match('!', input_, flags=re.I):
-                self.special_input_hint_message()
-                continue
-
-            if not self.is_number_syntax_corect(input_):
-                continue
+            try:
+                input_ = self.take_number()
+            except (RestartGame, QuitGame):
+                self.ending_round()
+                raise
 
             bullscows = self.comput_bullscows(input_)
             if bullscows['bulls'] == self.number_size:
                 self.game_score_message()
                 self.ending_round()
-                return 'end'
+                return
 
             self.bulls_and_cows_message(bullscows)
 
@@ -163,13 +162,14 @@ class GameCore:
             self.draw_number()
             print(self.number) # TESTING PRINT
             self.steps = 1
-            return_ = self.round()
-            if return_ == 'end':
-                if self.ask_if_continue_playing():
-                    continue
-                else:
-                    return
-            elif return_ == 'restart':
-                pass
+            try:
+                self.round()
+            except RestartGame:
+                continue
+            except QuitGame:
+                return
+
+            if self.ask_if_continue_playing():
+                continue
             else:
                 return
