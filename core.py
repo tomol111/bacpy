@@ -12,18 +12,18 @@ class GameCore:
 
     DIFFICULTIES = {
         'easy': {
-            'possible_digits': '123456',
+            'possible_digits': set('123456'),
             'digits_range': '1-6',
             'number_size': 3,
         },
         'normal': {
-            'possible_digits': '123456789',
+            'possible_digits': set('123456789'),
             'digits_range': '1-9',
             'number_size': 4,
         },
         'hard': {
-            'possible_digits': '123456789ABCDEF',
-            'digits_range': '1-9,A-F',
+            'possible_digits': set('123456789abcdf'),
+            'digits_range': '1-9,a-f',
             'number_size': 5,
         },
     }
@@ -56,7 +56,7 @@ class GameCore:
         else:
             self.difficulty = difficulty
 
-        # Other settings
+        # Setting difficulty
         mode = self.DIFFICULTIES[self.difficulty]
         self.number_size = mode['number_size']
         self.possible_digits = mode['possible_digits']
@@ -76,35 +76,35 @@ class GameCore:
         return {'bulls': bulls, 'cows': cows}
 
 
-    def is_number_syntax_corect(self, other):
+    def is_number_syntax_corect(self, number):
         """Check if given string have correct syntax and can be compared to self."""
 
+        iscorrect = True
+
         # Check if number have wrong characters
-        wrong_chars = {
-            i for i in other
-            if not re.search(i, self.possible_digits, re.I)
-        }
+        wrong_chars = set(number) - self.possible_digits
         if wrong_chars:
             self.wrong_characters_in_number_message(
                 wrong_chars,
-                other,
+                number,
             )
-            return False
+            iscorrect = False
 
         # Check length
-        if len(other) != self.number_size:
-            self.wrong_length_of_number_message(other)
-            return False
+        if len(number) != self.number_size:
+            self.wrong_length_of_number_message(len(number))
+            iscorrect = False
 
         # Check that digits don't repeat
-        digits = Counter(other)
+        digits = Counter(number)
         repeated_digits = {i for i, n in digits.items() if n > 1}
+        repeated_digits -= wrong_chars
         if repeated_digits:
             self.repeated_digits_in_number_message(repeated_digits)
-            return False
+            correct = False
 
-        # Finally number is correct
-        return True
+        return iscorrect
+
 
     def round(self):
         """Round method.

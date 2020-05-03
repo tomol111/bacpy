@@ -57,8 +57,8 @@ class GameCli(GameCore):
     def wrong_characters_in_number_message(self, wrong_chars, wrong_input):
         wrong_chars = ', '.join(map(lambda x: "'"+x+"'", wrong_chars))
         print(
-            '  Found wrong characters: {wrong_chars}\n'
-            '  "{digits_range}" only available.\n'\
+            '  Wrong characters: {wrong_chars}.'
+            ' Correct are: "{digits_range}".\n'\
                 .format(
                     wrong_chars=wrong_chars,
                     wrong_input=wrong_input,
@@ -67,13 +67,11 @@ class GameCli(GameCore):
             end='',
         )
 
-    def wrong_length_of_number_message(self, wrong_input):
+    def wrong_length_of_number_message(self, length):
         print(
-            "  Number should have {number_size} digits. "\
-            "  You entered {length}.\n"\
+            "  You entered {length} digits. {number_size} is correct.\n"\
                 .format(
-                    length=len(wrong_input),
-                    wrong_input=wrong_input,
+                    length=length,
                     **self.__dict__,
             ),
             end='',
@@ -149,7 +147,7 @@ class GameCli(GameCore):
                     .format(**self.__dict__)
             )
             input_ = input_.strip()
-            if len(input_) == 0:
+            if not input_:
                 return True
             if re.match(input_, 'yes', flags=re.I):
                 return True
