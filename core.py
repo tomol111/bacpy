@@ -1,65 +1,53 @@
+"""This file keep core game classes"""
 
 import random
 import re
 from collections import Counter
 
-
-class GameEvent(Exception):
-    """Base game event class."""
-    pass
-
-
-class QuitGame(GameEvent):
-    """Quit game event."""
-    pass
-
-
-class RestartGame(GameEvent):
-    """Restart game event."""
-    pass
-
-class CancelOperation(GameEvent):
-    """Operation canceled event."""
+from events import RestartGame, QuitGame, CancelOperation
 
 
 class GameCore:
-    """Core game class
+    """Core game class.
 
     Don't work by itself. Have to be equiped with input-output methods.
     """
 
     DIFFICULTIES = {
         'easy': {
-            'possible_digits': set('123456'),
-            'digits_range': '1-6',
-            'number_size': 3,
+            'digs_set': set('123456'),
+            'digs_range': '1-6',
+            'num_size': 3,
         },
         'normal': {
-            'possible_digits': set('123456789'),
-            'digits_range': '1-9',
-            'number_size': 4,
+            'digs_set': set('123456789'),
+            'digs_range': '1-9',
+            'num_size': 4,
         },
         'hard': {
-            'possible_digits': set('123456789abcdf'),
-            'digits_range': '1-9,a-f',
-            'number_size': 5,
+            'digs_set': set('123456789abcdf'),
+            'digs_range': '1-9,a-f',
+            'num_size': 5,
         },
     }
 
 
-    def __init__(self):
-        self.difficulty = None
-        self.number_size = None
-        self.possible_digits = None
-        self.digits_range = None
+    def __init__(self, difficulty=None):
+        if difficulty is not None:
+            self.set_difficulty(difficulty)
+        else:
+            self.difficulty = None
+            self.num_size = None
+            self.digs_set = None
+            self.digs_range = None
         self.number = None
         self.steps = None
 
 
     def draw_number(self):
-        """Draw number digits from self.possible_digits."""
+        """Draw number digits from self.digs_set."""
         self.number = ''.join(
-            random.sample(self.possible_digits, self.number_size)
+            random.sample(self.digs_set, self.num_size)
         )
 
 
@@ -75,43 +63,42 @@ class GameCore:
         self.difficulty = difficulty
 
         # Setting difficulty
-        mode = self.DIFFICULTIES[self.difficulty]
-        self.number_size = mode['number_size']
-        self.possible_digits = mode['possible_digits']
-        self.digits_range = mode['digits_range']
+        self.num_size = self.DIFFICULTIES[difficulty]['num_size']
+        self.digs_set = self.DIFFICULTIES[difficulty]['digs_set']
+        self.digs_range = self.DIFFICULTIES[difficulty]['digs_range']
 
 
     def comput_bullscows(self, guess):
-        """Return bulls and cows for given string comparing to self."""
+        """Return bulls and cows for given input."""
         bulls, cows = 0, 0
 
-        for i in range(self.number_size):
-            if re.match(guess[i], self.number[i], flags=re.I):
+        for i in range(self.num_size):
+            if guess[i] ==  self.number[i]:
                 bulls += 1
-            elif re.search(guess[i], self.number, flags=re.I):
+            elif re.search(guess[i], self.number):
                 cows += 1
 
         return {'bulls': bulls, 'cows': cows}
 
 
-    def is_number_syntax_corect(self, number):
-        """Check if given string have correct syntax and can be compared to self."""
+    def is_number_valid(self, number):
+        """Check if given number string is valid."""
 
-        iscorrect = True
+        is_correct = True
 
         # Check if number have wrong characters
-        wrong_chars = set(number) - self.possible_digits
+        wrong_chars = set(number) - self.digs_set
         if wrong_chars:
             self.wrong_characters_in_number_message(
                 wrong_chars,
                 number,
             )
-            iscorrect = False
+            is_correct = False
 
         # Check length
-        if len(number) != self.number_size:
+        if len(number) != self.num_size:
             self.wrong_length_of_number_message(len(number))
-            iscorrect = False
+            is_correct = False
 
         # Check that digits don't repeat
         digits = Counter(number)
@@ -121,26 +108,23 @@ class GameCore:
             self.repeated_digits_in_number_message(repeated_digits)
             correct = False
 
-        return iscorrect
+        return is_correct
 
 
     def round(self):
-        """Round method.
-
-        Handle inserting answers, viewing results and GemeEvents.
-        """
-        self.initing_round()
+        """Round loop method."""
+        self.start_round()
         while True: # Round loop
             try:
                 input_ = self.take_number()
             except (RestartGame, QuitGame):
-                self.ending_round()
+                self.end_round()
                 raise
 
             bullscows = self.comput_bullscows(input_)
-            if bullscows['bulls'] == self.number_size:
-                self.game_score_message()
-                self.ending_round()
+            if bullscows['bulls'] == self.num_size:
+                self.score_message()
+                self.end_round()
                 return
 
             self.bulls_and_cows_message(bullscows)
@@ -153,10 +137,12 @@ class GameCore:
 
         Handle multi-round game, setting difficulty, drawing number.
         """
+        self.start_game()
         if self.difficulty is None:
             try:
                 self.set_difficulty()
             except CancelOperation:
+                self.end_game()
                 return
 
         while True: # Game loop
@@ -168,9 +154,11 @@ class GameCore:
             except RestartGame:
                 continue
             except QuitGame:
+                self.end_game()
                 return
 
             if self.ask_if_continue_playing():
                 continue
             else:
+                self.end_game()
                 return
