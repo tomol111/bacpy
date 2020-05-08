@@ -1,14 +1,12 @@
 """This file defines CLI for game"""
 
 import re
-from terminaltables import SingleTable
 
-from core import GameCore
+from core import MetaGame
 from events import RestartGame, QuitGame, CancelOperation
 
 
-
-class GameCLI(GameCore):
+class Game(MetaGame):
     """Completed game class with CLI."""
 
     io_type = 'CLI'
@@ -17,25 +15,26 @@ class GameCLI(GameCore):
         """Printing options table and taking from user difficulty option."""
         # Preparing table_data
         options_dict = dict(enumerate(self.DIFFICULTIES, start=1))
-        table_data = [['key', 'difficulty', 'size', 'digits']] # Header row
-        for key, dif in options_dict.items(): # Difficultes row
-            table_data.append([
-                str(key),
-                dif,
-                self.DIFFICULTIES[dif]['num_size'],
-                self.DIFFICULTIES[dif]['digs_range']
-            ])
-        table_data.append(['0', 'CANCEL', '-', '-']) # Cancel row
+        top_table = (
+                '-Difficulty selection-------------',
+                '  key  difficulty  size  digits  ',
+                '                                  ')
+        rows_template = \
+                '  {key:>2})   {difficulty:<10}  {size:^4}  {digits:^6}'
+        bottom_table = (
+                '   0)   CANCEL       -      -     ',
+                '')
+        inner_rows = [
+                rows_template.format(
+                    key=key,
+                    difficulty=difficulty,
+                    size=self.DIFFICULTIES[difficulty]['num_size'],
+                    digits=self.DIFFICULTIES[difficulty]['digs_range']
+                ) for key, difficulty in options_dict.items()
+        ]
 
-        # Creating difficulty table
-        selection_table = SingleTable(table_data)
-        selection_table.title = 'Difficulty selection'
-        selection_table.justify_columns = {
-            0: 'left', 1: 'left', 2: 'center', 3: 'center'
-        }
-        selection_table.inner_column_border = False
-
-        print(selection_table.table)
+        table = '\n'.join([*top_table, *inner_rows, *bottom_table])
+        print(table)
 
         # Taking input
         while True:
@@ -45,12 +44,14 @@ class GameCLI(GameCore):
                 print('  Invalid key!')
                 continue
             break
+        print('----------------------------------')
         if input_ == '0':
             raise CancelOperation
 
         return options_dict[int(input_)]
 
-    def wrong_characters_in_number_message(self, wrong_chars, wrong_input):
+    def _wrong_characters_in_number_message(self, wrong_chars, wrong_input):
+        """Print wrong characters in number message"""
         wrong_chars = ', '.join(map(lambda x: "'"+x+"'", wrong_chars))
         print(
             '  Wrong characters: {wrong_chars}.'
@@ -62,14 +63,16 @@ class GameCLI(GameCore):
             )
         )
 
-    def wrong_length_of_number_message(self, length):
+    def _wrong_length_of_number_message(self, length):
+        """Print wrong length of number message"""
         print(
-            "  You entered {length} digits. {num_size} is correct."\
+            "  You entered {length} digits but {num_size} is expected."\
                 .format(length=length, **vars(self)
             )
         )
 
-    def repeated_digits_in_number_message(self, rep_digs_list):
+    def _repeated_digits_in_number_message(self, rep_digs_list):
+        """Print repeated digits in number message"""
         rep_digs_str = ', '.join(
             map(lambda x: "'"+x+"'", rep_digs_list)
         )
@@ -78,7 +81,10 @@ class GameCLI(GameCore):
                 .format(rep_digs_str)
         )
 
-    def take_number(self):
+    def _take_number(self):
+        """Take number from user.
+
+        Supports special input."""
         while True:
             input_ = input("[{steps}] ".format(**vars(self))).strip()
 
@@ -103,25 +109,29 @@ class GameCLI(GameCore):
             return input_
 
     def special_input_hint_message(self):
+        """Print hint por special inputs message"""
         print('\n'.join([
             '  !q[uit]    - quit game',
             '  !r[estart] - restart game'
         ]))
 
-    def score_message(self):
+    def _score_message(self):
+        """Print score message"""
         print(
             "\n *** You guessed in {steps} steps ***\n"\
                 .format(**vars(self))
         )
 
 
-    def bulls_and_cows_message(self, bullscows):
+    def _bulls_and_cows_message(self, bullscows):
+        """Print bolls and cows message"""
         print(
             "  bulls: {bulls:>2}, cows: {cows:>2}"\
                 .format(**bullscows, **vars(self))
         )
 
-    def start_game(self):
+    def _start_game(self):
+        """Print game starting message"""
         print('\n'.join([
                 '+================================+',
                 '|--------- Game started ---------|',
@@ -129,14 +139,16 @@ class GameCLI(GameCore):
                 '',
         ]))
 
-    def end_game(self):
+    def _end_game(self):
+        """Print game ending message"""
         print('\n'.join([
                 '+================================+',
                 '|---------- Game ended ----------|',
                 '+================================+',
         ]))
 
-    def start_round(self):
+    def _start_round(self):
+        """Print round starting message"""
         print('\n'.join([
             '',
             '===== Starting round =====',
@@ -150,13 +162,15 @@ class GameCLI(GameCore):
                 .format(**vars(self))
         )
 
-    def end_round(self):
+    def _end_round(self):
+        """Print round ending message"""
         print(
             '======= Round ended ======\n'\
                 .format(**vars(self))
         )
 
-    def ask_if_continue_playing(self):
+    def _ask_if_continue_playing(self):
+        """Ask user if he want to continue plaing"""
         while True:
             input_ = input(
                 'Do you want to continue? [Y/n]: '\

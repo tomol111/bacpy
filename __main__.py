@@ -4,9 +4,9 @@ __version__ = '0.2'
 __author__ = 'Tomasz Olszewski'
 
 
-from cli import GameCLI
+from cli import Game
 
 
 if __name__ == '__main__':
     # Run game
-    GameCLI().play()
+    Game().play()
