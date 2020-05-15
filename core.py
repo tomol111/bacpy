@@ -4,226 +4,243 @@ import random
 import re
 from collections import Counter
 from abc import ABC, abstractmethod
-
-from events import RestartGame, QuitGame, CancelOperation
-
-
-class MetaGame(ABC):
-    """Core game class.
-
-    Don't work by itself. Have to be equiped with input-output methods.
-    """
-
-    DIFFICULTIES = {
-        'easy': {
-            'digs_set': set('123456'),
-            'digs_range': '1-6',
-            'num_size': 3,
-        },
-        'normal': {
-            'digs_set': set('123456789'),
-            'digs_range': '1-9',
-            'num_size': 4,
-        },
-        'hard': {
-            'digs_set': set('123456789abcdf'),
-            'digs_range': '1-9,a-f',
-            'num_size': 5,
-        },
-    }
+from dataclasses import dataclass
 
 
-    def __init__(self, difficulty=None):
-        if difficulty is not None:
-            self._set_difficulty(difficulty)
-        else:
-            self.difficylty = None
-            self.num_size = None
-            self.digs_set = None
-            self.digs_range = None
-        self.number = None
-        self.steps = None
+# ========
+# Events
+# ========
 
+
+class GameEvent(Exception):
+    """Base game event class."""
+
+
+class QuitGame(GameEvent):
+    """Quit game event."""
+
+
+class RestartGame(GameEvent):
+    """Restart game event."""
+
+
+class CancelOperation(GameEvent):
+    """Operation canceled event."""
+
+
+# ============
+# Core classes
+# ============
+
+
+@dataclass(frozen=True)
+class Difficulty:
+    """Game difficulty parameters."""
+    name: str
+    digs_set: frozenset
+    digs_range: str
+    num_size: int
+
+
+class AbstractRound(ABC):
+    """Abstract Round class."""
+
+    def __init__(self, difficulty):
+        self.set_difficulty(difficulty)
+        self._draw_number()
+        #print(self._number) # TESTING PRINT
+        self._steps = None
+
+    def set_difficulty(self, difficulty):
+        """Setting difficulty."""
+        self._difficulty = difficulty.name
+        self._num_size = difficulty.num_size
+        self._digs_set = difficulty.digs_set
+        self._digs_range = difficulty.digs_range
 
     def _draw_number(self):
-        """Draw number digits from self.digs_set."""
-        self.number = ''.join(
-            random.sample(self.digs_set, self.num_size)
+        """Draw number digits from self._digs_set."""
+        self._number = ''.join(
+            random.sample(self._digs_set, self._num_size)
         )
 
+    def _loop(self):
+        """Round main loop."""
+        self._steps = 1
+        while True:
+            bulls, cows = self._comput_bullscows(self._number_input())
 
-    def _set_difficulty(self, difficulty=None):
-        """Setting game difficulty.
+            if bulls == self._num_size:
+                self._score_output()
+                return
 
-        Ask user if not given directly.
-        """
-        # Ask for difficulty if not given directly
-        if difficulty is None:
-            difficulty = self.difficulty_selection()
+            self._bulls_and_cows_output(bulls, cows)
+            self._steps += 1
 
-        self.difficulty = difficulty
-
-        # Setting difficulty
-        self.num_size = self.DIFFICULTIES[difficulty]['num_size']
-        self.digs_set = self.DIFFICULTIES[difficulty]['digs_set']
-        self.digs_range = self.DIFFICULTIES[difficulty]['digs_range']
-
+    def run(self):
+        self._start_round()
+        try:
+            self._loop()
+        finally:
+            self._end_round()
 
     def _comput_bullscows(self, guess):
         """Return bulls and cows for given input."""
         bulls, cows = 0, 0
 
-        for i in range(self.num_size):
-            if guess[i] ==  self.number[i]:
+        for i in range(self._num_size):
+            if guess[i] == self._number[i]:
                 bulls += 1
-            elif re.search(guess[i], self.number):
+            elif re.search(guess[i], self._number):
                 cows += 1
 
-        return {'bulls': bulls, 'cows': cows}
+        return bulls, cows
 
-
-    def is_number_valid(self, number):
+    def is_number_valid(self, number, outputs=True):
         """Check if given number string is valid."""
 
         is_correct = True
 
         # Check if number have wrong characters
-        wrong_chars = set(number) - self.digs_set
+        wrong_chars = set(number) - self._digs_set
         if wrong_chars:
-            self._wrong_characters_in_number_message(
-                wrong_chars,
-                number,
-            )
             is_correct = False
+            if outputs:
+                self._wrong_chars_in_num_output(wrong_chars, number)
 
         # Check length
-        if len(number) != self.num_size:
-            self._wrong_length_of_number_message(len(number))
+        if len(number) != self._num_size:
             is_correct = False
+            if outputs:
+                self._wrong_num_len_output(len(number))
 
         # Check that digits don't repeat
         digits = Counter(number)
-        repeated_digits = {i for i, n in digits.items() if n > 1}
-        repeated_digits -= wrong_chars
-        if repeated_digits:
-            self._repeated_digits_in_number_message(repeated_digits)
-            correct = False
+        rep_digs = {i for i, n in digits.items() if n > 1}
+        rep_digs -= wrong_chars
+        if rep_digs:
+            is_correct = False
+            if outputs:
+                self._rep_digs_in_num_output(rep_digs, number)
 
         return is_correct
 
-
-    def _round(self):
-        """Round loop method."""
-        self._start_round()
-        while True: # Round loop
-            try:
-                input_ = self._take_number()
-            except (RestartGame, QuitGame):
-                self._end_round()
-                raise
-
-            bullscows = self._comput_bullscows(input_)
-            if bullscows['bulls'] == self.num_size:
-                self._score_message()
-                self._end_round()
-                return
-
-            self._bulls_and_cows_message(bullscows)
-
-            self.steps += 1
-
-
-    def play(self):
-        """Starts game.
-
-        Handle multi-round game, setting difficulty, drawing number.
-        """
-        self._start_game()
-        try:
-            self._set_difficulty()
-        except CancelOperation:
-            self._end_game()
-            return
-
-        while True: # Game loop
-            self._draw_number()
-            print(self.number) # TESTING PRINT
-            self.steps = 1
-            try:
-                self._round()
-            except RestartGame:
-                continue
-            except QuitGame:
-                self._end_game()
-                return
-
-            if self._ask_if_continue_playing():
-                continue
-            else:
-                self._end_game()
-                return
-
     @abstractmethod
-    def difficulty_selection(self):
-        """Difficulty input."""
-        pass
-
-    @abstractmethod
-    def _wrong_characters_in_number_message(self, wrong_chars, wrong_input):
-        """Output for wrong chars detected in given number.
-
-        Method runed by is_number_valid."""
-        pass
-
-    @abstractmethod
-    def _wrong_length_of_number_message(self, length):
-        """Output for wrong length of given number.
-
-        Method runed by is_number_valid."""
-        pass
-
-    @abstractmethod
-    def _repeated_digits_in_number_message(self, rep_digs_list):
-        """Output for repeated digits in given number.
-
-        Method runed by is_number_valid."""
-        pass
-
-    @abstractmethod
-    def _take_number(self):
-        """Number input"""
-        pass
-
-    @abstractmethod
-    def _score_message(self):
-        """Score output"""
-        pass
-
-    @abstractmethod
-    def _bulls_and_cows_message(self, bullscows):
-        """Bulls and cows output"""
-        pass
-
-    @abstractmethod
-    def _start_game(self):
-        """Method runed at the start of the game."""
-        pass
-
-    @abstractmethod
-    def _end_game(self):
-        """Method runed at the end of the game."""
-        pass
-
     def _start_round(self):
         """Method runed at the start of the round."""
-        pass
 
     @abstractmethod
     def _end_round(self):
         """Method runed at the end of the round."""
-        pass
+
+    @abstractmethod
+    def _wrong_chars_in_num_output(self, wrong_chars, wrong_input):
+        """Output for wrong chars detected in given number.
+
+        Method runed by self.is_number_valid."""
+
+    @abstractmethod
+    def _wrong_num_len_output(self, length):
+        """Output for wrong length of given number.
+
+        Method runed by self.is_number_valid."""
+
+    @abstractmethod
+    def _rep_digs_in_num_output(self, rep_digs, wrong_input):
+        """Output for repeated digits in given number.
+
+        Method runed by self.is_number_valid."""
+
+    @abstractmethod
+    def _number_input(self):
+        """Number input"""
+
+    @abstractmethod
+    def _bulls_and_cows_output(self, bulls, cows):
+        """Bulls and cows output"""
+
+    @abstractmethod
+    def _score_output(self):
+        """Score output"""
+
+
+class AbstractGame(ABC):
+    """Abstract game class."""
+
+    DIFFICULTIES = [Difficulty(*record) for record in (
+        ('easy',   frozenset('123456'),         '1-6',     3),
+        ('normal', frozenset('123456789'),      '1-9',     4),
+        ('hard',   frozenset('123456789abcdf'), '1-9,a-f', 5),
+    )]
+
+    def __init__(self, Round, difficulty=None):
+        self.Round = Round
+        if difficulty is not None:
+            self.set_difficulty(difficulty)
+        else:
+            self._difficulty = None
+
+    def set_difficulty(self, difficulty=None):
+        """Setting game difficulty.
+
+        Ask user if not given directly.
+        Prevent from set None when self.difficulty_input()
+        raise CancelOperation.
+        """
+        # Ask for difficulty if not given directly
+        if difficulty is None:
+            difficulty = self.difficulty_input()
+
+        self._difficulty = difficulty
+
+    def _loop(self):
+        """Main Game loop."""
+        try:
+            self.set_difficulty()
+        except CancelOperation:
+            return
+
+        while True: # Game loop
+            try:
+                self.Round(self._difficulty).run()
+            except RestartGame:
+                continue
+            except QuitGame:
+                return
+
+            try:
+                if self._ask_if_continue_playing():
+                    continue
+                else:
+                    return
+            except CancelOperation:
+                return
+
+    def run(self):
+        """Runs game loop.
+
+        It is responsible to call self._start_game and self._end_game.
+        """
+
+        self._start_game()
+        try:
+            self._loop()
+        finally:
+            self._end_game()
+
+
+    @abstractmethod
+    def difficulty_input(self):
+        """Difficulty input."""
+
+    @abstractmethod
+    def _start_game(self):
+        """Method called at the start of the game."""
+
+    @abstractmethod
+    def _end_game(self):
+        """Method called at the end of the game."""
 
     @abstractmethod
     def _ask_if_continue_playing(self):
         """Input to confirm to repeat round"""
-        pass

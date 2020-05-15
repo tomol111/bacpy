@@ -9,4 +9,4 @@ from cli import Game
 
 if __name__ == '__main__':
     # Run game
-    Game().play()
+    Game().run()
