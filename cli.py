@@ -1,6 +1,8 @@
 """This file defines CLI for game"""
 
 import re
+import subprocess
+import sys
 
 from core import AbstractGame, AbstractRound, \
         QuitGame, RestartGame, CancelOperation
@@ -29,6 +31,16 @@ class CLITools:
                 return True
             elif re.match(input_, 'no', flags=re.I):
                 return False
+
+    def pager(self, string, program='less', args=None):
+        """Use pager to show text."""
+        if params is None:
+            params=[]
+        with subprocess.Popen([program, *params],
+                stdin=subprocess.PIPE, stdout=sys.stdout) as pager:
+            pager.stdin.write(str.encode(string))
+            pager.stdin.close()
+            pager.wait()
 
 
 class Round(AbstractRound, CLITools):
@@ -100,10 +112,17 @@ class Round(AbstractRound, CLITools):
                     command = input_[1:]
                     if re.match(command, 'quit'):
                         raise QuitGame
-                    if re.match(command, 'restart'):
+                    elif re.match(command, 'restart'):
                         raise RestartGame
-                self.special_input_hint_output()
-                continue
+                    elif re.match(command, 'help'):
+                        self.show_help()
+                        continue
+                    else:
+                        self.special_input_hint_output()
+                        continue
+                else:
+                    self.special_input_hint_output()
+                    continue
 
             input_ = re.sub(r'\s+', '', input_)
             if not self.is_number_valid(input_):
@@ -117,6 +136,24 @@ class Round(AbstractRound, CLITools):
             '  !q[uit]    - quit game',
             '  !r[estart] - restart game'
         ]))
+
+    def show_help(self):
+        """Show message about game and rules."""
+        self.pager('\n'.join([
+            '# HELP ',
+            '',
+            'BacPy is "Bulls and Cows" game implementation.',
+            '',
+            'Rules are:',
+            '   * You have to guess number of witch digits do not repeat.',
+            '   * Enter your guess and program will return numbers of',
+            '     bulls (amount of digits that are correct and have',
+            '     correct position) and cows (amount of correct digits',
+            '     but with wrong position).',
+            '   * Try to find correct number with fewest amount of',
+            '     attempts.']),
+            args=['-C'] # Prevent from showing text on bottom of the screen
+        )
 
     def _score_output(self):
         """Print score message"""
@@ -166,6 +203,7 @@ class Game(AbstractGame, CLITools):
                 input_ = input('Enter key: ').strip()
             except EOFError:
                 print() # Print lost new line character
+                print(selection_end)
                 raise CancelOperation
             except KeyboardInterrupt:
                 print() # Print lost new line character
