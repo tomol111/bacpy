@@ -35,17 +35,41 @@ class CancelOperation(GameEvent):
 
 
 # ============
-# Core classes
+# Difficulties
 # ============
 
 
 @dataclass(frozen=True)
 class Difficulty:
     """Game difficulty parameters."""
+
     name: str
     digs_set: frozenset
     digs_range: str
     num_size: int
+
+    @classmethod
+    def from_str(cls, string, sep=','):
+        """Create difficulty object from strings."""
+        name, digs_set, digs_range, num_size = list(
+            map(lambda x: x.strip(), string.split(sep)))
+
+        digs_set = frozenset(digs_set)
+        num_size = int(num_size)
+
+        return cls(name, digs_set, digs_range, num_size)
+
+
+DIFFICULTIES = [Difficulty.from_str(record) for record in (
+    'easy,   123456,         1-6,    3',
+    'normal, 123456789,      1-9,    4',
+    'hard,   123456789abcdf, 1-9a-f, 5',
+)]
+
+
+# ============
+# Core classes
+# ============
 
 
 class CLITools:
@@ -79,6 +103,69 @@ class CLITools:
             pager.stdin.write(str.encode(string))
             pager.stdin.close()
             pager.wait()
+
+
+class DifficultySelection(CLITools):
+    """Difficulty selection class"""
+
+    def __init__(self):
+        # Make class attributes
+        self._options_dict = dict(enumerate(DIFFICULTIES, start=1))
+        self._table = self._build_table()
+        self._selection_start = \
+            '------ Difficulty selection ------'
+        self._selection_end = \
+            '----------------------------------'
+    def _build_table(self):
+        """Prepare table"""
+
+        top_table = (
+            '',
+            '  key  difficulty   size  digits  ',
+        )
+        inner_row_template = \
+            ' {key:>2})    {difficulty:<11} {size:^4}  {digits:^6} '
+        bottom_table = ('',)
+
+        inner_rows = (
+            inner_row_template.format(
+                key=key,
+                difficulty=difficulty.name,
+                size=difficulty.num_size,
+                digits=difficulty.digs_range
+            ) for key, difficulty in self._options_dict.items()
+        )
+
+        return '\n'.join([*top_table, *inner_rows, *bottom_table])
+
+    def _loop(self):
+        """Taking from user difficulty option."""
+        while True:
+            try:
+                input_ = input('Enter key: ').strip()
+            except EOFError:
+                print() # Print lost new line character
+                raise CancelOperation
+            except KeyboardInterrupt:
+                print() # Print lost new line character
+                continue
+
+            if (not input_.isdigit()
+                    or int(input_) not in self._options_dict):
+                continue
+            else:
+                break
+
+        return self._options_dict[int(input_)]
+
+    def run(self):
+        """Run difficulty selection."""
+        print(self._selection_start)
+        print(self._table)
+        try:
+            return self._loop()
+        finally:
+            print(self._selection_end)
 
 
 class Round(CLITools):
@@ -286,37 +373,18 @@ class Round(CLITools):
 class Game(CLITools):
     """Game class."""
 
-    DIFFICULTIES = [Difficulty(*record) for record in (
-        ('easy',   frozenset('123456'),         '1-6',     3),
-        ('normal', frozenset('123456789'),      '1-9',     4),
-        ('hard',   frozenset('123456789abcdf'), '1-9,a-f', 5),
-    )]
-
     def __init__(self, difficulty=None):
-        if difficulty is not None:
-            self.set_difficulty(difficulty)
-        else:
-            self._difficulty = None
-
-    def set_difficulty(self, difficulty=None):
-        """Setting game difficulty.
-
-        Ask user if not given directly.
-        Prevent from set None when self.difficulty_input()
-        raise CancelOperation.
-        """
-        # Ask for difficulty if not given directly
-        if difficulty is None:
-            difficulty = self.difficulty_input()
-
         self._difficulty = difficulty
 
     def _loop(self):
         """Main Game loop."""
-        try:
-            self.set_difficulty()
-        except CancelOperation:
-            return
+        # Setting difficyulty
+        if self._difficulty is None:
+            try:
+                self._difficulty = \
+                    DifficultySelection().run()
+            except CancelOperation:
+                return
 
         while True: # Game loop
             try:
@@ -346,68 +414,21 @@ class Game(CLITools):
         finally:
             self._end_game()
 
-    def difficulty_input(self):
-        """Printing options table and taking from user difficulty option."""
-        # Preparing table_data
-        options_dict = dict(enumerate(self.DIFFICULTIES, start=1))
-        top_table = (
-                '------ Difficulty selection ------',
-                '                                  ',
-                '  key  difficulty   size  digits  ',
-        )
-        inner_row_template = \
-                ' {key:>2})    {difficulty:<11} {size:^4}  {digits:^6} '
-        bottom_table = ('',)
-        selection_end = \
-                '----------------------------------'
-        inner_rows = (
-                inner_row_template.format(
-                    key=key,
-                    difficulty=difficulty.name,
-                    size=difficulty.num_size,
-                    digits=difficulty.digs_range
-                ) for key, difficulty in options_dict.items()
-        )
-
-        table = '\n'.join([*top_table, *inner_rows, *bottom_table])
-        print(table)
-
-        # Taking input
-        while True:
-            try:
-                input_ = input('Enter key: ').strip()
-            except EOFError:
-                print() # Print lost new line character
-                print(selection_end)
-                raise CancelOperation
-            except KeyboardInterrupt:
-                print() # Print lost new line character
-                continue
-
-            if not input_.isdigit() or int(input_) not in options_dict:
-                continue
-            else:
-                break
-
-        print(selection_end)
-
-        return options_dict[int(input_)]
-
     def _start_game(self):
         """Print game starting message"""
         print('\n'.join([
-                '==================================',
-                '---------- Game started ----------',
-                '==================================',
-                '',
+            '==================================',
+            '---------- Game started ----------',
+            '==================================',
+            '',
         ]))
 
     def _end_game(self):
         """Print game ending message"""
         print('\n'.join([
-                '==================================',
-                '----------- Game ended -----------',
-                '==================================',
+            '==================================',
+            '----------- Game ended -----------',
+            '==================================',
         ]))
 
     def _ask_if_continue_playing(self):
