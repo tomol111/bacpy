@@ -204,6 +204,11 @@ class Round(CLITools):
             self._steps += 1
 
     def run(self):
+        """Run round loop.
+
+        It is responsible to call self._start_game and self._end_game.
+        """
+
         self._start_round()
         try:
             self._loop()
