@@ -96,9 +96,9 @@ class CLITools:
 
     def pager(self, string, program='less', args=None):
         """Use pager to show text."""
-        if params is None:
-            params=[]
-        with subprocess.Popen([program, *params],
+        if args is None:
+            args=[]
+        with subprocess.Popen([program, *args],
                 stdin=subprocess.PIPE, stdout=sys.stdout) as pager:
             pager.stdin.write(str.encode(string))
             pager.stdin.close()
