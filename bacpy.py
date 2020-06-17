@@ -12,8 +12,8 @@ from math import factorial
 import random
 import re
 import subprocess
-import sys
 from textwrap import dedent
+from time import sleep
 from typing import (ClassVar, Collection, Dict, FrozenSet, Iterable,
                     Iterator, List, Optional, Union, Tuple, Type, TypeVar)
 from typing_extensions import Literal
@@ -169,6 +169,50 @@ class DifficultyContainer(Collection[Difficulty], Iterable[Difficulty]):
             return item
 
 
+# ===============
+# History classes
+# ===============
+
+
+@dataclass(frozen=True)
+class HistoryRecord:
+    """Keep round step data."""
+    __slots__ = ('step', 'bulls', 'cows')
+    step: int
+    bulls: int
+    cows: int
+
+
+class HistoryContainer:
+    """Keep HistoryRecords."""
+
+    def __init__(self, difficulty: Difficulty) -> None:
+        self._difficulty = difficulty
+        self._records = []
+
+    def __iter__(self) -> Iterator[HistoryRecord]:
+        return iter(self._records[:])
+
+    @property
+    def difficulty(self):
+        return self._difficulty
+
+    def append(self, item: HistoryRecord) -> None:
+        self._records.append(item)
+
+    def iter_elements(self, elements: List[Literal['step', 'bulls', 'cows']])\
+            -> Iterator[List[int]]:
+        """Iterate through available HistoryRecords' elements in given order."""
+        for item in self:
+            record = []
+            for element in elements:
+                if hasattr(item, element):
+                    record.append(getattr(item, element))
+                else:
+                    raise KeyError(f"'{element}' element can't be used")
+            yield record
+
+
 # ======
 # Events
 # ======
@@ -230,9 +274,8 @@ class CLITools:
         # '-C' flag prevent from showing text on bottom of the screen
         args = ['-C'] if args is None else []
 
-        with subprocess.Popen(
-                [program, *args],
-                stdin=subprocess.PIPE, stdout=sys.stdout) as pager:
+        with subprocess.Popen([program, *args],
+                              stdin=subprocess.PIPE) as pager:
             pager.stdin.write(str.encode(string))  # type: ignore
             pager.stdin.close()  # type: ignore
             pager.wait()
@@ -474,6 +517,44 @@ class DifficultyCmd(Command):
             raise RestartGame
 
 
+class Clear(Command):
+    """!c[lean]
+
+    Clear screan.
+    """
+
+    name = 'clear'
+    shorthand = 'c'
+
+    def execute(self, arg: str) -> None:
+        if arg:
+            raise CommandError(f"  '{self.name}' command take no arguments")
+
+        subprocess.Popen(['clear'])
+        sleep(0.001)  # some time to clear the screen before printing
+
+
+class History(Command):
+    """!h[istory] [-c]
+
+    Show history.
+        '-c' - before showing history clear the screan
+    """
+
+    name = 'history'
+    shorthand = 'hi'
+
+    def execute(self, arg: str) -> None:
+        if arg == '-c':
+            self.game.commands['clear']().execute('')
+        elif arg:
+            raise CommandError(f"  invalid argument '{arg}'")
+        print("  Step  Bulls  Cows")
+        for step, bulls, cows in self.game.round.history.iter_elements(
+                ['step', 'bulls', 'cows']):
+            print(f"  {step:>2}:    {bulls:>2}     {cows:>2}")
+
+
 # ============
 # Core classes
 # ============
@@ -541,6 +622,8 @@ class Round(CLITools, GameAware):
     """Round class."""
 
     def __init__(self, difficulty: Difficulty) -> None:
+        self.history = HistoryContainer(difficulty)
+
         self._dif_name = difficulty.name
         self._num_size = difficulty.num_size
         self._digs_set = difficulty.digs_set
@@ -562,6 +645,7 @@ class Round(CLITools, GameAware):
         self._steps = 1
         while True:
             bulls, cows = self._comput_bullscows(self._number_input())
+            self.history.append(HistoryRecord(self._steps, bulls, cows))
 
             if bulls == self._num_size:
                 self._score_output()
@@ -724,11 +808,14 @@ class Game(CLITools):
 
         while True:  # Game loop
             try:
-                Round(self.current_dif).run()
+                self.round = Round(self.current_dif)
+                self.round.run()
             except RestartGame:
                 continue
             except QuitGame:
                 return
+            finally:
+                del self.round
 
             try:
                 if self._ask_if_continue_playing():
