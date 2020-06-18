@@ -9,23 +9,28 @@ from abc import ABCMeta, abstractmethod
 from collections import Counter
 from dataclasses import dataclass
 from math import factorial
+import os
 import random
 import re
 import subprocess
 from textwrap import dedent
-from time import sleep
 from typing import (ClassVar, Collection, Dict, FrozenSet, Iterable,
                     Iterator, List, Optional, Union, Tuple, Type, TypeVar)
 from typing_extensions import Literal
 
 from pandas import Series  # type: ignore
+from prompt_toolkit import PromptSession  # type: ignore
+from prompt_toolkit.document import Document  # type: ignore
+from prompt_toolkit.shortcuts import prompt  # type: ignore
+from prompt_toolkit.validation import (  # type: ignore
+        Validator, ValidationError)
+
 
 # Type variables
 T = TypeVar('T')
 
 # Constants
 DEBUGING_MODE = True
-DIF_INDEX_START = 1
 
 
 # =========
@@ -73,7 +78,7 @@ class Difficulty:
         """All possible numbers for this difficulty settings."""
         n = len(self.digs_set)
         k = self.num_size
-        return round(factorial(n) / factorial(n-k))
+        return factorial(n) // factorial(n-k)
 
     def __eq__(self, other: object) -> bool:
         """Compare 'variance' and 'num_size'."""
@@ -98,13 +103,15 @@ class Difficulty:
 class DifficultyContainer(Collection[Difficulty], Iterable[Difficulty]):
     """Keeps available difficulties.
 
-    Uses DIF_INDEX_START to handle index."""
+    Uses DIF_INDEX_START to handle index.
+    """
 
     DEFAULT_DIFS = [Difficulty.from_str(record) for record in (
         'easy,   123456,         1-6,    3',
         'normal, 123456789,      1-9,    4',
         'hard,   123456789abcdf, 1-9a-f, 5',
     )]
+    DIF_INDEX_START = 1
 
     def __init__(self) -> None:
         self._difs = Series(
@@ -120,7 +127,7 @@ class DifficultyContainer(Collection[Difficulty], Iterable[Difficulty]):
     def __getitem__(self, key: Union[str, int]) -> Difficulty:
         """Return Difficulty by given name or index."""
         if isinstance(key, int):
-            key -= DIF_INDEX_START
+            key -= self.DIF_INDEX_START
         return self._difs[key]
 
     def __contains__(self, name: object) -> bool:
@@ -135,7 +142,7 @@ class DifficultyContainer(Collection[Difficulty], Iterable[Difficulty]):
     def isindex(self, number: int) -> bool:
         """Return True if given number is available index."""
         return isinstance(number, int) and \
-            DIF_INDEX_START <= number < len(self)+DIF_INDEX_START
+            self.DIF_INDEX_START <= number < len(self)+self.DIF_INDEX_START
 
     def iter_elements(
             self,
@@ -188,7 +195,7 @@ class HistoryContainer:
 
     def __init__(self, difficulty: Difficulty) -> None:
         self._difficulty = difficulty
-        self._records = []
+        self._records: List[HistoryRecord] = []
 
     def __iter__(self) -> Iterator[HistoryRecord]:
         return iter(self._records[:])
@@ -202,7 +209,8 @@ class HistoryContainer:
 
     def iter_elements(self, elements: List[Literal['step', 'bulls', 'cows']])\
             -> Iterator[List[int]]:
-        """Iterate through available HistoryRecords' elements in given order."""
+        """Iterate through available HistoryRecords' elements
+        in given order."""
         for item in self:
             record = []
             for element in elements:
@@ -246,47 +254,36 @@ class CommandError(GameEvent):
 # ========
 
 
-class CLITools:
-    """Class with basic methods for CLI."""
+def ask_ok(prompt_message: str, default: bool = True) -> bool:
+    """Yes-No input."""
+    while True:
+        try:
+            input_ = re.escape(prompt(prompt_message).strip())
+        except EOFError:
+            raise CancelOperation
+        except KeyboardInterrupt:
+            continue
 
-    def _ask_ok(self, prompt: str, default: bool = True) -> bool:
-        """Yes-No input."""
-        while True:
-            try:
-                input_ = re.escape(input(prompt).strip())
-            except EOFError:
-                print()  # Print lost new line character
-                raise CancelOperation
-            except KeyboardInterrupt:
-                print()  # Print lost new line character
-                continue
-
-            if not input_:
-                return default
-            if re.match(input_, 'yes', flags=re.I):
-                return True
-            if re.match(input_, 'no', flags=re.I):
-                return False
-
-    def pager(self, string: str, program: str = 'less',
-              args: Optional[List[str]] = None) -> None:
-        """Use pager to show text."""
-        # '-C' flag prevent from showing text on bottom of the screen
-        args = ['-C'] if args is None else []
-
-        with subprocess.Popen([program, *args],
-                              stdin=subprocess.PIPE) as pager:
-            pager.stdin.write(str.encode(string))  # type: ignore
-            pager.stdin.close()  # type: ignore
-            pager.wait()
+        if not input_ and default is not None:
+            return default
+        if re.match(input_, 'yes', flags=re.I):
+            return True
+        if re.match(input_, 'no', flags=re.I):
+            return False
 
 
-# ============
+def pager(text: str) -> None:
+    """Use pager to show text."""
+    # '-C' flag prevent from showing text on bottom of the screen
+    subprocess.run(['less', '-C'], input=str.encode(text))
+
+
+# ========
 # Commands
-# ============
+# ========
 
 
-class Command(CLITools, GameAware, metaclass=ABCMeta):
+class Command(GameAware, metaclass=ABCMeta):
     """Command abstract class and commands manager."""
 
     PREFIX: ClassVar[str] = '!'
@@ -420,7 +417,7 @@ class Help(Command):
 
     def execute(self, arg: str) -> None:
         if not arg:
-            self.pager(self.GAME_HELP)
+            pager(self.GAME_HELP)
             return
 
         if arg == 'commands':
@@ -439,8 +436,8 @@ class Help(Command):
 
     def _commands_help(self) -> None:
         """Run pager with all commands' doc."""
-        self.pager('\n'.join([cmd.doc for cmd in self.game.commands
-                              if cmd.doc is not None]))
+        pager('\n'.join([cmd.doc for cmd in self.game.commands
+                         if cmd.doc is not None]))
 
 
 class Quit(Command):
@@ -530,12 +527,16 @@ class Clear(Command):
         if arg:
             raise CommandError(f"  '{self.name}' command take no arguments")
 
-        subprocess.Popen(['clear'])
-        sleep(0.001)  # some time to clear the screen before printing
+        if os.name in ('nt', 'dos'):
+            subprocess.call('cls')
+        elif os.name in ('linux', 'osx', 'posix'):
+            subprocess.call('clear')
+        else:
+            print('\n' * 120)
 
 
 class History(Command):
-    """!h[istory] [-c]
+    """!hi[story] [-c]
 
     Show history.
         '-c' - before showing history clear the screan
@@ -560,15 +561,21 @@ class History(Command):
 # ============
 
 
-class DifficultySelection(CLITools, GameAware):
+class DifficultySelection(GameAware):
     """Difficulty selection class."""
+
+    SELECTION_START = \
+        '------ Difficulty selection ------'
+
+    SELECTION_END = \
+        '----------------------------------'
 
     def __init__(self) -> None:
         self._table = self._build_table()
-        self._selection_start = \
-            '------ Difficulty selection ------'
-        self._selection_end = \
-            '----------------------------------'
+        self.validator = Validator.from_callable(
+            self.validator_func,
+            error_message='Invalid key',
+            move_cursor_to_end=True)
 
     def _build_table(self) -> str:
         """Prepare table"""
@@ -589,37 +596,74 @@ class DifficultySelection(CLITools, GameAware):
 
         return '\n'.join([*top_table, *inner_rows, *bottom_table])
 
-    def _loop(self) -> Difficulty:
-        """Taking from user difficulty option."""
-        while True:
-            try:
-                input_ = input('Enter key: ').strip()
-            except EOFError:
-                print()  # Print lost new line character
-                raise CancelOperation
-            except KeyboardInterrupt:
-                print()  # Print lost new line character
-                continue
-
-            try:
-                difficulty = self.game.difs[int(input_)]
-            except (ValueError, IndexError):
-                continue
-            else:
-                return difficulty
+    def validator_func(self, text: str) -> bool:
+        try:
+            return self.game.difs.isindex(int(text))
+        except ValueError:
+            return False
 
     def run(self) -> Difficulty:
         """Run difficulty selection."""
-        print(self._selection_start)
+        print(self.SELECTION_START)
         print(self._table)
         try:
-            return self._loop()
+            while True:
+                try:
+                    input_ = prompt('Enter key: ',
+                                    validator=self.validator,
+                                    validate_while_typing=False).strip()
+                except EOFError:
+                    raise CancelOperation
+                except KeyboardInterrupt:
+                    continue
+
+                try:
+                    difficulty = self.game.difs[int(input_)]
+                except (ValueError, IndexError):
+                    continue
+                else:
+                    return difficulty
         finally:
-            print(self._selection_end)
+            print(self.SELECTION_END)
 
 
-class Round(CLITools, GameAware):
+class RoundValidator(Validator, GameAware):
+
+    def validate(self, document: Document) -> None:
+        input_: str = document.text
+        digs_set = self.game.round._digs_set
+        num_size = self.game.round._num_size
+
+        if not input_.startswith(Command.PREFIX):
+            # Check if number have wrong characters
+            wrong_chars = set(input_) - digs_set
+            if wrong_chars:
+                raise ValidationError(
+                    message="Wrong characters: %s" %
+                            ', '.join(map(lambda x: f"'{x}'", wrong_chars)),
+                    cursor_position=float('inf'))
+
+            # Check length
+            if len(input_) != num_size:
+                raise ValidationError(
+                        message="Digit must have %s digits" % num_size,
+                        cursor_position=float('inf'))
+
+            # Check that digits don't repeat
+            digits = Counter(input_)
+            rep_digs = {i for i, n in digits.items() if n > 1}
+            if rep_digs:
+                raise ValidationError(
+                    message="Number can't have repeated digits. %s repeated." %
+                            ', '.join(map(lambda x: f"'{x}'", rep_digs)),
+                    cursor_position=float('inf'))
+
+
+class Round(GameAware):
     """Round class."""
+
+    ROUND_START = '\n===== Round started ======\n'
+    ROUND_END = '\n======= Round ended ======\n'
 
     def __init__(self, difficulty: Difficulty) -> None:
         self.history = HistoryContainer(difficulty)
@@ -640,31 +684,26 @@ class Round(CLITools, GameAware):
             random.sample(self._digs_set, self._num_size)
         )
 
-    def _loop(self) -> None:
-        """Round main loop."""
-        self._steps = 1
-        while True:
-            bulls, cows = self._comput_bullscows(self._number_input())
-            self.history.append(HistoryRecord(self._steps, bulls, cows))
-
-            if bulls == self._num_size:
-                self._score_output()
-                return
-
-            self._bulls_and_cows_output(bulls, cows)
-            self._steps += 1
-
     def run(self) -> None:
-        """Run round loop.
-
-        It is responsible to call self._start_game and self._end_game.
-        """
-
-        self._start_round()
+        """Run round loop."""
+        print(self.ROUND_START)
         try:
-            self._loop()
+            self.ps = PromptSession(bottom_toolbar=self._toolbar,
+                                    validator=RoundValidator(),
+                                    validate_while_typing=False)
+            self._steps = 1
+            while True:
+                bulls, cows = self._comput_bullscows(self._number_input())
+                self.history.append(HistoryRecord(self._steps, bulls, cows))
+
+                if bulls == self._num_size:
+                    self._score_output()
+                    return
+
+                self._bulls_and_cows_output(bulls, cows)
+                self._steps += 1
         finally:
-            self._end_round()
+            print(self.ROUND_END)
 
     def _comput_bullscows(self, guess: str) -> Tuple[int, int]:
         """Return bulls and cows for given input."""
@@ -678,83 +717,16 @@ class Round(CLITools, GameAware):
 
         return bulls, cows
 
-    def is_number_valid(self, number: str, outputs: bool = True) -> bool:
-        """Check if given number string is valid."""
-
-        is_correct = True
-
-        # Check if number have wrong characters
-        wrong_chars = set(number) - self._digs_set
-        if wrong_chars:
-            is_correct = False
-            if outputs:
-                self._wrong_chars_in_num_output(wrong_chars, number)
-
-        # Check length
-        if len(number) != self._num_size:
-            is_correct = False
-            if outputs:
-                self._wrong_num_len_output(len(number))
-
-        # Check that digits don't repeat
-        digits = Counter(number)
-        rep_digs = {i for i, n in digits.items() if n > 1}
-        rep_digs -= wrong_chars
-        if rep_digs:
-            is_correct = False
-            if outputs:
-                self._rep_digs_in_num_output(rep_digs, number)
-
-        return is_correct
-
-    def _start_round(self) -> None:
-        """Print round starting message"""
-        print(dedent(f"""
-            ===== Starting round =====
-
-              Difficulty:  {self._dif_name:>9}
-              Number size: {self._num_size:>9}
-              Digits range:{self._digs_range:>9}
-        """))
-
-    def _end_round(self) -> None:
-        """Print round ending message"""
-        print('======= Round ended ======\n')
-
-    def _wrong_chars_in_num_output(self, wrong_chars: Iterable[str],
-                                   wrong_input: str) -> None:
-        """Print wrong characters in number message"""
-        wrong_chars = ', '.join(map(lambda x: f"'{x}'", wrong_chars))
-        print(
-            f'  Wrong characters: {wrong_chars}.'
-            f' Correct are: "{self._digs_range}".'
-        )
-
-    def _wrong_num_len_output(self, length: int) -> None:
-        """Print wrong length of number message"""
-        print(f"  You entered {length} digits but {self._num_size} "
-              f"is expected.")
-
-    def _rep_digs_in_num_output(self, rep_digs: Iterable[str],
-                                wrong_input: str) -> None:
-        """Print repeated digits in number message"""
-        rep_digs_str = ', '.join(
-            map(lambda x: f"'{x}'", rep_digs)
-        )
-        print(f"  Number can't have repeated digits. {rep_digs_str} repeated.")
-
     def _number_input(self) -> str:
         """Take number from user.
 
         Supports special input."""
         while True:
             try:
-                input_ = input(f"[{self._steps}] ").strip()
+                input_ = self.ps.prompt(f"[{self._steps}] ").strip()
             except EOFError:
-                print()  # Print lost new line character
                 try:
-                    if self._ask_ok(
-                            'Do you really want to quit? [Y/n]: '):
+                    if ask_ok('Do you really want to quit? [Y/n]: '):
                         raise QuitGame
                     else:
                         continue
@@ -762,7 +734,6 @@ class Round(CLITools, GameAware):
                     raise QuitGame
                 continue
             except KeyboardInterrupt:
-                print()  # Print lost new line character
                 continue
 
             if not input_:
@@ -770,9 +741,6 @@ class Round(CLITools, GameAware):
 
             if input_.startswith(Command.PREFIX):
                 self.game.commands.parse_cmd(input_)
-                continue
-
-            if not self.is_number_valid(input_):
                 continue
 
             return input_
@@ -783,79 +751,71 @@ class Round(CLITools, GameAware):
 
     def _score_output(self) -> None:
         """Print score message"""
-        print(f"\n *** You guessed in {self._steps} steps ***\n")
+        print(f"\n *** You guessed in {self._steps} steps ***")
+
+    @property
+    def _toolbar(self):
+        return (f"Difficulty: {self._dif_name} | "
+                f"Number size: {self._num_size} | "
+                f"Digits range: {self._digs_range}")
 
 
-class Game(CLITools):
+class Game:
     """Game class."""
 
+    GAME_START = dedent("""
+        ==================================
+        ---------- Game started ----------
+        ==================================
+    """)
+
+    GAME_END = dedent("""
+        ==================================
+        ----------- Game ended -----------
+        ==================================
+    """)
+
     def __init__(self, difficulty: Optional[Difficulty] = None) -> None:
-        self.current_dif = difficulty
         GameAware.game_set(self)
+
+        self.current_dif = difficulty
         self.difs = DifficultyContainer()
         self.commands = CommandContainer()
-
-    def _loop(self) -> None:
-        """Main Game loop."""
-        # Setting difficulty
-        if self.current_dif is None:
-            try:
-                difficulty = DifficultySelection().run()
-            except CancelOperation:
-                return
-            else:
-                self.current_dif = difficulty
-
-        while True:  # Game loop
-            try:
-                self.round = Round(self.current_dif)
-                self.round.run()
-            except RestartGame:
-                continue
-            except QuitGame:
-                return
-            finally:
-                del self.round
-
-            try:
-                if self._ask_if_continue_playing():
-                    continue
-                else:
-                    return
-            except CancelOperation:
-                return
+        self.round: Round
 
     def run(self) -> None:
-        """Runs game loop.
+        """Runs game loop."""
 
-        It is responsible to call self._start_game and self._end_game.
-        """
-
-        self._start_game()
+        print(self.GAME_START)
         try:
-            self._loop()
+            if self.current_dif is None:  # Setting difficulty
+                try:
+                    difficulty = DifficultySelection().run()
+                except CancelOperation:
+                    return
+                else:
+                    self.current_dif = difficulty
+
+            while True:  # Game loop
+                try:
+                    self.round = Round(self.current_dif)
+                    self.round.run()
+                except RestartGame:
+                    continue
+                except QuitGame:
+                    return
+                finally:
+                    del self.round
+
+                try:
+                    if ask_ok('Do you want to continue? [Y/n]: '):
+                        continue
+                    else:
+                        return
+                except CancelOperation:
+                    return
         finally:
-            self._end_game()
-
-    def _start_game(self) -> None:
-        """Print game starting message"""
-        print(dedent("""
-            ==================================
-            ---------- Game started ----------
-            ==================================
-        """))
-
-    def _end_game(self) -> None:
-        """Print game ending message"""
-        print(dedent("""
-            ==================================
-            ----------- Game ended -----------
-            ==================================
-        """))
-
-    def _ask_if_continue_playing(self) -> bool:
-        """Ask user if he want to continue playing"""
-        return self._ask_ok('Do you want to continue? [Y/n]: ')
+            print(self.GAME_END)
 
 
 if __name__ == '__main__':
