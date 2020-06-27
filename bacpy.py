@@ -605,13 +605,16 @@ class RoundValidator(Validator, GameAware):
                 raise ValidationError(
                     message="Wrong characters: %s" %
                             ', '.join(map(lambda x: f"'{x}'", wrong_chars)),
-                    cursor_position=float('inf'))
+                    cursor_position=max(input_.rfind(dig)
+                                        for dig in wrong_chars) + 1
+                )
 
             # Check length
             if len(input_) != num_size:
                 raise ValidationError(
-                        message="Digit must have %s digits" % num_size,
-                        cursor_position=float('inf'))
+                    message="Digit must have %s digits" % num_size,
+                    cursor_position=float('inf')
+                )
 
             # Check that digits don't repeat
             digits = Counter(input_)
@@ -620,7 +623,9 @@ class RoundValidator(Validator, GameAware):
                 raise ValidationError(
                     message="Number can't have repeated digits. %s repeated." %
                             ', '.join(map(lambda x: f"'{x}'", rep_digs)),
-                    cursor_position=float('inf'))
+                    cursor_position=max(input_.rfind(dig)
+                                        for dig in rep_digs) + 1
+                )
 
 
 class Round(GameAware):
