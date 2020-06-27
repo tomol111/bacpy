@@ -11,14 +11,13 @@ from dataclasses import dataclass
 from math import factorial
 import os
 import random
-import re
 import subprocess
 from textwrap import dedent
 from typing import (ClassVar, Collection, Dict, FrozenSet, Iterable,
                     Iterator, List, Optional, Union, Tuple, Type, TypeVar)
 from typing_extensions import Literal
 
-from pandas import Series  # type: ignore
+import pandas as pd  # type: ignore
 from prompt_toolkit import PromptSession  # type: ignore
 from prompt_toolkit.document import Document  # type: ignore
 from prompt_toolkit.shortcuts import prompt  # type: ignore
@@ -114,7 +113,7 @@ class DifficultyContainer(Collection[Difficulty], Iterable[Difficulty]):
     DIF_INDEX_START = 1
 
     def __init__(self) -> None:
-        self._difs = Series(
+        self._difs = pd.Series(
             {dif.name: dif for dif in self.DEFAULT_DIFS}, dtype=object)
         self._difs.sort_values(inplace=True)
 
@@ -176,49 +175,26 @@ class DifficultyContainer(Collection[Difficulty], Iterable[Difficulty]):
             return item
 
 
-# ===============
-# History classes
-# ===============
-
-
-@dataclass(frozen=True)
-class HistoryRecord:
-    """Keep round step data."""
-    __slots__ = ('step', 'bulls', 'cows')
-    step: int
-    bulls: int
-    cows: int
+# ================
+# HistoryContainer
+# ================
 
 
 class HistoryContainer:
     """Keep HistoryRecords."""
 
-    def __init__(self, difficulty: Difficulty) -> None:
-        self._difficulty = difficulty
-        self._records: List[HistoryRecord] = []
+    def __init__(self) -> None:
+        self._hist = pd.DataFrame(columns=['number', 'bulls', 'cows'],
+                                  index=pd.Index([], name='step'))
 
-    def __iter__(self) -> Iterator[HistoryRecord]:
-        return iter(self._records[:])
+    def __iter__(self) -> Iterator[Tuple[int, pd.Series]]:
+        return self._hist.iterrows()
 
-    @property
-    def difficulty(self):
-        return self._difficulty
+    def __len__(self) -> int:
+        return len(self._hist)
 
-    def append(self, item: HistoryRecord) -> None:
-        self._records.append(item)
-
-    def iter_elements(self, elements: List[Literal['step', 'bulls', 'cows']])\
-            -> Iterator[List[int]]:
-        """Iterate through available HistoryRecords' elements
-        in given order."""
-        for item in self:
-            record = []
-            for element in elements:
-                if hasattr(item, element):
-                    record.append(getattr(item, element))
-                else:
-                    raise KeyError(f"'{element}' element can't be used")
-            yield record
+    def append(self, number: str, bulls: int, cows: int) -> None:
+        self._hist.loc[len(self)+1] = number, bulls, cows
 
 
 # ======
@@ -258,7 +234,7 @@ def ask_ok(prompt_message: str, default: bool = True) -> bool:
     """Yes-No input."""
     while True:
         try:
-            input_ = re.escape(prompt(prompt_message).strip())
+            input_ = prompt(prompt_message).strip().lower()
         except EOFError:
             raise CancelOperation
         except KeyboardInterrupt:
@@ -266,9 +242,9 @@ def ask_ok(prompt_message: str, default: bool = True) -> bool:
 
         if not input_ and default is not None:
             return default
-        if re.match(input_, 'yes', flags=re.I):
+        if 'yes'.startswith(input_):
             return True
-        if re.match(input_, 'no', flags=re.I):
+        if 'no'.startswith(input_):
             return False
 
 
@@ -374,12 +350,6 @@ class CommandContainer(Collection[Type[Command]], Iterable[Type[Command]]):
                     cmd().execute(arg)
                 except CommandError as err:
                     print(err)
-                except Exception:
-                    if DEBUGING_MODE:
-                        raise
-                    else:
-                        print(f"  Unknown error while executing "
-                              f"{cmd.name} command")
                 return
         print(
             "  Type '!help' to show game help or '!help commands' ",
@@ -394,7 +364,6 @@ class Help(Command):
     Show help about {subject}. When {subject} is not parsed show game help.
     """
 
-    name = 'help'
     shorthand = 'h'
 
     GAME_HELP = dedent("""
@@ -503,10 +472,7 @@ class DifficultyCmd(Command):
             return
 
         try:
-            if arg.isdigit():
-                difficulty = self.game.difs[int(arg)]
-            else:
-                difficulty = self.game.difs[arg]
+            difficulty = self.game.difs[int(arg) if arg.isdigit() else arg]
         except (KeyError, IndexError):
             raise CommandError(f"  There is no '{arg}' difficulty")
         else:
@@ -550,10 +516,9 @@ class History(Command):
             self.game.commands['clear']().execute('')
         elif arg:
             raise CommandError(f"  invalid argument '{arg}'")
-        print("  Step  Bulls  Cows")
-        for step, bulls, cows in self.game.round.history.iter_elements(
-                ['step', 'bulls', 'cows']):
-            print(f"  {step:>2}:    {bulls:>2}     {cows:>2}")
+        print("  Number  Bulls  Cows")
+        for _, (number, bulls, cows) in self.game.round.history:
+            print(f"  {number}:    {bulls:>2}     {cows:>2}")
 
 
 # ============
@@ -572,10 +537,9 @@ class DifficultySelection(GameAware):
 
     def __init__(self) -> None:
         self._table = self._build_table()
-        self.validator = Validator.from_callable(
-            self.validator_func,
-            error_message='Invalid key',
-            move_cursor_to_end=True)
+        self.validator = Validator.from_callable(self.validator_func,
+                                                 error_message='Invalid key',
+                                                 move_cursor_to_end=True)
 
     def _build_table(self) -> str:
         """Prepare table"""
@@ -630,9 +594,9 @@ class DifficultySelection(GameAware):
 class RoundValidator(Validator, GameAware):
 
     def validate(self, document: Document) -> None:
-        input_: str = document.text
-        digs_set = self.game.round._digs_set
-        num_size = self.game.round._num_size
+        input_: str = document.text.strip()
+        digs_set = self.game.current_dif.digs_set
+        num_size = self.game.current_dif.num_size
 
         if not input_.startswith(Command.PREFIX):
             # Check if number have wrong characters
@@ -665,54 +629,61 @@ class Round(GameAware):
     ROUND_START = '\n===== Round started ======\n'
     ROUND_END = '\n======= Round ended ======\n'
 
-    def __init__(self, difficulty: Difficulty) -> None:
-        self.history = HistoryContainer(difficulty)
-
-        self._dif_name = difficulty.name
-        self._num_size = difficulty.num_size
-        self._digs_set = difficulty.digs_set
-        self._digs_range = difficulty.digs_range
+    def __init__(self) -> None:
+        self.history = HistoryContainer()
 
         self._draw_number()
         if DEBUGING_MODE:
             print(self._number)
-        self._steps: Optional[int] = None
 
     def _draw_number(self) -> None:
-        """Draw number digits from self._digs_set."""
+        """Draw number digits from self.dif.digs_set."""
         self._number = ''.join(
-            random.sample(self._digs_set, self._num_size)
+            random.sample(self.dif.digs_set, self.dif.num_size)
         )
+
+    @property
+    def steps(self) -> int:
+        return len(self.history)
+
+    @property
+    def dif(self) -> Difficulty:
+        return self.game.current_dif
+
+    @property
+    def toolbar(self):
+        return (f"Difficulty: {self.dif.name} | "
+                f"Number size: {self.dif.num_size} | "
+                f"Digits range: {self.dif.digs_range}")
 
     def run(self) -> None:
         """Run round loop."""
         print(self.ROUND_START)
         try:
-            self.ps = PromptSession(bottom_toolbar=self._toolbar,
+            self.ps = PromptSession(bottom_toolbar=self.toolbar,
                                     validator=RoundValidator(),
                                     validate_while_typing=False)
-            self._steps = 1
             while True:
-                bulls, cows = self._comput_bullscows(self._number_input())
-                self.history.append(HistoryRecord(self._steps, bulls, cows))
+                number = self._number_input()
+                bulls, cows = self.comput_bullscows(number)
+                self.history.append(number, bulls, cows)
 
-                if bulls == self._num_size:
-                    self._score_output()
+                if bulls == self.dif.num_size:
+                    print(f"\n *** You guessed in {self.steps} steps ***")
                     return
 
-                self._bulls_and_cows_output(bulls, cows)
-                self._steps += 1
+                print(f"  bulls: {bulls:>2}, cows: {cows:>2}")
         finally:
             print(self.ROUND_END)
 
-    def _comput_bullscows(self, guess: str) -> Tuple[int, int]:
+    def comput_bullscows(self, guess: str) -> Tuple[int, int]:
         """Return bulls and cows for given input."""
         bulls, cows = 0, 0
 
-        for i in range(self._num_size):
+        for i in range(self.dif.num_size):
             if guess[i] == self._number[i]:
                 bulls += 1
-            elif re.search(guess[i], self._number):
+            elif guess[i] in self._number:
                 cows += 1
 
         return bulls, cows
@@ -723,7 +694,7 @@ class Round(GameAware):
         Supports special input."""
         while True:
             try:
-                input_ = self.ps.prompt(f"[{self._steps}] ").strip()
+                input_ = self.ps.prompt(f"[{self.steps+1}] ").strip()
             except EOFError:
                 try:
                     if ask_ok('Do you really want to quit? [Y/n]: '):
@@ -745,20 +716,6 @@ class Round(GameAware):
 
             return input_
 
-    def _bulls_and_cows_output(self, bulls: int, cows: int) -> None:
-        """Print bulls and cows message"""
-        print(f"  bulls: {bulls:>2}, cows: {cows:>2}")
-
-    def _score_output(self) -> None:
-        """Print score message"""
-        print(f"\n *** You guessed in {self._steps} steps ***")
-
-    @property
-    def _toolbar(self):
-        return (f"Difficulty: {self._dif_name} | "
-                f"Number size: {self._num_size} | "
-                f"Digits range: {self._digs_range}")
-
 
 class Game:
     """Game class."""
@@ -775,30 +732,30 @@ class Game:
         ==================================
     """)
 
-    def __init__(self, difficulty: Optional[Difficulty] = None) -> None:
+    def __init__(self) -> None:
         GameAware.game_set(self)
 
-        self.current_dif = difficulty
         self.difs = DifficultyContainer()
         self.commands = CommandContainer()
+
         self.round: Round
+        self.current_dif: Difficulty
 
     def run(self) -> None:
         """Runs game loop."""
 
         print(self.GAME_START)
         try:
-            if self.current_dif is None:  # Setting difficulty
-                try:
-                    difficulty = DifficultySelection().run()
-                except CancelOperation:
-                    return
-                else:
-                    self.current_dif = difficulty
+            try:
+                difficulty = DifficultySelection().run()
+            except CancelOperation:
+                return
+            else:
+                self.current_dif = difficulty
 
             while True:  # Game loop
                 try:
-                    self.round = Round(self.current_dif)
+                    self.round = Round()
                     self.round.run()
                 except RestartGame:
                     continue
