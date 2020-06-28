@@ -12,15 +12,15 @@ from math import factorial
 import os
 import random
 import subprocess
+from tabulate import tabulate
 from textwrap import dedent
 from typing import (ClassVar, Collection, Dict, FrozenSet, Iterable,
                     Iterator, List, Optional, Union, Tuple, Type, TypeVar)
-from typing_extensions import Literal
 
 import pandas as pd  # type: ignore
 from prompt_toolkit import PromptSession  # type: ignore
 from prompt_toolkit.document import Document  # type: ignore
-from prompt_toolkit.shortcuts import prompt  # type: ignore
+from prompt_toolkit.shortcuts import clear, prompt  # type: ignore
 from prompt_toolkit.validation import (  # type: ignore
         Validator, ValidationError)
 
@@ -143,23 +143,19 @@ class DifficultyContainer(Collection[Difficulty], Iterable[Difficulty]):
         return isinstance(number, int) and \
             self.DIF_INDEX_START <= number < len(self)+self.DIF_INDEX_START
 
-    def iter_elements(
-            self,
-            elements: List[Literal['index', 'name', 'num_size',
-                                   'digs_range', 'digs_set']],
-            index_start: int = DIF_INDEX_START) -> Iterator[List[str]]:
-        """Iterate through available difficulties' elements in given order."""
+    def table(self) -> pd.DataFrame:
+        """pd.DataFrame containing difficulties` 'name', 'num_size'
+        and 'digs_range'."""
+        dt = pd.DataFrame(columns=['name', 'num_size', 'digs_range'],
+                          index=pd.RangeIndex(
+                              self.DIF_INDEX_START,
+                              len(self)+self.DIF_INDEX_START))
 
-        for ind, dif in enumerate(self, start=index_start):
-            record = []
-            for element in elements:
-                if hasattr(dif, element):
-                    record.append(getattr(dif, element))
-                elif element == 'index':
-                    record.append(ind)
-                else:
-                    raise KeyError(f"'{element}' element can't be used")
-            yield record
+        for index, dif in enumerate(self, start=self.DIF_INDEX_START):
+            for element in dt:
+                dt.loc[index, element] = getattr(dif, element)
+
+        return dt
 
     def get(self, key: Union[str, int], default: Optional[T] = None) \
             -> Union[Difficulty, Optional[T]]:
@@ -195,6 +191,9 @@ class HistoryContainer:
 
     def append(self, number: str, bulls: int, cows: int) -> None:
         self._hist.loc[len(self)+1] = number, bulls, cows
+
+    def table(self):
+        return self._hist[:]
 
 
 # ======
@@ -451,12 +450,6 @@ class DifficultyCmd(Command):
     name = 'difficulty'
     shorthand = 'd'
 
-    def difficulties_table(self) -> None:
-        """Print table with available difficulties."""
-        for record in self.game.difs.iter_elements(
-                ['index', 'name', 'num_size', 'digs_range']):
-            print(' {:>2}) {:<8} {:^4} {:^6} '.format(*record))
-
     def execute(self, arg: str) -> None:
         if not arg:
             try:
@@ -468,7 +461,9 @@ class DifficultyCmd(Command):
                 raise RestartGame
 
         if arg == '-l':
-            self.difficulties_table()
+            print(tabulate(self.game.difs.table(),
+                           headers=('Key', 'Difficulty', 'Size', 'Digits'),
+                           tablefmt='plain'))
             return
 
         try:
@@ -498,7 +493,7 @@ class Clear(Command):
         elif os.name in ('linux', 'osx', 'posix'):
             subprocess.call('clear')
         else:
-            print('\n' * 120)
+            clear()
 
 
 class History(Command):
@@ -516,9 +511,11 @@ class History(Command):
             self.game.commands['clear']().execute('')
         elif arg:
             raise CommandError(f"  invalid argument '{arg}'")
-        print("  Number  Bulls  Cows")
-        for _, (number, bulls, cows) in self.game.round.history:
-            print(f"  {number}:    {bulls:>2}     {cows:>2}")
+        print(tabulate(self.game.round.history.table(),
+                       headers=('Number', 'Bulls', 'Cows'),
+                       colalign=('center', 'center', 'center'),
+                       showindex=False,
+                       tablefmt='plain'))
 
 
 # ============
@@ -529,36 +526,15 @@ class History(Command):
 class DifficultySelection(GameAware):
     """Difficulty selection class."""
 
-    SELECTION_START = \
-        '------ Difficulty selection ------'
-
-    SELECTION_END = \
-        '----------------------------------'
-
     def __init__(self) -> None:
-        self._table = self._build_table()
         self.validator = Validator.from_callable(self.validator_func,
                                                  error_message='Invalid key',
                                                  move_cursor_to_end=True)
 
-    def _build_table(self) -> str:
-        """Prepare table"""
-
-        top_table = (
-            '',
-            '  key  difficulty   size  digits  ',
-        )
-        inner_row_template = \
-            '  {:>2})   {:<11} {:^4}  {:^6} '
-        bottom_table = ('',)
-
-        inner_rows = (
-            inner_row_template.format(*record)
-            for record in self.game.difs.iter_elements(
-                ['index', 'name', 'num_size', 'digs_range'])
-        )
-
-        return '\n'.join([*top_table, *inner_rows, *bottom_table])
+    def table(self):
+        return tabulate(self.game.difs.table(),
+                        headers=('Key', 'Difficulty', 'Size', 'Digits'),
+                        colalign=('right', 'left', 'center', 'center'))
 
     def validator_func(self, text: str) -> bool:
         try:
@@ -568,8 +544,14 @@ class DifficultySelection(GameAware):
 
     def run(self) -> Difficulty:
         """Run difficulty selection."""
-        print(self.SELECTION_START)
-        print(self._table)
+        table = self.table()
+
+        # Compute table width
+        fnlp = table.find('\n')
+        width = table.find('\n', fnlp+1) - fnlp - 1
+
+        print(f"{' Difficulty selection ':=^{width}}")
+        print('\n', table, '\n')
         try:
             while True:
                 try:
@@ -588,7 +570,7 @@ class DifficultySelection(GameAware):
                 else:
                     return difficulty
         finally:
-            print(self.SELECTION_END)
+            print(f"{'':=^{width}}")
 
 
 class RoundValidator(Validator, GameAware):
@@ -612,7 +594,7 @@ class RoundValidator(Validator, GameAware):
             # Check length
             if len(input_) != num_size:
                 raise ValidationError(
-                    message="Digit must have %s digits" % num_size,
+                    message=f"Digit must have {num_size} digits",
                     cursor_position=float('inf')
                 )
 
@@ -657,9 +639,9 @@ class Round(GameAware):
 
     @property
     def toolbar(self):
-        return (f"Difficulty: {self.dif.name} | "
-                f"Number size: {self.dif.num_size} | "
-                f"Digits range: {self.dif.digs_range}")
+        return (f" Difficulty: {self.dif.name}  |  "
+                f"Size: {self.dif.num_size}  |  "
+                f"Digits: {self.dif.digs_range}")
 
     def run(self) -> None:
         """Run round loop."""
