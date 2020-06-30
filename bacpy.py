@@ -363,6 +363,7 @@ class Help(Command):
     Show help about {subject}. When {subject} is not parsed show game help.
     """
 
+    name = 'help'
     shorthand = 'h'
 
     GAME_HELP = dedent("""
@@ -551,7 +552,7 @@ class DifficultySelection(GameAware):
         width = table.find('\n', fnlp+1) - fnlp - 1
 
         print(f"{' Difficulty selection ':=^{width}}")
-        print('\n', table, '\n')
+        print('\n', table, '\n', sep='')
         try:
             while True:
                 try:
