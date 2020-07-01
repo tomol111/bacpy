@@ -15,6 +15,7 @@ import subprocess
 from textwrap import dedent
 from typing import (ClassVar, Collection, Dict, FrozenSet, Iterable,
                     Iterator, List, Optional, Union, Tuple, Type, TypeVar)
+from weakref import ref
 
 import pandas as pd  # type: ignore
 from prompt_toolkit import PromptSession  # type: ignore
@@ -30,21 +31,6 @@ T = TypeVar('T')
 
 # Constants
 DEBUGING_MODE = True
-
-
-# =========
-# GameAware
-# =========
-
-
-class GameAware:
-    """Give it's subclasses access to the 'Game' instance by 'self.game'."""
-    game: ClassVar['Game']
-
-    @classmethod
-    def game_set(cls, game: 'Game') -> None:
-        """Should be call at Game object initiation."""
-        cls.game = game
 
 
 # ============
@@ -258,7 +244,7 @@ def pager(text: str) -> None:
 # ========
 
 
-class Command(GameAware, metaclass=ABCMeta):
+class Command(metaclass=ABCMeta):
     """Command abstract class and commands manager."""
 
     PREFIX: ClassVar[str] = '!'
@@ -393,8 +379,9 @@ class Help(Command):
             self._commands_help()
             return
 
-        if arg in self.game.commands:
-            cmd = self.game.commands[arg]
+        commands = get_game().commands
+        if arg in commands:
+            cmd = commands[arg]
             if cmd.doc is not None:
                 print(cmd.doc)
             else:
@@ -405,7 +392,7 @@ class Help(Command):
 
     def _commands_help(self) -> None:
         """Run pager with all commands' doc."""
-        pager('\n'.join([cmd.doc for cmd in self.game.commands
+        pager('\n'.join([cmd.doc for cmd in get_game().commands
                          if cmd.doc is not None]))
 
 
@@ -452,27 +439,28 @@ class DifficultyCmd(Command):
     shorthand = 'd'
 
     def execute(self, arg: str) -> None:
+        game = get_game()
         if not arg:
             try:
                 difficulty = DifficultySelection().run()
             except CancelOperation:
                 return
             else:
-                self.game.current_dif = difficulty
+                game.current_dif = difficulty
                 raise RestartGame
 
         if arg == '-l':
-            print(tabulate(self.game.difs.table(),
+            print(tabulate(game.difs.table(),
                            headers=('Key', 'Difficulty', 'Size', 'Digits'),
                            tablefmt='plain'))
             return
 
         try:
-            difficulty = self.game.difs[int(arg) if arg.isdigit() else arg]
+            difficulty = game.difs[int(arg) if arg.isdigit() else arg]
         except (KeyError, IndexError):
             raise CommandError(f"  There is no '{arg}' difficulty")
         else:
-            self.game.current_dif = difficulty
+            game.current_dif = difficulty
             raise RestartGame
 
 
@@ -508,11 +496,12 @@ class History(Command):
     shorthand = 'hi'
 
     def execute(self, arg: str) -> None:
+        game = get_game()
         if arg == '-c':
-            self.game.commands['clear']().execute('')
+            game.commands['clear']().execute('')
         elif arg:
             raise CommandError(f"  invalid argument '{arg}'")
-        print(tabulate(self.game.round.history.table(),
+        print(tabulate(game.round.history.table(),
                        headers=('Number', 'Bulls', 'Cows'),
                        colalign=('center', 'center', 'center'),
                        showindex=False,
@@ -524,7 +513,7 @@ class History(Command):
 # ============
 
 
-class DifficultySelection(GameAware):
+class DifficultySelection:
     """Difficulty selection class."""
 
     def __init__(self) -> None:
@@ -533,13 +522,13 @@ class DifficultySelection(GameAware):
                                                  move_cursor_to_end=True)
 
     def table(self):
-        return tabulate(self.game.difs.table(),
+        return tabulate(get_game().difs.table(),
                         headers=('Key', 'Difficulty', 'Size', 'Digits'),
                         colalign=('right', 'left', 'center', 'center'))
 
     def validator_func(self, text: str) -> bool:
         try:
-            return self.game.difs.isindex(int(text))
+            return get_game().difs.isindex(int(text))
         except ValueError:
             return False
 
@@ -565,7 +554,7 @@ class DifficultySelection(GameAware):
                     continue
 
                 try:
-                    difficulty = self.game.difs[int(input_)]
+                    difficulty = get_game().difs[int(input_)]
                 except (ValueError, IndexError):
                     continue
                 else:
@@ -574,12 +563,14 @@ class DifficultySelection(GameAware):
             print(''.center(width, '='))
 
 
-class RoundValidator(Validator, GameAware):
+class RoundValidator(Validator):
 
     def validate(self, document: Document) -> None:
         input_: str = document.text.strip()
-        digs_set = self.game.current_dif.digs_set
-        num_size = self.game.current_dif.num_size
+
+        difficulty = get_game().current_dif
+        digs_set = difficulty.digs_set
+        num_size = difficulty.num_size
 
         if not input_.startswith(Command.PREFIX):
             # Check if number have wrong characters
@@ -611,7 +602,7 @@ class RoundValidator(Validator, GameAware):
                 )
 
 
-class Round(GameAware):
+class Round:
     """Round class."""
 
     ROUND_START = '\n===== Round started ======\n'
@@ -636,7 +627,7 @@ class Round(GameAware):
 
     @property
     def dif(self) -> Difficulty:
-        return self.game.current_dif
+        return get_game().current_dif
 
     @property
     def toolbar(self):
@@ -699,7 +690,7 @@ class Round(GameAware):
                 continue
 
             if input_.startswith(Command.PREFIX):
-                self.game.commands.parse_cmd(input_)
+                get_game().commands.parse_cmd(input_)
                 continue
 
             return input_
@@ -720,9 +711,18 @@ class Game:
         ==================================
     """)
 
-    def __init__(self) -> None:
-        GameAware.game_set(self)
+    instance: ClassVar[Callable[[], Optional['Game']] = lambda: None
 
+    def __new__(cls):
+        if not hasattr(cls, 'isntance') or not cls.instance():
+            instance = super(Game, cls).__new__(cls)
+            cls.instance = ref(instance)
+        else:
+            raise TypeError(
+                f"Can't create more than 1 instance of '{cls.__name__}' class")
+        return instance
+
+    def __init__(self) -> None:
         self.difs = DifficultyContainer()
         self.commands = CommandContainer()
 
@@ -761,6 +761,12 @@ class Game:
                     return
         finally:
             print(self.GAME_END)
+
+
+def get_game() -> Game:
+    ret = Game.instance()
+    assert ret is not None, "'get_game' called before instantiate 'Game' class"
+    return ret
 
 
 if __name__ == '__main__':
