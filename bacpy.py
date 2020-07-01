@@ -12,7 +12,6 @@ from math import factorial
 import os
 import random
 import subprocess
-from tabulate import tabulate
 from textwrap import dedent
 from typing import (ClassVar, Collection, Dict, FrozenSet, Iterable,
                     Iterator, List, Optional, Union, Tuple, Type, TypeVar)
@@ -23,6 +22,7 @@ from prompt_toolkit.document import Document  # type: ignore
 from prompt_toolkit.shortcuts import clear, prompt  # type: ignore
 from prompt_toolkit.validation import (  # type: ignore
         Validator, ValidationError)
+from tabulate import tabulate
 
 
 # Type variables
@@ -551,7 +551,7 @@ class DifficultySelection(GameAware):
         fnlp = table.find('\n')
         width = table.find('\n', fnlp+1) - fnlp - 1
 
-        print(f"{' Difficulty selection ':=^{width}}")
+        print(' Difficulty selection '.center(width, '='))
         print('\n', table, '\n', sep='')
         try:
             while True:
@@ -571,7 +571,7 @@ class DifficultySelection(GameAware):
                 else:
                     return difficulty
         finally:
-            print(f"{'':=^{width}}")
+            print(''.center(width, '='))
 
 
 class RoundValidator(Validator, GameAware):
