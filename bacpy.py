@@ -5,7 +5,6 @@ __version__ = '0.2'
 __author__ = 'Tomasz Olszewski'
 
 
-from abc import ABCMeta, abstractmethod
 from collections import Counter
 from dataclasses import dataclass
 from math import factorial
@@ -13,8 +12,8 @@ import os
 import random
 import subprocess
 from textwrap import dedent
-from typing import (ClassVar, Collection, Dict, FrozenSet, Iterable,
-                    Iterator, List, Optional, Union, Tuple, Type, TypeVar)
+from typing import (Callable, ClassVar, Collection, Dict, FrozenSet, Iterable,
+                    Iterator, List, Optional, Union, Tuple, TypeVar)
 from weakref import ref
 
 import pandas as pd  # type: ignore
@@ -178,7 +177,7 @@ class HistoryContainer:
     def append(self, number: str, bulls: int, cows: int) -> None:
         self._hist.loc[len(self)+1] = number, bulls, cows
 
-    def table(self):
+    def table(self) -> pd.DataFrame:
         return self._hist[:]
 
 
@@ -244,47 +243,53 @@ def pager(text: str) -> None:
 # ========
 
 
-class Command(metaclass=ABCMeta):
+class Command:
     """Command abstract class and commands manager."""
 
     PREFIX: ClassVar[str] = '!'
+    instances: List['Command'] = []
 
     doc: Optional[str]
     name: str
     shorthand: str
+    splitlines: bool = True
 
-    @abstractmethod
-    def execute(self, arg: str) -> None:
-        """Main method."""
+    def __init__(self, cmdfunc: Callable[..., None], **kwargs: T) -> None:
+        self.instances.append(self)
+        self._cmdfunc = cmdfunc
+        for attrname, variable in kwargs.items():
+            setattr(self, attrname, variable)
+        if not hasattr(self, 'name'):
+            self.name = cmdfunc.__name__
+        if not hasattr(self, 'doc'):
+            self.doc = cmdfunc.__doc__
+
+    def __call__(self, args: str = '') -> None:
+        if args:
+            self._cmdfunc(*args.split() if self.splitlines else args)
+        else:
+            self._cmdfunc()
 
     @classmethod
-    def __subclasshook__(cls, subclass: T) -> bool:
-        return hasattr(subclass, 'execute')
-
-    @classmethod
-    def __init_subclass__(cls, **kwargs: T) -> None:
-        super().__init_subclass__(**kwargs)  # type: ignore
-
-        if not hasattr(cls, 'name'):
-            cls.name = cls.__name__
-        if not hasattr(cls, 'doc'):
-            cls.doc = cls.__doc__
+    def add(cls, **kwargs: T) -> Callable[[Callable[..., None]], 'Command']:
+        def decorator(cmdfunc):
+            return cls(cmdfunc, **kwargs)
+        return decorator
 
 
-class CommandContainer(Collection[Type[Command]], Iterable[Type[Command]]):
+class CommandContainer(Collection[Command], Iterable[Command]):
     """Contain Command objects and allows execute them."""
 
     def __init__(self) -> None:
-        cmdsubclasses: List[Type[Command]] = Command.__subclasses__()
-        self._cmds: Dict[str, Type[Command]] = \
-            {cmd.name: cmd for cmd in cmdsubclasses}
+        self._cmds: Dict[str, Command] = \
+            {cmd.name: cmd for cmd in Command.instances}
         self._shorthands_map: Dict[str, str] = \
-            {cmd.shorthand: cmd.name for cmd in cmdsubclasses}
+            {cmd.shorthand: cmd.name for cmd in Command.instances}
 
-    def __iter__(self) -> Iterator[Type[Command]]:
+    def __iter__(self) -> Iterator[Command]:
         return iter(self._cmds.values())
 
-    def __getitem__(self, key: str) -> Type[Command]:
+    def __getitem__(self, key: str) -> Command:
         """Give Command by given name or shorthand."""
         if key in self._shorthands_map:
             return self._cmds[self._shorthands_map[key]]
@@ -311,7 +316,7 @@ class CommandContainer(Collection[Type[Command]], Iterable[Type[Command]]):
         return list(self._shorthands_map)
 
     def get(self, key: str, default: Optional[T] = None) \
-            -> Union[Type[Command], Optional[T]]:
+            -> Union[Command, Optional[T]]:
         """Return command class for key.
 
         If key don't exist return 'default'.
@@ -327,13 +332,12 @@ class CommandContainer(Collection[Type[Command]], Iterable[Type[Command]]):
         """Search for command and execute it."""
         input_ = input_[len(Command.PREFIX):].lstrip()
         if input_:
-            name, *line = input_.split(maxsplit=1)
+            name, *largs = input_.split(maxsplit=1)
             if name in self:
-                cmd = self[name]
-                arg = line[0] if line else ''
+                args = largs[0] if largs else ''
                 try:
-                    cmd().execute(arg)
-                except CommandError as err:
+                    self[name](args)
+                except (CommandError, TypeError) as err:
                     print(err)
                 return
         print(
@@ -343,14 +347,12 @@ class CommandContainer(Collection[Type[Command]], Iterable[Type[Command]]):
         )
 
 
-class Help(Command):
+@Command.add(name='help', shorthand='h', splitlines=False)
+def help_(arg: str = '') -> None:
     """!h[elp] [{subject}]
 
     Show help about {subject}. When {subject} is not parsed show game help.
     """
-
-    name = 'help'
-    shorthand = 'h'
 
     GAME_HELP = dedent("""
         # HELP
@@ -370,142 +372,109 @@ class Help(Command):
             You can type '!h commands' to show available commands.
     """)
 
-    def execute(self, arg: str) -> None:
-        if not arg:
-            pager(self.GAME_HELP)
-            return
+    if not arg:
+        pager(GAME_HELP)
+        return
 
-        if arg == 'commands':
-            self._commands_help()
-            return
-
-        commands = get_game().commands
-        if arg in commands:
-            cmd = commands[arg]
-            if cmd.doc is not None:
-                print(cmd.doc)
-            else:
-                print(f"  Command {cmd} don't have documentation")
-            return
-
-        raise CommandError(f"  No help for '{arg}'")
-
-    def _commands_help(self) -> None:
-        """Run pager with all commands' doc."""
-        pager('\n'.join([cmd.doc for cmd in get_game().commands
+    commands = get_game().commands
+    if arg == 'commands':
+        pager('\n'.join([cmd.doc for cmd in commands
                          if cmd.doc is not None]))
+        return
+
+    if arg in commands:
+        cmd = commands[arg]
+        if cmd.doc is not None:
+            print(cmd.doc)
+        else:
+            print(f"  Command {cmd} don't have documentation")
+        return
+
+    raise CommandError(f"  No help for '{arg}'")
 
 
-class Quit(Command):
+@Command.add(name='quit', shorthand='q')
+def quit_() -> None:
     """!q[uit]
 
     Quit the game.
     """
-
-    name = 'quit'
-    shorthand = 'q'
-
-    def execute(self, arg: str) -> None:
-        if arg:
-            raise CommandError(f"  '{self.name}' command take no arguments")
-
-        raise QuitGame
+    raise QuitGame
 
 
-class Restart(Command):
+@Command.add(shorthand='r')
+def restart() -> None:
     """!r[estart]
 
     Restart the round.
     """
-
-    name = 'restart'
-    shorthand = 'r'
-
-    def execute(self, args: str) -> None:
-        if args:
-            raise CommandError(f"  '{self.name}' command take no arguments")
-
-        raise RestartGame
+    raise RestartGame
 
 
-class DifficultyCmd(Command):
+@Command.add(name='difficulty', shorthand='d')
+def difficulty_cmd(arg: str = '') -> None:
     """!d[ifficulty] [{difficulty_name} | {difficulty_key} | -l]
 
     Change difficulty to the given one. If not given directly show
     difficulty selection.
     """
 
-    name = 'difficulty'
-    shorthand = 'd'
-
-    def execute(self, arg: str) -> None:
-        game = get_game()
-        if not arg:
-            try:
-                difficulty = DifficultySelection().run()
-            except CancelOperation:
-                return
-            else:
-                game.current_dif = difficulty
-                raise RestartGame
-
-        if arg == '-l':
-            print(tabulate(game.difs.table(),
-                           headers=('Key', 'Difficulty', 'Size', 'Digits'),
-                           tablefmt='plain'))
-            return
-
+    game = get_game()
+    if not arg:
         try:
-            difficulty = game.difs[int(arg) if arg.isdigit() else arg]
-        except (KeyError, IndexError):
-            raise CommandError(f"  There is no '{arg}' difficulty")
+            difficulty = DifficultySelection().run()
+        except CancelOperation:
+            return
         else:
             game.current_dif = difficulty
             raise RestartGame
 
+    if arg == '-l':
+        print(tabulate(game.difs.table(),
+                       headers=('Key', 'Difficulty', 'Size', 'Digits'),
+                       tablefmt='plain'))
+        return
 
-class Clear(Command):
+    try:
+        difficulty = game.difs[int(arg) if arg.isdigit() else arg]
+    except (KeyError, IndexError):
+        raise CommandError(f"  There is no '{arg}' difficulty")
+    else:
+        game.current_dif = difficulty
+        raise RestartGame
+
+
+@Command.add(name='clear', shorthand='c')
+def clear_cmd() -> None:
     """!c[lean]
 
     Clear screan.
     """
-
-    name = 'clear'
-    shorthand = 'c'
-
-    def execute(self, arg: str) -> None:
-        if arg:
-            raise CommandError(f"  '{self.name}' command take no arguments")
-
-        if os.name in ('nt', 'dos'):
-            subprocess.call('cls')
-        elif os.name in ('linux', 'osx', 'posix'):
-            subprocess.call('clear')
-        else:
-            clear()
+    if os.name in ('nt', 'dos'):
+        subprocess.call('cls')
+    elif os.name in ('linux', 'osx', 'posix'):
+        subprocess.call('clear')
+    else:
+        clear()
 
 
-class History(Command):
+@Command.add(shorthand='hi')
+def history(arg: str = '') -> None:
     """!hi[story] [-c]
 
     Show history.
         '-c' - before showing history clear the screan
     """
-
-    name = 'history'
-    shorthand = 'hi'
-
-    def execute(self, arg: str) -> None:
-        game = get_game()
-        if arg == '-c':
-            game.commands['clear']().execute('')
-        elif arg:
-            raise CommandError(f"  invalid argument '{arg}'")
-        print(tabulate(game.round.history.table(),
-                       headers=('Number', 'Bulls', 'Cows'),
-                       colalign=('center', 'center', 'center'),
-                       showindex=False,
-                       tablefmt='plain'))
+    game = get_game()
+    if arg == '-c':
+        game.commands['clear']()
+    elif arg:
+        raise CommandError(f"  invalid argument '{arg}'")
+    print(tabulate(game.round.history.table(),
+                   headers=('Number', 'Bulls', 'Cows'),
+                   colalign=('center', 'center', 'center'),
+                   showindex=False,
+                   tablefmt='plain'))
 
 
 # ============
@@ -630,7 +599,7 @@ class Round:
         return get_game().current_dif
 
     @property
-    def toolbar(self):
+    def toolbar(self) -> str:
         return (f" Difficulty: {self.dif.name}  |  "
                 f"Size: {self.dif.num_size}  |  "
                 f"Digits: {self.dif.digs_range}")
@@ -711,9 +680,9 @@ class Game:
         ==================================
     """)
 
-    instance: ClassVar[Callable[[], Optional['Game']] = lambda: None
+    instance: ClassVar[Callable[[], Optional['Game']]] = lambda: None
 
-    def __new__(cls):
+    def __new__(cls) -> 'Game':
         if not hasattr(cls, 'isntance') or not cls.instance():
             instance = super(Game, cls).__new__(cls)
             cls.instance = ref(instance)
