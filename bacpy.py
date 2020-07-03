@@ -1,7 +1,7 @@
 """BacPy - Bulls and Cows game implementation by Tomasz Olszewski"""
 
 
-__version__ = '0.2'
+__version__ = '0.3'
 __author__ = 'Tomasz Olszewski'
 
 
@@ -29,7 +29,7 @@ from tabulate import tabulate
 T = TypeVar('T')
 
 # Constants
-DEBUGING_MODE = True
+DEBUGING_MODE = False
 
 
 # ============
@@ -247,7 +247,7 @@ class Command:
     """Command abstract class and commands manager."""
 
     PREFIX: ClassVar[str] = '!'
-    instances: List['Command'] = []
+    instances: ClassVar[List['Command']] = []
 
     doc: Optional[str]
     name: str
