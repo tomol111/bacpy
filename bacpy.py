@@ -7,13 +7,16 @@ __author__ = 'Tomasz Olszewski'
 
 from collections import Counter
 from dataclasses import dataclass
+from datetime import datetime
 from math import factorial
 import os
+from pathlib import Path
 import random
 import subprocess
+import sys
 from textwrap import dedent
 from typing import (Callable, ClassVar, Collection, Dict, FrozenSet, Iterable,
-                    Iterator, List, Optional, Union, Tuple, TypeVar)
+                    Iterator, List, NoReturn, Optional, Union, Tuple, TypeVar)
 from weakref import ref
 
 import pandas as pd  # type: ignore
@@ -29,7 +32,25 @@ from tabulate import tabulate
 T = TypeVar('T')
 
 # Constants
-DEBUGING_MODE = False
+DEBUGING_MODE = True
+
+GAME_HELP = """
+# HELP
+
+BacPy is "Bulls and Cows" game implementation.
+
+Rules are:
+   * You have to guess number of witch digits do not repeat.
+   * Enter your guess and program will return numbers of
+     bulls (amount of digits that are correct and have
+     correct position) and cows (amount of correct digits
+     but with wrong position).
+   * Try to find correct number with fewest amount of
+     attempts.
+
+Special commands:
+    You can type '!h commands' to show available commands.
+"""
 
 
 # ============
@@ -196,6 +217,8 @@ class QuitGame(GameEvent):
 
 class RestartGame(GameEvent):
     """Restart game event."""
+    def __init__(self, difficulty: 'Difficulty' = None):
+        self.difficulty = difficulty
 
 
 class CancelOperation(GameEvent):
@@ -210,7 +233,7 @@ class CommandError(GameEvent):
 
 
 # ========
-# CLITools
+# CLI tools
 # ========
 
 
@@ -348,29 +371,11 @@ class CommandContainer(Collection[Command], Iterable[Command]):
 
 
 @Command.add(name='help', shorthand='h', splitlines=False)
-def help_(arg: str = '') -> None:
+def help_cmd(arg: str = '') -> None:
     """!h[elp] [{subject}]
 
     Show help about {subject}. When {subject} is not parsed show game help.
     """
-
-    GAME_HELP = dedent("""
-        # HELP
-
-        BacPy is "Bulls and Cows" game implementation.
-
-        Rules are:
-           * You have to guess number of witch digits do not repeat.
-           * Enter your guess and program will return numbers of
-             bulls (amount of digits that are correct and have
-             correct position) and cows (amount of correct digits
-             but with wrong position).
-           * Try to find correct number with fewest amount of
-             attempts.
-
-        Special commands:
-            You can type '!h commands' to show available commands.
-    """)
 
     if not arg:
         pager(GAME_HELP)
@@ -394,16 +399,25 @@ def help_(arg: str = '') -> None:
 
 
 @Command.add(name='quit', shorthand='q')
-def quit_() -> None:
+def quit_cmd() -> NoReturn:
     """!q[uit]
 
-    Quit the game.
+    Stop playing.
     """
     raise QuitGame
 
 
+@Command.add(name='exit', shorthand='e')
+def exit_cmd() -> NoReturn:
+    """!q[uit]
+
+    Exit the game.
+    """
+    sys.exit()
+
+
 @Command.add(shorthand='r')
-def restart() -> None:
+def restart_cmd() -> NoReturn:
     """!r[estart]
 
     Restart the round.
@@ -422,12 +436,11 @@ def difficulty_cmd(arg: str = '') -> None:
     game = get_game()
     if not arg:
         try:
-            difficulty = DifficultySelection().run()
+            difficulty = difficulty_selection()
         except CancelOperation:
             return
         else:
-            game.current_dif = difficulty
-            raise RestartGame
+            raise RestartGame(difficulty=difficulty)
 
     if arg == '-l':
         print(tabulate(game.difs.table(),
@@ -440,8 +453,7 @@ def difficulty_cmd(arg: str = '') -> None:
     except (KeyError, IndexError):
         raise CommandError(f"  There is no '{arg}' difficulty")
     else:
-        game.current_dif = difficulty
-        raise RestartGame
+        raise RestartGame(difficulty=difficulty)
 
 
 @Command.add(name='clear', shorthand='c')
@@ -459,7 +471,7 @@ def clear_cmd() -> None:
 
 
 @Command.add(shorthand='hi')
-def history(arg: str = '') -> None:
+def history_cmd(arg: str = '') -> None:
     """!hi[story] [-c]
 
     Show history.
@@ -467,7 +479,7 @@ def history(arg: str = '') -> None:
     """
     game = get_game()
     if arg == '-c':
-        game.commands['clear']()
+        clear_cmd()
     elif arg:
         raise CommandError(f"  invalid argument '{arg}'")
     print(tabulate(game.round.history.table(),
@@ -477,59 +489,59 @@ def history(arg: str = '') -> None:
                    tablefmt='plain'))
 
 
-# ============
-# Core classes
-# ============
+# ====================
+# Difficulty selection
+# ====================
 
 
-class DifficultySelection:
-    """Difficulty selection class."""
+def diff_selection_validator_func(text: str) -> bool:
+    return text.isdigit() and get_game().difs.isindex(int(text))
 
-    def __init__(self) -> None:
-        self.validator = Validator.from_callable(self.validator_func,
-                                                 error_message='Invalid key',
-                                                 move_cursor_to_end=True)
 
-    def table(self):
-        return tabulate(get_game().difs.table(),
-                        headers=('Key', 'Difficulty', 'Size', 'Digits'),
-                        colalign=('right', 'left', 'center', 'center'))
+diff_selection_validator = Validator.from_callable(
+    diff_selection_validator_func,
+    error_message='Invalid key',
+    move_cursor_to_end=True,
+)
 
-    def validator_func(self, text: str) -> bool:
-        try:
-            return get_game().difs.isindex(int(text))
-        except ValueError:
-            return False
 
-    def run(self) -> Difficulty:
-        """Run difficulty selection."""
-        table = self.table()
+def difficulty_selection() -> Difficulty:
+    """Difficulty selection."""
+    difficulties = get_game().difs
+    table = tabulate(difficulties.table(),
+                     headers=('Key', 'Difficulty', 'Size', 'Digits'),
+                     colalign=('right', 'left', 'center', 'center'))
 
-        # Compute table width
-        fnlp = table.find('\n')
-        width = table.find('\n', fnlp+1) - fnlp - 1
+    # Compute table width
+    fnlp = table.find('\n')
+    width = table.find('\n', fnlp+1) - fnlp - 1
 
-        print(' Difficulty selection '.center(width, '='))
-        print('\n', table, '\n', sep='')
-        try:
-            while True:
-                try:
-                    input_ = prompt('Enter key: ',
-                                    validator=self.validator,
-                                    validate_while_typing=False).strip()
-                except EOFError:
-                    raise CancelOperation
-                except KeyboardInterrupt:
-                    continue
+    print(' Difficulty selection '.center(width, '='))
+    print('\n', table, '\n', sep='')
+    try:
+        while True:
+            try:
+                input_ = prompt('Enter key: ',
+                                validator=diff_selection_validator,
+                                validate_while_typing=False).strip()
+            except EOFError:
+                raise CancelOperation
+            except KeyboardInterrupt:
+                continue
 
-                try:
-                    difficulty = get_game().difs[int(input_)]
-                except (ValueError, IndexError):
-                    continue
-                else:
-                    return difficulty
-        finally:
-            print(''.center(width, '='))
+            try:
+                difficulty = difficulties[int(input_)]
+            except (ValueError, IndexError):
+                continue
+            else:
+                return difficulty
+    finally:
+        print(''.center(width, '='))
+
+
+# =====
+# Round
+# =====
 
 
 class RoundValidator(Validator):
@@ -537,7 +549,7 @@ class RoundValidator(Validator):
     def validate(self, document: Document) -> None:
         input_: str = document.text.strip()
 
-        difficulty = get_game().current_dif
+        difficulty = get_game().round.difficulty
         digs_set = difficulty.digs_set
         num_size = difficulty.num_size
 
@@ -577,7 +589,8 @@ class Round:
     ROUND_START = '\n===== Round started ======\n'
     ROUND_END = '\n======= Round ended ======\n'
 
-    def __init__(self) -> None:
+    def __init__(self, difficulty: Difficulty) -> None:
+        self._difficulty = difficulty
         self.history = HistoryContainer()
 
         self._draw_number()
@@ -585,9 +598,9 @@ class Round:
             print(self._number)
 
     def _draw_number(self) -> None:
-        """Draw number digits from self.dif.digs_set."""
+        """Draw number digits from self.difficulty.digs_set."""
         self._number = ''.join(
-            random.sample(self.dif.digs_set, self.dif.num_size)
+            random.sample(self.difficulty.digs_set, self.difficulty.num_size)
         )
 
     @property
@@ -595,14 +608,14 @@ class Round:
         return len(self.history)
 
     @property
-    def dif(self) -> Difficulty:
-        return get_game().current_dif
+    def difficulty(self) -> Difficulty:
+        return self._difficulty
 
     @property
     def toolbar(self) -> str:
-        return (f" Difficulty: {self.dif.name}  |  "
-                f"Size: {self.dif.num_size}  |  "
-                f"Digits: {self.dif.digs_range}")
+        return (f" Difficulty: {self.difficulty.name}  |  "
+                f"Size: {self.difficulty.num_size}  |  "
+                f"Digits: {self.difficulty.digs_range}")
 
     def run(self) -> None:
         """Run round loop."""
@@ -616,9 +629,9 @@ class Round:
                 bulls, cows = self.comput_bullscows(number)
                 self.history.append(number, bulls, cows)
 
-                if bulls == self.dif.num_size:
+                if bulls == self.difficulty.num_size:
                     print(f"\n *** You guessed in {self.steps} steps ***")
-                    return
+                    return self.history
 
                 print(f"  bulls: {bulls:>2}, cows: {cows:>2}")
         finally:
@@ -628,7 +641,7 @@ class Round:
         """Return bulls and cows for given input."""
         bulls, cows = 0, 0
 
-        for i in range(self.dif.num_size):
+        for i in range(self.difficulty.num_size):
             if guess[i] == self._number[i]:
                 bulls += 1
             elif guess[i] in self._number:
@@ -665,18 +678,203 @@ class Round:
             return input_
 
 
+# ============
+# Menu actions
+# ============
+
+
+MenuAction = Callable[[], None]
+
+
+def menu_selection_validator_func(text: str) -> bool:
+    return text.isdigit() and int(text) in get_game().actions
+
+
+menu_selection_validator = Validator.from_callable(
+    menu_selection_validator_func,
+    error_message='Invalid key',
+    move_cursor_to_end=True,
+)
+
+
+def menu_selecton() -> MenuAction:
+    actions = get_game().actions
+    table = tabulate(actions.table(),
+                     headers=('Key', 'Action'),
+                     colalign=('left', 'right'))
+
+    # Compute table width
+    fnlp = table.find('\n')
+    width = table.find('\n', fnlp+1) - fnlp - 1
+
+    print(' Menu '.center(width, '='))
+    print('\n', table, '\n', sep='')
+    try:
+        while True:
+            try:
+                input_ = prompt('Enter key: ',
+                                validator=menu_selection_validator,
+                                validate_while_typing=False).strip()
+            except EOFError:
+                sys.exit()
+            except KeyboardInterrupt:
+                continue
+
+            try:
+                action = actions[int(input_)]
+            except (ValueError, IndexError):
+                continue
+            else:
+                return action
+    finally:
+        print(''.center(width, '='))
+
+
+# TODO: extend player_validator
+player_validator = Validator.from_callable(
+    lambda text: 2 < len(text.strip()) < 10,
+    error_message="Invalid player name",
+    move_cursor_to_end=True,
+)
+
+
+def play_action() -> None:
+    try:
+        difficulty = difficulty_selection()
+    except CancelOperation:
+        return
+
+    game = get_game()
+    player = ''
+    while True:
+        try:
+            game.round = Round(difficulty)
+            history = game.round.run()
+        except RestartGame as rg:
+            if rg.difficulty is not None:
+                difficulty = rg.difficulty
+            continue
+        except QuitGame:
+            return
+        finally:
+            del game.round
+
+        while True:
+            try:
+                input_ = prompt('Save score as: ',
+                                default=player,
+                                validator=player_validator,
+                                validate_while_typing=False).strip()
+            except EOFError:
+                break
+            except KeyboardInterrupt:
+                player = ''
+                continue
+
+            player = input_
+            try:
+                if ask_ok(f'Confirm player: "{player}" [Y/n] '):
+                    Path('.scores.csv').touch()
+                    scores = pd.read_csv(
+                        '.scores.csv',
+                        names=['datetime', 'posible_digits',
+                               'number_size', 'score', 'player'],
+                        parse_dates=['datetime'],
+                    )
+
+                    dtindex = datetime.now()
+                    scores.loc[len(scores)] = (
+                        dtindex,
+                        len(difficulty.digs_set),
+                        difficulty.num_size,
+                        len(history),
+                        player,
+                    )
+
+                    scores.to_csv('.scores.csv', header=False, index=False)
+
+                    scores = scores[
+                        (scores['posible_digits']  ==
+                            len(difficulty.digs_set)) &
+                        (scores['number_size'] == difficulty.num_size)
+                    ]
+
+                    print(scores)
+                    scores.sort_values(by=['score', 'datetime'],
+                                       inplace=True)
+
+                    scores = scores[['score', 'player']].head()
+                    if dtindex in scores['datetime']:
+                        scores.set_index(
+                            pd.RangeIndex(1, len(scores)+1, name='pos.'),
+                            inplace=True
+                        )
+
+                        print(tabulate(scores,
+                                       headers='keys',
+                                       colalign=('left', 'center', 'left')))
+
+                    break
+
+            except CancelOperation:
+                break
+
+
+        try:
+            if ask_ok('Do you want to continue? [Y/n]: '):
+                continue
+            else:
+                return
+        except CancelOperation:
+            return
+
+
+def help_action() -> None:
+    pager(GAME_HELP)
+
+
+def exit_action() -> NoReturn:
+    sys.exit()
+
+
+class ActionContainer:
+    """Contain Command objects and allows execute them."""
+
+    def __init__(self) -> None:
+        self._actions = pd.DataFrame(
+            [['Play', play_action],
+             ['Help', help_action],
+             ['EXIT', exit_action]],
+            columns=['label', 'action'],
+            index=[1, 2, 0],
+        )
+
+    def __getitem__(self, key: int) -> MenuAction:
+        """Give Command by given name or shorthand."""
+        if isinstance(key, int):
+            return self._actions.loc[key].action
+        raise IndexError(key)
+
+    def __contains__(self, item: T) -> bool:
+        if isinstance(item, int):
+            return item in self._actions.index
+        return False
+
+    def table(self) -> pd.DataFrame:
+        return self._actions[['label']].copy()
+
+
+# ====
+# Game
+# ====
+
+
 class Game:
     """Game class."""
 
-    GAME_START = dedent("""
+    GAME_START = dedent(f"""
         ==================================
-        ---------- Game started ----------
-        ==================================
-    """)
-
-    GAME_END = dedent("""
-        ==================================
-        ----------- Game ended -----------
+        ----------- BacPy v{__version__} -----------
         ==================================
     """)
 
@@ -694,42 +892,16 @@ class Game:
     def __init__(self) -> None:
         self.difs = DifficultyContainer()
         self.commands = CommandContainer()
+        self.actions = ActionContainer()
 
         self.round: Round
-        self.current_dif: Difficulty
 
     def run(self) -> None:
         """Runs game loop."""
-
         print(self.GAME_START)
-        try:
-            try:
-                difficulty = DifficultySelection().run()
-            except CancelOperation:
-                return
-            else:
-                self.current_dif = difficulty
-
-            while True:  # Game loop
-                try:
-                    self.round = Round()
-                    self.round.run()
-                except RestartGame:
-                    continue
-                except QuitGame:
-                    return
-                finally:
-                    del self.round
-
-                try:
-                    if ask_ok('Do you want to continue? [Y/n]: '):
-                        continue
-                    else:
-                        return
-                except CancelOperation:
-                    return
-        finally:
-            print(self.GAME_END)
+        while True:
+            action = menu_selecton()
+            action()
 
 
 def get_game() -> Game:
