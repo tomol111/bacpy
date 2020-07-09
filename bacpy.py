@@ -6,9 +6,8 @@ __author__ = 'Tomasz Olszewski'
 
 
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
-from math import factorial
 import os
 from pathlib import Path
 import random
@@ -66,6 +65,10 @@ class Difficulty:
     digs_set: FrozenSet[str]
     digs_range: str
     num_size: int
+    digs_num: int = field(init=False)
+
+    def __post_init__(self):
+        self.digs_num = len(self.digs_set)
 
     @classmethod
     def from_str(cls, string: str, sep: str = ',') -> 'Difficulty':
@@ -78,31 +81,18 @@ class Difficulty:
 
         return cls(name, digs_set, digs_range, num_size)
 
-    @property
-    def variance(self) -> int:
-        """All possible numbers for this difficulty settings."""
-        n = len(self.digs_set)
-        k = self.num_size
-        return factorial(n) // factorial(n-k)
-
     def __eq__(self, other: object) -> bool:
-        """Compare 'variance' and 'num_size'."""
         if not isinstance(other, Difficulty):
             return NotImplemented
-        return (self.variance == other.variance
+        return (self.digs_num == other.digs_num
                 and self.num_size == other.num_size)
 
     def __lt__(self, other: object) -> bool:
-        """Compare 'variance' and 'num_size'.
-
-        Return True if 'variance' is less than or
-        if 'variance' is equal and 'num_size' is grater than.
-        """
         if not isinstance(other, Difficulty):
             return NotImplemented
-        return (self.variance < other.variance
-                or self.variance == other.variance
-                and self.num_size > self.num_size)
+        return (self.digs_num < other.digs_num
+                or self.digs_num == other.digs_num
+                and self.num_size < other.num_size)
 
 
 class DifficultyContainer(Collection[Difficulty], Iterable[Difficulty]):
@@ -177,12 +167,12 @@ class DifficultyContainer(Collection[Difficulty], Iterable[Difficulty]):
             return item
 
 
-# ================
-# HistoryContainer
-# ================
+# =======
+# History
+# =======
 
 
-class HistoryContainer:
+class History:
     """Keep HistoryRecords."""
 
     def __init__(self) -> None:
@@ -591,7 +581,7 @@ class Round:
 
     def __init__(self, difficulty: Difficulty) -> None:
         self._difficulty = difficulty
-        self.history = HistoryContainer()
+        self.history = History()
 
         self._draw_number()
         if DEBUGING_MODE:
@@ -617,7 +607,7 @@ class Round:
                 f"Size: {self.difficulty.num_size}  |  "
                 f"Digits: {self.difficulty.digs_range}")
 
-    def run(self) -> None:
+    def run(self) -> History:
         """Run round loop."""
         print(self.ROUND_START)
         try:
@@ -785,7 +775,7 @@ def play_action() -> None:
                     dtindex = datetime.now()
                     scores.loc[len(scores)] = (
                         dtindex,
-                        len(difficulty.digs_set),
+                        difficulty.digs_num,
                         difficulty.num_size,
                         len(history),
                         player,
@@ -793,24 +783,27 @@ def play_action() -> None:
 
                     scores.to_csv('.scores.csv', header=False, index=False)
 
-                    scores = scores[
-                        (scores['posible_digits']  ==
-                            len(difficulty.digs_set)) &
-                        (scores['number_size'] == difficulty.num_size)
-                    ]
+                    scores = (
+                        scores
+                        [(scores['posible_digits'] == difficulty.digs_num)
+                         & (scores['number_size'] == difficulty.num_size)]
+                        .sort_values(by=['score', 'datetime'])
+                        .head(10)
+                    )
 
-                    print(scores)
-                    scores.sort_values(by=['score', 'datetime'],
-                                       inplace=True)
-
-                    scores = scores[['score', 'player']].head()
-                    if dtindex in scores['datetime']:
-                        scores.set_index(
-                            pd.RangeIndex(1, len(scores)+1, name='pos.'),
-                            inplace=True
+                    if dtindex in list(scores['datetime']):
+                        scores = (
+                            scores
+                            [['score', 'player']]
+                            .astype({'score': object, 'player': object})
+                            .reset_index(drop=True)
+                            .join(pd.Series(range(1, 11), name='pos.'),
+                                  how='outer')
+                            .set_index('pos.')
+                            .fillna('-')
                         )
 
-                        print(tabulate(scores,
+                        pager(tabulate(scores,
                                        headers='keys',
                                        colalign=('left', 'center', 'left')))
 
@@ -818,7 +811,6 @@ def play_action() -> None:
 
             except CancelOperation:
                 break
-
 
         try:
             if ask_ok('Do you want to continue? [Y/n]: '):
@@ -833,8 +825,66 @@ def help_action() -> None:
     pager(GAME_HELP)
 
 
-def exit_action() -> NoReturn:
-    sys.exit()
+def show_ranking() -> None:
+    Path('.scores.csv').touch()
+    scores = pd.read_csv(
+        '.scores.csv',
+        names=['datetime', 'posible_digits',
+               'number_size', 'score', 'player'],
+        parse_dates=['datetime'],
+    )
+
+    grouped = scores.groupby(['posible_digits', 'number_size'])
+    data = pd.DataFrame(
+        [[key, pos_digs, num_size]
+         for key, (pos_digs, num_size) in enumerate(grouped.groups, start=1)],
+        columns=['Key', 'Digits', 'Size'],
+    ).set_index('Key')
+
+    table = tabulate(data,
+                     headers='keys',
+                     colalign=('left', 'center', 'center'))
+
+    # Compute table width
+    fnlp = table.find('\n')
+    width = table.find('\n', fnlp+1) - fnlp - 1
+
+    print(' Show ranking '.center(width, '='))
+    print('\n', table, '\n', sep='')
+    try:
+        while True:
+            try:
+                input_ = prompt('Enter key: ',
+                                validator=menu_selection_validator,
+                                validate_while_typing=False).strip()
+            except EOFError:
+                return
+            except KeyboardInterrupt:
+                continue
+
+            try:
+                digssize = tuple(data.loc[int(input_)])
+            except (ValueError, IndexError):
+                continue
+            else:
+                scores = (grouped.get_group(digssize)
+                                 .sort_values(by=['score', 'datetime']))
+
+                scores = (
+                    scores
+                    [['score', 'player']]
+                    .head(10).astype({'score': object, 'player': object})
+                    .reset_index(drop=True)
+                    .join(pd.Series(range(1, 11), name='pos.'), how='outer')
+                    .set_index('pos.')
+                    .fillna('-')
+                )
+
+                pager(tabulate(scores,
+                               headers='keys',
+                               colalign=('left', 'center', 'left')))
+    finally:
+        print(''.center(width, '='))
 
 
 class ActionContainer:
@@ -843,10 +893,11 @@ class ActionContainer:
     def __init__(self) -> None:
         self._actions = pd.DataFrame(
             [['Play', play_action],
-             ['Help', help_action],
-             ['EXIT', exit_action]],
+             ['Show rankings', show_ranking],
+             ['Show help', help_action],
+             ['EXIT', sys.exit]],
             columns=['label', 'action'],
-            index=[1, 2, 0],
+            index=[1, 2, 3, 0],
         )
 
     def __getitem__(self, key: int) -> MenuAction:
