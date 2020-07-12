@@ -6,7 +6,7 @@ __author__ = 'Tomasz Olszewski'
 
 
 from collections import Counter
-from dataclasses import dataclass, field
+from contextvars import ContextVar
 from datetime import datetime
 import os
 from pathlib import Path
@@ -14,16 +14,15 @@ import random
 import subprocess
 import sys
 from textwrap import dedent
-from typing import (Callable, ClassVar, Collection, Dict, FrozenSet, Iterable,
+from typing import (Callable, ClassVar, Collection, Dict, Set, Iterable,
                     Iterator, List, NoReturn, Optional, Union, Tuple, TypeVar)
-from weakref import ref
 
 import pandas as pd  # type: ignore
 from prompt_toolkit import PromptSession  # type: ignore
 from prompt_toolkit.document import Document  # type: ignore
 from prompt_toolkit.shortcuts import clear, prompt  # type: ignore
 from prompt_toolkit.validation import (  # type: ignore
-        Validator, ValidationError)
+    Validator, ValidationError)
 from tabulate import tabulate
 
 
@@ -31,7 +30,7 @@ from tabulate import tabulate
 T = TypeVar('T')
 
 # Constants
-DEBUGING_MODE = True
+DIF_INDEX_START = 1
 
 GAME_HELP = """
 # HELP
@@ -57,61 +56,31 @@ Special commands:
 # ============
 
 
-@dataclass(frozen=True)
 class Difficulty:
-    """Game difficulty parameters."""
-    __slots__ = ('name', 'digs_set', 'digs_range', 'num_size')
-    name: str
-    digs_set: FrozenSet[str]
+    name_: str
+    digs_set: Set[str]
     digs_range: str
     num_size: int
-    digs_num: int = field(init=False)
-
-    def __post_init__(self):
-        self.digs_num = len(self.digs_set)
-
-    @classmethod
-    def from_str(cls, string: str, sep: str = ',') -> 'Difficulty':
-        """Create difficulty object from strings."""
-        name, digs_set_str, digs_range, num_size_str = map(
-            lambda x: x.strip(), string.split(sep))
-
-        digs_set = frozenset(digs_set_str)
-        num_size = int(num_size_str)
-
-        return cls(name, digs_set, digs_range, num_size)
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, Difficulty):
-            return NotImplemented
-        return (self.digs_num == other.digs_num
-                and self.num_size == other.num_size)
-
-    def __lt__(self, other: object) -> bool:
-        if not isinstance(other, Difficulty):
-            return NotImplemented
-        return (self.digs_num < other.digs_num
-                or self.digs_num == other.digs_num
-                and self.num_size < other.num_size)
+    digs_num: int
 
 
-class DifficultyContainer(Collection[Difficulty], Iterable[Difficulty]):
+class DifficultyContainer:
     """Keeps available difficulties.
 
     Uses DIF_INDEX_START to handle index.
     """
 
-    DEFAULT_DIFS = [Difficulty.from_str(record) for record in (
-        'easy,   123456,         1-6,    3',
-        'normal, 123456789,      1-9,    4',
-        'hard,   123456789abcdf, 1-9a-f, 5',
-    )]
-    DIF_INDEX_START = 1
-
     def __init__(self) -> None:
-        self._difs = pd.Series(
-            {dif.name: dif for dif in self.DEFAULT_DIFS}, dtype=object)
-        self._difs.sort_values(inplace=True)
+        self._difs = pd.DataFrame(
+            [['easy', set('123456'), '1-6', 3],
+             ['normal', set('123456789'), '1-9', 4],
+             ['hard', set('123456789abcdf'), '1-9a-f', 5]],
+            columns=['name_', 'digs_set', 'digs_range', 'num_size'],
+        )
+        self._difs['digs_num'] = self._difs['digs_set'].map(len)
+        # self._difs.sort_values(by=['digs_num', 'num_size'], inplace=True)
+        self._difs.index = pd.RangeIndex(DIF_INDEX_START,
+                                         len(self._difs) + DIF_INDEX_START)
 
     def __iter__(self) -> Iterator[Difficulty]:
         return iter(self._difs)
@@ -122,42 +91,29 @@ class DifficultyContainer(Collection[Difficulty], Iterable[Difficulty]):
     def __getitem__(self, key: Union[str, int]) -> Difficulty:
         """Return Difficulty by given name or index."""
         if isinstance(key, int):
-            key -= self.DIF_INDEX_START
-        return self._difs[key]
+            return self._difs.loc[key]
+        if isinstance(key, str):
+            return self._difs[self._difs['name_'] == key].iloc[0]
+        return
 
     def __contains__(self, name: object) -> bool:
         """Return True if given name is available."""
-        return name in self._difs.index
-
-    @property
-    def names(self) -> List[str]:
-        """List of names."""
-        return list(self._difs.index)
+        return name in list(self._difs['name_'])
 
     def isindex(self, number: int) -> bool:
         """Return True if given number is available index."""
-        return isinstance(number, int) and \
-            self.DIF_INDEX_START <= number < len(self)+self.DIF_INDEX_START
+        return number in self._difs.index
 
     def table(self) -> pd.DataFrame:
-        """pd.DataFrame containing difficulties` 'name', 'num_size'
+        """pd.DataFrame containing difficulties` 'name_', 'num_size'
         and 'digs_range'."""
-        dt = pd.DataFrame(columns=['name', 'num_size', 'digs_range'],
-                          index=pd.RangeIndex(
-                              self.DIF_INDEX_START,
-                              len(self)+self.DIF_INDEX_START))
-
-        for index, dif in enumerate(self, start=self.DIF_INDEX_START):
-            for element in dt:
-                dt.loc[index, element] = getattr(dif, element)
-
-        return dt
+        return self._difs[['name_', 'num_size', 'digs_range']]
 
     def get(self, key: Union[str, int], default: Optional[T] = None) \
             -> Union[Difficulty, Optional[T]]:
         """Return difficulty for key. If key don't exist return 'default.
 
-        Key can be 'name' or index number.
+        Key can be 'name_' or index number.
         """
         try:
             item = self[key]
@@ -173,7 +129,7 @@ class DifficultyContainer(Collection[Difficulty], Iterable[Difficulty]):
 
 
 class History:
-    """Keep HistoryRecords."""
+    """Keep history of the Round."""
 
     def __init__(self) -> None:
         self._hist = pd.DataFrame(columns=['number', 'bulls', 'cows'],
@@ -189,7 +145,7 @@ class History:
         self._hist.loc[len(self)+1] = number, bulls, cows
 
     def table(self) -> pd.DataFrame:
-        return self._hist[:]
+        return self._hist
 
 
 # ======
@@ -222,9 +178,9 @@ class CommandError(GameEvent):
     """
 
 
-# ========
+# =========
 # CLI tools
-# ========
+# =========
 
 
 def ask_ok(prompt_message: str, default: bool = True) -> bool:
@@ -584,7 +540,7 @@ class Round:
         self.history = History()
 
         self._draw_number()
-        if DEBUGING_MODE:
+        if sys.flags.dev_mode:
             print(self._number)
 
     def _draw_number(self) -> None:
@@ -603,9 +559,9 @@ class Round:
 
     @property
     def toolbar(self) -> str:
-        return (f" Difficulty: {self.difficulty.name}  |  "
-                f"Size: {self.difficulty.num_size}  |  "
-                f"Digits: {self.difficulty.digs_range}")
+        return ("  |  ".join([f" Difficulty: {self.difficulty.name_}",
+                              f"Size: {self.difficulty.num_size}",
+                              f"Digits: {self.difficulty.digs_range}"]))
 
     def run(self) -> History:
         """Run round loop."""
@@ -631,10 +587,10 @@ class Round:
         """Return bulls and cows for given input."""
         bulls, cows = 0, 0
 
-        for i in range(self.difficulty.num_size):
-            if guess[i] == self._number[i]:
+        for g, n in zip(guess, self._number):
+            if g == n:
                 bulls += 1
-            elif guess[i] in self._number:
+            elif g in self._number:
                 cows += 1
 
         return bulls, cows
@@ -920,6 +876,9 @@ class ActionContainer:
 # ====
 
 
+_current_game: ContextVar = ContextVar('game')
+
+
 class Game:
     """Game class."""
 
@@ -929,12 +888,10 @@ class Game:
         ==================================
     """)
 
-    instance: ClassVar[Callable[[], Optional['Game']]] = lambda: None
-
     def __new__(cls) -> 'Game':
-        if not hasattr(cls, 'isntance') or not cls.instance():
+        if _current_game.get(None) is None:
             instance = super(Game, cls).__new__(cls)
-            cls.instance = ref(instance)
+            _current_game.set(instance)
         else:
             raise TypeError(
                 f"Can't create more than 1 instance of '{cls.__name__}' class")
@@ -956,9 +913,7 @@ class Game:
 
 
 def get_game() -> Game:
-    ret = Game.instance()
-    assert ret is not None, "'get_game' called before instantiate 'Game' class"
-    return ret
+    return _current_game.get()
 
 
 if __name__ == '__main__':
