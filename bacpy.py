@@ -1,8 +1,4 @@
-"""BacPy - Bulls and Cows game implementation by Tomasz Olszewski"""
-
-
-__version__ = '0.3'
-__author__ = 'Tomasz Olszewski'
+"""Bulls and Cows game implementation by Tomasz Olszewski."""
 
 
 from collections import Counter
@@ -916,5 +912,9 @@ def get_game() -> Game:
     return _current_game.get()
 
 
-if __name__ == '__main__':
+def main():
     Game().run()
+
+
+if __name__ == '__main__':
+    exit(main())
