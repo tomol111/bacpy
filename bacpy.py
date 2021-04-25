@@ -1,6 +1,3 @@
-"""Bulls and Cows game implementation by Tomasz Olszewski."""
-
-
 from collections import Counter
 from contextvars import ContextVar
 from datetime import datetime
@@ -9,18 +6,42 @@ from pathlib import Path
 import random
 import subprocess
 import sys
-from textwrap import dedent
-from typing import (Callable, ClassVar, Collection, Dict, Set, Iterable,
-                    Iterator, List, NoReturn, Optional, Union, Tuple, TypeVar)
+from typing import (
+    Callable,
+    ClassVar,
+    Collection,
+    Dict,
+    Set,
+    Iterable,
+    Iterator,
+    List,
+    NoReturn,
+    Optional,
+    Union,
+    Tuple,
+    TypeVar,
+)
 
-import pandas as pd  # type: ignore
-from prompt_toolkit import PromptSession  # type: ignore
-from prompt_toolkit.document import Document  # type: ignore
-from prompt_toolkit.shortcuts import clear, prompt  # type: ignore
-from prompt_toolkit.validation import (  # type: ignore
-    Validator, ValidationError)
+import pandas as pd
+from prompt_toolkit import PromptSession
+from prompt_toolkit.document import Document
+from prompt_toolkit.shortcuts import clear, prompt
+from prompt_toolkit.validation import Validator, ValidationError
 from tabulate import tabulate
 
+if sys.version_info >= (3, 8):
+    import importlib.metadata as importlib_metadata
+else:
+    try:
+        import importlib_metadata
+    except ModuleNotFoundError:
+        importlib_metadata = None
+
+
+if importlib_metadata:
+    VERSION_STR = f" BacPy v{importlib_metadata.version('bacpy')} "
+else:
+    VERSION_STR = " BacPy "
 
 # Type variables
 T = TypeVar('T')
@@ -68,15 +89,19 @@ class DifficultyContainer:
 
     def __init__(self) -> None:
         self._difs = pd.DataFrame(
-            [['easy', set('123456'), '1-6', 3],
-             ['normal', set('123456789'), '1-9', 4],
-             ['hard', set('123456789abcdf'), '1-9a-f', 5]],
+            [
+                ['easy', set('123456'), '1-6', 3],
+                ['normal', set('123456789'), '1-9', 4],
+                ['hard', set('123456789abcdf'), '1-9a-f', 5],
+            ],
             columns=['name_', 'digs_set', 'digs_range', 'num_size'],
         )
         self._difs['digs_num'] = self._difs['digs_set'].map(len)
         # self._difs.sort_values(by=['digs_num', 'num_size'], inplace=True)
-        self._difs.index = pd.RangeIndex(DIF_INDEX_START,
-                                         len(self._difs) + DIF_INDEX_START)
+        self._difs.index = pd.RangeIndex(
+            DIF_INDEX_START,
+            len(self._difs) + DIF_INDEX_START,
+        )
 
     def __iter__(self) -> Iterator[Difficulty]:
         return iter(self._difs)
@@ -105,8 +130,11 @@ class DifficultyContainer:
         and 'digs_range'."""
         return self._difs[['name_', 'num_size', 'digs_range']]
 
-    def get(self, key: Union[str, int], default: Optional[T] = None) \
-            -> Union[Difficulty, Optional[T]]:
+    def get(
+            self,
+            key: Union[str, int],
+            default: Optional[T] = None,
+    ) -> Union[Difficulty, Optional[T]]:
         """Return difficulty for key. If key don't exist return 'default.
 
         Key can be 'name_' or index number.
@@ -128,8 +156,10 @@ class History:
     """Keep history of the Round."""
 
     def __init__(self) -> None:
-        self._hist = pd.DataFrame(columns=['number', 'bulls', 'cows'],
-                                  index=pd.Index([], name='step'))
+        self._hist = pd.DataFrame(
+            columns=['number', 'bulls', 'cows'],
+            index=pd.Index([], name='step'),
+        )
 
     def __iter__(self) -> Iterator[Tuple[int, pd.Series]]:
         return self._hist.iterrows()
@@ -138,7 +168,7 @@ class History:
         return len(self._hist)
 
     def append(self, number: str, bulls: int, cows: int) -> None:
-        self._hist.loc[len(self)+1] = number, bulls, cows
+        self._hist.loc[len(self) + 1] = number, bulls, cows
 
     def table(self) -> pd.DataFrame:
         return self._hist
@@ -200,7 +230,7 @@ def ask_ok(prompt_message: str, default: bool = True) -> bool:
 def pager(text: str) -> None:
     """Use pager to show text."""
     # '-C' flag prevent from showing text on bottom of the screen
-    subprocess.run(['less', '-C'], input=str.encode(text))
+    subprocess.run(['less', '-C'], input=text.encode())
 
 
 # ========
@@ -246,10 +276,12 @@ class CommandContainer(Collection[Command], Iterable[Command]):
     """Contain Command objects and allows execute them."""
 
     def __init__(self) -> None:
-        self._cmds: Dict[str, Command] = \
-            {cmd.name: cmd for cmd in Command.instances}
-        self._shorthands_map: Dict[str, str] = \
-            {cmd.shorthand: cmd.name for cmd in Command.instances}
+        self._cmds: Dict[str, Command] = {
+            cmd.name: cmd for cmd in Command.instances
+        }
+        self._shorthands_map: Dict[str, str] = {
+            cmd.shorthand: cmd.name for cmd in Command.instances
+        }
 
     def __iter__(self) -> Iterator[Command]:
         return iter(self._cmds.values())
@@ -280,8 +312,11 @@ class CommandContainer(Collection[Command], Iterable[Command]):
         """Return list of shorthands."""
         return list(self._shorthands_map)
 
-    def get(self, key: str, default: Optional[T] = None) \
-            -> Union[Command, Optional[T]]:
+    def get(
+            self,
+            key: str,
+            default: Optional[T] = None,
+    ) -> Union[Command, Optional[T]]:
         """Return command class for key.
 
         If key don't exist return 'default'.
@@ -325,19 +360,19 @@ def help_cmd(arg: str = '') -> None:
 
     commands = get_game().commands
     if arg == 'commands':
-        pager('\n'.join([cmd.doc for cmd in commands
-                         if cmd.doc is not None]))
-        return
-
-    if arg in commands:
+        pager('\n'.join([
+            cmd.doc
+            for cmd in commands
+            if cmd.doc is not None
+        ]))
+    elif arg in commands:
         cmd = commands[arg]
         if cmd.doc is not None:
             print(cmd.doc)
         else:
             print(f"  Command {cmd} don't have documentation")
-        return
-
-    raise CommandError(f"  No help for '{arg}'")
+    else:
+        raise CommandError(f"  No help for '{arg}'")
 
 
 @Command.add(name='quit', shorthand='q')
@@ -385,9 +420,11 @@ def difficulty_cmd(arg: str = '') -> None:
             raise RestartGame(difficulty=difficulty)
 
     if arg == '-l':
-        print(tabulate(game.difs.table(),
-                       headers=('Key', 'Difficulty', 'Size', 'Digits'),
-                       tablefmt='plain'))
+        print(tabulate(
+            game.difs.table(),
+            headers=('Key', 'Difficulty', 'Size', 'Digits'),
+            tablefmt='plain',
+        ))
         return
 
     try:
@@ -424,11 +461,13 @@ def history_cmd(arg: str = '') -> None:
         clear_cmd()
     elif arg:
         raise CommandError(f"  invalid argument '{arg}'")
-    print(tabulate(game.round.history.table(),
-                   headers=('Number', 'Bulls', 'Cows'),
-                   colalign=('center', 'center', 'center'),
-                   showindex=False,
-                   tablefmt='plain'))
+    print(tabulate(
+        game.round.history.table(),
+        headers=('Number', 'Bulls', 'Cows'),
+        colalign=('center', 'center', 'center'),
+        showindex=False,
+        tablefmt='plain',
+    ))
 
 
 # ====================
@@ -450,9 +489,11 @@ diff_selection_validator = Validator.from_callable(
 def difficulty_selection() -> Difficulty:
     """Difficulty selection."""
     difficulties = get_game().difs
-    table = tabulate(difficulties.table(),
-                     headers=('Key', 'Difficulty', 'Size', 'Digits'),
-                     colalign=('right', 'left', 'center', 'center'))
+    table = tabulate(
+        difficulties.table(),
+        headers=('Key', 'Difficulty', 'Size', 'Digits'),
+        colalign=('right', 'left', 'center', 'center'),
+    )
 
     # Compute table width
     fnlp = table.find('\n')
@@ -463,9 +504,11 @@ def difficulty_selection() -> Difficulty:
     try:
         while True:
             try:
-                input_ = prompt('Enter key: ',
-                                validator=diff_selection_validator,
-                                validate_while_typing=False).strip()
+                input_ = prompt(
+                    'Enter key: ',
+                    validator=diff_selection_validator,
+                    validate_while_typing=False,
+                ).strip()
             except EOFError:
                 raise CancelOperation
             except KeyboardInterrupt:
@@ -500,17 +543,20 @@ class RoundValidator(Validator):
             wrong_chars = set(input_) - digs_set
             if wrong_chars:
                 raise ValidationError(
-                    message="Wrong characters: %s" %
-                            ', '.join(map(lambda x: f"'{x}'", wrong_chars)),
-                    cursor_position=max(input_.rfind(dig)
-                                        for dig in wrong_chars) + 1
+                    message=(
+                        "Wrong characters: %s"
+                        % ', '.join(map(lambda x: f"'{x}'", wrong_chars))
+                    ),
+                    cursor_position=max(
+                        input_.rfind(dig) for dig in wrong_chars
+                    ) + 1,
                 )
 
             # Check length
             if len(input_) != num_size:
                 raise ValidationError(
                     message=f"Digit must have {num_size} digits",
-                    cursor_position=float('inf')
+                    cursor_position=len(input_),
                 )
 
             # Check that digits don't repeat
@@ -518,10 +564,13 @@ class RoundValidator(Validator):
             rep_digs = {i for i, n in digits.items() if n > 1}
             if rep_digs:
                 raise ValidationError(
-                    message="Number can't have repeated digits. %s repeated." %
-                            ', '.join(map(lambda x: f"'{x}'", rep_digs)),
-                    cursor_position=max(input_.rfind(dig)
-                                        for dig in rep_digs) + 1
+                    message=(
+                        "Number can't have repeated digits. %s repeated."
+                        % ', '.join(map(lambda x: f"'{x}'", rep_digs))
+                    ),
+                    cursor_position=max(
+                        input_.rfind(dig) for dig in rep_digs
+                    ) + 1,
                 )
 
 
@@ -555,17 +604,21 @@ class Round:
 
     @property
     def toolbar(self) -> str:
-        return ("  |  ".join([f" Difficulty: {self.difficulty.name_}",
-                              f"Size: {self.difficulty.num_size}",
-                              f"Digits: {self.difficulty.digs_range}"]))
+        return "  |  ".join([
+            f" Difficulty: {self.difficulty.name_}",
+            f"Size: {self.difficulty.num_size}",
+            f"Digits: {self.difficulty.digs_range}",
+        ])
 
     def run(self) -> History:
         """Run round loop."""
         print(self.ROUND_START)
         try:
-            self.ps = PromptSession(bottom_toolbar=self.toolbar,
-                                    validator=RoundValidator(),
-                                    validate_while_typing=False)
+            self.ps: PromptSession = PromptSession(
+                bottom_toolbar=self.toolbar,
+                validator=RoundValidator(),
+                validate_while_typing=False,
+            )
             while True:
                 number = self._number_input()
                 bulls, cows = self.comput_bullscows(number)
@@ -641,9 +694,11 @@ menu_selection_validator = Validator.from_callable(
 
 def menu_selecton() -> MenuAction:
     actions = get_game().actions
-    table = tabulate(actions.table(),
-                     headers=('Key', 'Action'),
-                     colalign=('left', 'right'))
+    table = tabulate(
+        actions.table(),
+        headers=('Key', 'Action'),
+        colalign=('left', 'right'),
+    )
 
     # Compute table width
     fnlp = table.find('\n')
@@ -654,9 +709,11 @@ def menu_selecton() -> MenuAction:
     try:
         while True:
             try:
-                input_ = prompt('Enter key: ',
-                                validator=menu_selection_validator,
-                                validate_while_typing=False).strip()
+                input_ = prompt(
+                    'Enter key: ',
+                    validator=menu_selection_validator,
+                    validate_while_typing=False,
+                ).strip()
             except EOFError:
                 sys.exit()
             except KeyboardInterrupt:
@@ -703,10 +760,12 @@ def play_action() -> None:
 
         while True:
             try:
-                input_ = prompt('Save score as: ',
-                                default=player,
-                                validator=player_validator,
-                                validate_while_typing=False).strip()
+                input_ = prompt(
+                    'Save score as: ',
+                    default=player,
+                    validator=player_validator,
+                    validate_while_typing=False,
+                ).strip()
             except EOFError:
                 break
             except KeyboardInterrupt:
@@ -719,8 +778,13 @@ def play_action() -> None:
                     Path('.scores.csv').touch()
                     scores = pd.read_csv(
                         '.scores.csv',
-                        names=['datetime', 'posible_digits',
-                               'number_size', 'score', 'player'],
+                        names=[
+                            'datetime',
+                            'posible_digits',
+                            'number_size',
+                            'score',
+                            'player',
+                        ],
                         parse_dates=['datetime'],
                     )
 
@@ -737,8 +801,10 @@ def play_action() -> None:
 
                     scores = (
                         scores
-                        [(scores['posible_digits'] == difficulty.digs_num)
-                         & (scores['number_size'] == difficulty.num_size)]
+                        [
+                            (scores['posible_digits'] == difficulty.digs_num)
+                            & (scores['number_size'] == difficulty.num_size)
+                        ]
                         .sort_values(by=['score', 'datetime'])
                         .head(10)
                     )
@@ -749,15 +815,19 @@ def play_action() -> None:
                             [['score', 'player']]
                             .astype({'score': object, 'player': object})
                             .reset_index(drop=True)
-                            .join(pd.Series(range(1, 11), name='pos.'),
-                                  how='outer')
+                            .join(
+                                pd.Series(range(1, 11), name='pos.'),
+                                how='outer',
+                            )
                             .set_index('pos.')
                             .fillna('-')
                         )
 
-                        pager(tabulate(scores,
-                                       headers='keys',
-                                       colalign=('left', 'center', 'left')))
+                        pager(tabulate(
+                            scores,
+                            headers='keys',
+                            colalign=('left', 'center', 'left'),
+                        ))
 
                     break
 
@@ -781,21 +851,32 @@ def show_ranking() -> None:
     Path('.scores.csv').touch()
     scores = pd.read_csv(
         '.scores.csv',
-        names=['datetime', 'posible_digits',
-               'number_size', 'score', 'player'],
+        names=[
+            'datetime',
+            'posible_digits',
+            'number_size',
+            'score',
+            'player',
+        ],
         parse_dates=['datetime'],
     )
 
     grouped = scores.groupby(['posible_digits', 'number_size'])
     data = pd.DataFrame(
-        [[key, pos_digs, num_size]
-         for key, (pos_digs, num_size) in enumerate(grouped.groups, start=1)],
+        [
+            [key, pos_digs, num_size]
+            for key, (pos_digs, num_size) in enumerate(
+                grouped.groups, start=1,
+            )
+        ],
         columns=['Key', 'Digits', 'Size'],
     ).set_index('Key')
 
-    table = tabulate(data,
-                     headers='keys',
-                     colalign=('left', 'center', 'center'))
+    table = tabulate(
+        data,
+        headers='keys',
+        colalign=('left', 'center', 'center'),
+    )
 
     # Compute table width
     fnlp = table.find('\n')
@@ -806,9 +887,11 @@ def show_ranking() -> None:
     try:
         while True:
             try:
-                input_ = prompt('Enter key: ',
-                                validator=menu_selection_validator,
-                                validate_while_typing=False).strip()
+                input_ = prompt(
+                    'Enter key: ',
+                    validator=menu_selection_validator,
+                    validate_while_typing=False,
+                ).strip()
             except EOFError:
                 return
             except KeyboardInterrupt:
@@ -819,8 +902,11 @@ def show_ranking() -> None:
             except (ValueError, IndexError):
                 continue
             else:
-                scores = (grouped.get_group(digssize)
-                                 .sort_values(by=['score', 'datetime']))
+                scores = (
+                    grouped
+                    .get_group(digssize)
+                    .sort_values(by=['score', 'datetime'])
+                )
 
                 scores = (
                     scores
@@ -832,9 +918,11 @@ def show_ranking() -> None:
                     .fillna('-')
                 )
 
-                pager(tabulate(scores,
-                               headers='keys',
-                               colalign=('left', 'center', 'left')))
+                pager(tabulate(
+                    scores,
+                    headers='keys',
+                    colalign=('left', 'center', 'left'),
+                ))
     finally:
         print(''.center(width, '='))
 
@@ -844,10 +932,12 @@ class ActionContainer:
 
     def __init__(self) -> None:
         self._actions = pd.DataFrame(
-            [['Play', play_action],
-             ['Show rankings', show_ranking],
-             ['Show help', help_action],
-             ['EXIT', sys.exit]],
+            [
+                ['Play', play_action],
+                ['Show rankings', show_ranking],
+                ['Show help', help_action],
+                ['EXIT', sys.exit],
+            ],
             columns=['label', 'action'],
             index=[1, 2, 3, 0],
         )
@@ -878,11 +968,11 @@ _current_game: ContextVar = ContextVar('game')
 class Game:
     """Game class."""
 
-    GAME_START = dedent(f"""
-        ==================================
-        ----------- BacPy v{__version__} -----------
-        ==================================
-    """)
+    GAME_START = '\n'.join([
+        "==================================",
+        VERSION_STR.center(34, '-'),
+        "==================================",
+    ])
 
     def __new__(cls) -> 'Game':
         if _current_game.get(None) is None:
@@ -890,7 +980,8 @@ class Game:
             _current_game.set(instance)
         else:
             raise TypeError(
-                f"Can't create more than 1 instance of '{cls.__name__}' class")
+                f"Can't create more than 1 instance of '{cls.__name__}' class"
+            )
         return instance
 
     def __init__(self) -> None:
