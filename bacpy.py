@@ -28,6 +28,7 @@ from prompt_toolkit.document import Document
 from prompt_toolkit.shortcuts import clear, prompt
 from prompt_toolkit.validation import Validator, ValidationError
 from tabulate import tabulate
+from typing_extension import Protocol
 
 if sys.version_info >= (3, 8):
     import importlib.metadata as importlib_metadata
@@ -72,7 +73,8 @@ Special commands:
 # ============
 
 
-class Difficulty:
+class Difficulty(Protocol):
+    """Protocol for items in `DifficultyContainer`."""
     name_: str
     digs_set: Set[str]
     digs_range: str
