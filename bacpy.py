@@ -38,10 +38,9 @@ else:
         importlib_metadata = None
 
 
+VERSION_STR = " BacPy "
 if importlib_metadata:
-    VERSION_STR = f" BacPy v{importlib_metadata.version('bacpy')} "
-else:
-    VERSION_STR = " BacPy "
+    VERSION_STR += f"v{importlib_metadata.version('bacpy')} "
 
 # Type variables
 T = TypeVar('T')
