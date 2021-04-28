@@ -17,6 +17,7 @@ from typing import (
     List,
     NoReturn,
     Optional,
+    overload,
     Union,
     Tuple,
     TypeVar,
@@ -965,9 +966,6 @@ class ActionContainer:
 # ====
 
 
-_current_game: ContextVar = ContextVar('game')
-
-
 class Game:
     """Game class."""
 
@@ -985,7 +983,10 @@ class Game:
         self.actions = ActionContainer()
 
     def run(self) -> None:
-        """Runs game loop."""
+        """Runs game loop.
+
+        While this method is running `get_game()` will return caller of that method.
+        """
         token = _current_game.set(self)
         try:
             print(self.GAME_START)
@@ -996,10 +997,32 @@ class Game:
             _current_game.reset(token)
 
 
-MISSING = object()
+_current_game: ContextVar[Game] = ContextVar('game')
 
 
-def get_game(default: object = MISSING) -> Game:
+class _MISSING_TYPE:
+    """Singleton to use as missing value."""
+
+    _instance: ClassVar[Optional['_MISSING_TYPE']] = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+
+MISSING = _MISSING_TYPE()
+
+
+@overload
+def get_game(default: _MISSING_TYPE = MISSING) -> Game: ...
+
+
+@overload
+def get_game(default: Union[T, _MISSING_TYPE]) -> T: ...
+
+
+def get_game(default=MISSING):
     if default is not MISSING:
         return _current_game.get(default)
     return _current_game.get()
