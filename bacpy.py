@@ -784,7 +784,7 @@ def play_action() -> None:
                         '.scores.csv',
                         names=[
                             'datetime',
-                            'posible_digits',
+                            'possible_digits',
                             'number_size',
                             'score',
                             'player',
@@ -806,7 +806,7 @@ def play_action() -> None:
                     scores = (
                         scores
                         [
-                            (scores['posible_digits'] == difficulty.digs_num)
+                            (scores['possible_digits'] == difficulty.digs_num)
                             & (scores['number_size'] == difficulty.num_size)
                         ]
                         .sort_values(by=['score', 'datetime'])
@@ -857,7 +857,7 @@ def show_ranking() -> None:
         '.scores.csv',
         names=[
             'datetime',
-            'posible_digits',
+            'possible_digits',
             'number_size',
             'score',
             'player',
@@ -865,7 +865,7 @@ def show_ranking() -> None:
         parse_dates=['datetime'],
     )
 
-    grouped = scores.groupby(['posible_digits', 'number_size'])
+    grouped = scores.groupby(['possible_digits', 'number_size'])
     data = pd.DataFrame(
         [
             [key, pos_digs, num_size]
@@ -985,7 +985,8 @@ class Game:
     def run(self) -> None:
         """Runs game loop.
 
-        While this method is running `get_game()` will return caller of that method.
+        While this method is running `get_game()` will return caller
+        of that method.
         """
         token = _current_game.set(self)
         try:
