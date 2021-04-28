@@ -28,7 +28,7 @@ from prompt_toolkit.document import Document
 from prompt_toolkit.shortcuts import clear, prompt
 from prompt_toolkit.validation import Validator, ValidationError
 from tabulate import tabulate
-from typing_extension import Protocol
+from typing_extensions import Protocol
 
 if sys.version_info >= (3, 8):
     import importlib.metadata as importlib_metadata
@@ -975,38 +975,37 @@ class Game:
         "==================================",
     ])
 
-    def __new__(cls) -> 'Game':
-        if _current_game.get(None) is None:
-            instance = super(Game, cls).__new__(cls)
-            _current_game.set(instance)
-        else:
-            raise TypeError(
-                f"Can't create more than 1 instance of '{cls.__name__}' class"
-            )
-        return instance
+    round: Round
 
     def __init__(self) -> None:
         self.difs = DifficultyContainer()
         self.commands = CommandContainer()
         self.actions = ActionContainer()
 
-        self.round: Round
-
     def run(self) -> None:
         """Runs game loop."""
-        print(self.GAME_START)
-        while True:
-            action = menu_selecton()
-            action()
+        token = _current_game.set(self)
+        try:
+            print(self.GAME_START)
+            while True:
+                action = menu_selecton()
+                action()
+        finally:
+            _current_game.reset(token)
 
 
-def get_game() -> Game:
+MISSING = object()
+
+
+def get_game(default: object = MISSING) -> Game:
+    if default is not MISSING:
+        return _current_game.get(default)
     return _current_game.get()
 
 
-def main():
+def run() -> None:
     Game().run()
 
 
 if __name__ == '__main__':
-    exit(main())
+    run()
