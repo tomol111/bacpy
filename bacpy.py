@@ -28,15 +28,17 @@ from prompt_toolkit.document import Document
 from prompt_toolkit.shortcuts import clear, prompt
 from prompt_toolkit.validation import Validator, ValidationError
 from tabulate import tabulate
-from typing_extensions import Protocol
 
 if sys.version_info >= (3, 8):
     import importlib.metadata as importlib_metadata
+    from typing import Protocol
 else:
     try:
         import importlib_metadata
     except ModuleNotFoundError:
         importlib_metadata = None
+
+    from typing_extensions import Protocol
 
 
 VERSION_STR = " BacPy "
