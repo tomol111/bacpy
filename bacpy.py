@@ -10,6 +10,7 @@ from typing import (
     Callable,
     ClassVar,
     Collection,
+    Container,
     Dict,
     Set,
     Iterable,
@@ -125,30 +126,15 @@ class DifficultyContainer:
         """Return True if given name is available."""
         return name in list(self._difs['name_'])
 
-    def isindex(self, number: int) -> bool:
+    @property
+    def index(self) -> pd.Index:
         """Return True if given number is available index."""
-        return number in self._difs.index
+        return self._difs.index
 
     def table(self) -> pd.DataFrame:
         """pd.DataFrame containing difficulties` 'name_', 'num_size'
         and 'digs_range'."""
         return self._difs[['name_', 'num_size', 'digs_range']]
-
-    def get(
-            self,
-            key: Union[str, int],
-            default: Optional[T] = None,
-    ) -> Union[Difficulty, Optional[T]]:
-        """Return difficulty for key. If key don't exist return 'default.
-
-        Key can be 'name_' or index number.
-        """
-        try:
-            item = self[key]
-        except KeyError:
-            return default
-        else:
-            return item
 
 
 # =======
@@ -189,6 +175,10 @@ class GameEvent(Exception):
 
 class QuitGame(GameEvent):
     """Quit game event."""
+
+
+class StopPlaying(GameEvent):
+    """Stop playing event."""
 
 
 class RestartGame(GameEvent):
@@ -388,13 +378,13 @@ def quit_cmd() -> NoReturn:
     raise QuitGame
 
 
-@Command.add(name='exit', shorthand='e')
-def exit_cmd() -> NoReturn:
+@Command.add(name='stop', shorthand='s')
+def stop_cmd() -> NoReturn:
     """!q[uit]
 
     Exit the game.
     """
-    sys.exit()
+    raise StopPlaying
 
 
 @Command.add(shorthand='r')
@@ -479,17 +469,6 @@ def history_cmd(arg: str = '') -> None:
 # ====================
 
 
-def diff_selection_validator_func(text: str) -> bool:
-    return text.isdigit() and get_game().difs.isindex(int(text))
-
-
-diff_selection_validator = Validator.from_callable(
-    diff_selection_validator_func,
-    error_message='Invalid key',
-    move_cursor_to_end=True,
-)
-
-
 def difficulty_selection() -> Difficulty:
     """Difficulty selection."""
     difficulties = get_game().difs
@@ -510,7 +489,7 @@ def difficulty_selection() -> Difficulty:
             try:
                 input_ = prompt(
                     'Enter key: ',
-                    validator=diff_selection_validator,
+                    validator=menu_selection_validator(difficulties.index),
                     validate_while_typing=False,
                 ).strip()
             except EOFError:
@@ -518,12 +497,7 @@ def difficulty_selection() -> Difficulty:
             except KeyboardInterrupt:
                 continue
 
-            try:
-                difficulty = difficulties[int(input_)]
-            except (ValueError, IndexError):
-                continue
-            else:
-                return difficulty
+            return difficulties[int(input_)]
     finally:
         print(''.center(width, '='))
 
@@ -658,11 +632,11 @@ class Round:
             except EOFError:
                 try:
                     if ask_ok('Do you really want to quit? [Y/n]: '):
-                        raise QuitGame
+                        raise StopPlaying
                     else:
                         continue
                 except CancelOperation:
-                    raise QuitGame
+                    raise StopPlaying
                 continue
             except KeyboardInterrupt:
                 continue
@@ -685,15 +659,16 @@ class Round:
 MenuAction = Callable[[], None]
 
 
-def menu_selection_validator_func(text: str) -> bool:
-    return text.isdigit() and int(text) in get_game().actions
+def menu_selection_validator(index: Container[int]) -> Validator:
 
+    def validator_func(text: str) -> bool:
+        return text.isdigit() and int(text) in index
 
-menu_selection_validator = Validator.from_callable(
-    menu_selection_validator_func,
-    error_message='Invalid key',
-    move_cursor_to_end=True,
-)
+    return Validator.from_callable(
+        validator_func,
+        error_message='Invalid key',
+        move_cursor_to_end=True,
+    )
 
 
 def menu_selecton() -> MenuAction:
@@ -715,20 +690,15 @@ def menu_selecton() -> MenuAction:
             try:
                 input_ = prompt(
                     'Enter key: ',
-                    validator=menu_selection_validator,
+                    validator=menu_selection_validator(get_game().actions),
                     validate_while_typing=False,
                 ).strip()
             except EOFError:
-                sys.exit()
+                raise QuitGame
             except KeyboardInterrupt:
                 continue
 
-            try:
-                action = actions[int(input_)]
-            except (ValueError, IndexError):
-                continue
-            else:
-                return action
+            return actions[int(input_)]
     finally:
         print(''.center(width, '='))
 
@@ -757,7 +727,7 @@ def play_action() -> None:
             if rg.difficulty is not None:
                 difficulty = rg.difficulty
             continue
-        except QuitGame:
+        except StopPlaying:
             return
         finally:
             del game.round
@@ -893,7 +863,7 @@ def show_ranking() -> None:
             try:
                 input_ = prompt(
                     'Enter key: ',
-                    validator=menu_selection_validator,
+                    validator=menu_selection_validator(data.index),
                     validate_while_typing=False,
                 ).strip()
             except EOFError:
@@ -901,34 +871,35 @@ def show_ranking() -> None:
             except KeyboardInterrupt:
                 continue
 
-            try:
-                digssize = tuple(data.loc[int(input_)])
-            except (ValueError, IndexError):
-                continue
-            else:
-                scores = (
-                    grouped
-                    .get_group(digssize)
-                    .sort_values(by=['score', 'datetime'])
-                )
+            digssize = tuple(data.loc[int(input_)])
 
-                scores = (
-                    scores
-                    [['score', 'player']]
-                    .head(10).astype({'score': object, 'player': object})
-                    .reset_index(drop=True)
-                    .join(pd.Series(range(1, 11), name='pos.'), how='outer')
-                    .set_index('pos.')
-                    .fillna('-')
-                )
+            scores = (
+                grouped
+                .get_group(digssize)
+                .sort_values(by=['score', 'datetime'])
+            )
 
-                pager(tabulate(
-                    scores,
-                    headers='keys',
-                    colalign=('left', 'center', 'left'),
-                ))
+            scores = (
+                scores
+                [['score', 'player']]
+                .head(10).astype({'score': object, 'player': object})
+                .reset_index(drop=True)
+                .join(pd.Series(range(1, 11), name='pos.'), how='outer')
+                .set_index('pos.')
+                .fillna('-')
+            )
+
+            pager(tabulate(
+                scores,
+                headers='keys',
+                colalign=('left', 'center', 'left'),
+            ))
     finally:
         print(''.center(width, '='))
+
+
+def quit_action() -> NoReturn:
+    raise QuitGame
 
 
 class ActionContainer:
@@ -940,7 +911,7 @@ class ActionContainer:
                 ['Play', play_action],
                 ['Show rankings', show_ranking],
                 ['Show help', help_action],
-                ['EXIT', sys.exit],
+                ['EXIT', quit_action],
             ],
             columns=['label', 'action'],
             index=[1, 2, 3, 0],
@@ -969,18 +940,16 @@ class ActionContainer:
 class Game:
     """Game class."""
 
-    GAME_START = '\n'.join([
-        "==================================",
-        VERSION_STR.center(34, '-'),
-        "==================================",
-    ])
-
     round: Round
 
     def __init__(self) -> None:
         self.difs = DifficultyContainer()
         self.commands = CommandContainer()
         self.actions = ActionContainer()
+
+    def _print_starting_header(self) -> None:
+        line = '=' * len(VERSION_STR)
+        print('\n'.join([line, VERSION_STR, line]))
 
     def run(self) -> None:
         """Runs game loop.
@@ -990,10 +959,14 @@ class Game:
         """
         token = _current_game.set(self)
         try:
-            print(self.GAME_START)
+            self._print_starting_header()
             while True:
                 action = menu_selecton()
-                action()
+                try:
+                    action()
+                except QuitGame:
+                    return
+
         finally:
             _current_game.reset(token)
 
