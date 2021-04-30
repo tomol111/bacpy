@@ -489,7 +489,7 @@ def difficulty_selection() -> Difficulty:
             try:
                 input_ = prompt(
                     'Enter key: ',
-                    validator=menu_selection_validator(difficulties.index),
+                    validator=MenuValidator(difficulties.index),
                     validate_while_typing=False,
                 ).strip()
             except EOFError:
@@ -661,16 +661,21 @@ class Round:
 MenuAction = Callable[[], None]
 
 
-def menu_selection_validator(index: Container[int]) -> Validator:
+class MenuValidator(Validator):
 
-    def validator_func(text: str) -> bool:
-        return text.isdigit() and int(text) in index
+    def __init__(self, index: Container[int]) -> None:
+        self._index = index
 
-    return Validator.from_callable(
-        validator_func,
-        error_message='Invalid key',
-        move_cursor_to_end=True,
-    )
+    def validate(self, document: Document) -> None:
+        text: str = document.text.strip()
+
+        if text.isdigit() or int(text) in self._index:
+            return
+
+        raise ValidationError(
+            message="Invalid key",
+            cursor_position=document.cursor_position,
+        )
 
 
 def menu_selecton() -> MenuAction:
@@ -692,7 +697,7 @@ def menu_selecton() -> MenuAction:
             try:
                 input_ = prompt(
                     'Enter key: ',
-                    validator=menu_selection_validator(get_game().actions),
+                    validator=MenuValidator(get_game().actions),
                     validate_while_typing=False,
                 ).strip()
             except EOFError:
@@ -865,7 +870,7 @@ def show_ranking() -> None:
             try:
                 input_ = prompt(
                     'Enter key: ',
-                    validator=menu_selection_validator(data.index),
+                    validator=MenuValidator(data.index),
                     validate_while_typing=False,
                 ).strip()
             except EOFError:
