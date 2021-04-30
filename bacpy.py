@@ -47,10 +47,12 @@ VERSION_STR = " BacPy "
 if importlib_metadata:
     VERSION_STR += f"v{importlib_metadata.version('bacpy')} "
 
+
 # Type variables
 T = TypeVar('T')
 
 # Constants
+SCORES_PATH = Path('.scores.csv')
 DIF_INDEX_START = 1
 
 GAME_HELP = """
@@ -710,12 +712,32 @@ def menu_selecton() -> MenuAction:
         print(''.center(width, '='))
 
 
-# TODO: extend player_validator
-player_validator = Validator.from_callable(
-    lambda text: 2 < len(text.strip()) < 10,
-    error_message="Invalid player name",
-    move_cursor_to_end=True,
-)
+class PlayerValidator(Validator):
+
+    def validate(self, document: Document) -> None:
+        text = document.text.strip()
+        min_len, max_len = 3, 20
+
+        if len(text) < min_len:
+            raise ValidationError(
+                message=(
+                    "Too short name. "
+                    f"At least {min_len} characters needed."
+                ),
+                cursor_position=document.cursor_position,
+            )
+
+        if len(text) > max_len:
+            raise ValidationError(
+                message=(
+                    "Too long name. "
+                    f"Maximum {max_len} characters allowed."
+                ),
+                cursor_position=document.cursor_position,
+            )
+
+
+player_validator = PlayerValidator()
 
 
 def play_action() -> None:
@@ -756,9 +778,9 @@ def play_action() -> None:
             player = input_
             try:
                 if ask_ok(f'Confirm player: "{player}" [Y/n] '):
-                    Path('.scores.csv').touch()
+                    SCORES_PATH.touch()
                     scores = pd.read_csv(
-                        '.scores.csv',
+                        SCORES_PATH,
                         names=[
                             'datetime',
                             'possible_digits',
@@ -778,7 +800,7 @@ def play_action() -> None:
                         player,
                     )
 
-                    scores.to_csv('.scores.csv', header=False, index=False)
+                    scores.to_csv(SCORES_PATH, header=False, index=False)
 
                     scores = (
                         scores
@@ -829,9 +851,9 @@ def help_action() -> None:
 
 
 def show_ranking() -> None:
-    Path('.scores.csv').touch()
+    SCORES_PATH.touch()
     scores = pd.read_csv(
-        '.scores.csv',
+        SCORES_PATH,
         names=[
             'datetime',
             'possible_digits',
