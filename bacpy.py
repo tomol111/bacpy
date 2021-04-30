@@ -961,8 +961,8 @@ class Game:
         try:
             self._print_starting_header()
             while True:
-                action = menu_selecton()
                 try:
+                    action = menu_selecton()
                     action()
                 except QuitGame:
                     return
