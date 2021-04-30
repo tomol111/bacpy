@@ -509,12 +509,14 @@ def difficulty_selection() -> Difficulty:
 
 class RoundValidator(Validator):
 
+    def __init__(self, difficulty: Difficulty) -> None:
+        self._difficulty = difficulty
+
     def validate(self, document: Document) -> None:
         input_: str = document.text.strip()
 
-        difficulty = get_game().round.difficulty
-        digs_set = difficulty.digs_set
-        num_size = difficulty.num_size
+        digs_set = self._difficulty.digs_set
+        num_size = self._difficulty.num_size
 
         if not input_.startswith(Command.PREFIX):
             # Check if number have wrong characters
@@ -594,7 +596,7 @@ class Round:
         try:
             self.ps: PromptSession = PromptSession(
                 bottom_toolbar=self.toolbar,
-                validator=RoundValidator(),
+                validator=RoundValidator(self.difficulty),
                 validate_while_typing=False,
             )
             while True:
