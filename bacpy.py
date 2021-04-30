@@ -671,7 +671,7 @@ class MenuValidator(Validator):
     def validate(self, document: Document) -> None:
         text: str = document.text.strip()
 
-        if text.isdigit() or int(text) in self._index:
+        if text.isdigit() and int(text) in self._index:
             return
 
         raise ValidationError(
@@ -906,10 +906,6 @@ def show_ranking() -> None:
                 grouped
                 .get_group(digssize)
                 .sort_values(by=['score', 'datetime'])
-            )
-
-            scores = (
-                scores
                 [['score', 'player']]
                 .head(10).astype({'score': object, 'player': object})
                 .reset_index(drop=True)
