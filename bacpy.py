@@ -857,7 +857,7 @@ def help_action() -> None:
 
 
 @cli_window('Show Ranking')
-def show_ranking_cmd() -> None:
+def show_ranking_action() -> None:
     RANKINGS_DIR.mkdir(exist_ok=True)
 
     ranking_files = []
