@@ -816,7 +816,7 @@ def play_action() -> None:
             new_position = pd.Series({
                 'datetime': datetime.now(),
                 'possible_digits': difficulty.digs_num,
-                'number_size':difficulty.num_size,
+                'number_size': difficulty.num_size,
                 'score': score,
                 'player': player,
             })
@@ -854,14 +854,6 @@ def play_action() -> None:
             ))
 
             break
-
-        try:
-            if ask_ok('Do you want to continue? [Y/n]: '):
-                continue
-            else:
-                return
-        except CancelOperation:
-            return
 
 
 def help_action() -> None:
