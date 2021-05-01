@@ -258,10 +258,8 @@ def show_ranking(ranking: pd.DataFrame) -> None:
         ranking
         [['score', 'player']]
         .astype({'score': str})
-        .join(
-            pd.Series(range(1, RANKING_SIZE + 1), name='pos.'),
-            how='outer',
-        )
+        .reset_index(drop=True)
+        .join(pd.Series(range(1, RANKING_SIZE + 1), name='pos.'))
         .set_index('pos.')
         .fillna('-')
     )
@@ -629,8 +627,10 @@ class Round:
             f"Digits: {self.difficulty.digs_range}",
         ])
 
-    def run(self) -> History:
-        """Run round loop."""
+    def run(self) -> int:
+        """Run round loop.
+
+        Return score."""
         print(self.ROUND_START)
         try:
             self.ps: PromptSession = PromptSession(
@@ -645,7 +645,7 @@ class Round:
 
                 if bulls == self.difficulty.num_size:
                     print(f"\n *** You guessed in {self.steps} steps ***")
-                    return self.history
+                    return len(self.history)
 
                 print(f"  bulls: {bulls:>2}, cows: {cows:>2}")
         finally:
@@ -790,7 +790,7 @@ def play_action() -> None:
     while True:
         try:
             game.round = Round(difficulty)
-            score = len(game.round.run())
+            score = game.round.run()
         except RestartGame as rg:
             if rg.difficulty is not None:
                 difficulty = rg.difficulty
@@ -917,7 +917,7 @@ class ActionContainer:
         self._actions = pd.DataFrame(
             [
                 ['Play', play_action],
-                ['Show rankings', show_ranking_cmd],
+                ['Show rankings', show_ranking_action],
                 ['Show help', help_action],
                 ['EXIT', quit_action],
             ],
