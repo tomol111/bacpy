@@ -747,6 +747,11 @@ def play_action() -> None:
     except CancelOperation:
         return
 
+    ask_player_name = PromptSession(
+        validator=player_validator,
+        validate_while_typing=False,
+    )
+
     game = get_game()
     player = ''
     while True:
@@ -793,11 +798,9 @@ def play_action() -> None:
 
         while True:
             try:
-                input_ = prompt(
+                input_ = ask_player_name.prompt(
                     'Save score as: ',
                     default=player,
-                    validator=player_validator,
-                    validate_while_typing=False,
                 ).strip()
             except EOFError:
                 break
