@@ -1,4 +1,5 @@
 from collections import Counter
+import contextlib
 from contextvars import ContextVar
 from datetime import datetime
 import os
@@ -204,6 +205,28 @@ class CommandError(GameEvent):
 # =========
 # CLI tools
 # =========
+
+
+class cli_window(contextlib.ContextDecorator):
+
+    def __init__(
+            self, header: str,
+            fillchar: str = '=',
+            wing_size: int = 5,
+    ) -> None:
+        self.header = header
+        self.fillchar = fillchar
+        self.wing_size = wing_size
+        self.width = len(header) + 2 * (wing_size + 1)  # +1 is for space
+
+    def __enter__(self):
+        wing = self.fillchar * self.wing_size
+        print(f'{wing} {self.header} {wing}')
+        return self
+
+    def __exit__(self, *exc):
+        print(self.fillchar * self.width)
+        return False
 
 
 def ask_ok(prompt_message: str, default: bool = True) -> bool:
@@ -471,7 +494,7 @@ def history_cmd(arg: str = '') -> None:
 # Difficulty selection
 # ====================
 
-
+@cli_window('Difficulty Selection')
 def difficulty_selection() -> Difficulty:
     """Difficulty selection."""
     difficulties = get_game().difs
@@ -481,28 +504,21 @@ def difficulty_selection() -> Difficulty:
         colalign=('right', 'left', 'center', 'center'),
     )
 
-    # Compute table width
-    fnlp = table.find('\n')
-    width = table.find('\n', fnlp+1) - fnlp - 1
-
-    print(' Difficulty selection '.center(width, '='))
     print('\n', table, '\n', sep='')
-    try:
-        while True:
-            try:
-                input_ = prompt(
-                    'Enter key: ',
-                    validator=MenuValidator(difficulties.index),
-                    validate_while_typing=False,
-                ).strip()
-            except EOFError:
-                raise CancelOperation
-            except KeyboardInterrupt:
-                continue
 
-            return difficulties[int(input_)]
-    finally:
-        print(''.center(width, '='))
+    while True:
+        try:
+            input_ = prompt(
+                'Enter key: ',
+                validator=MenuValidator(difficulties.index),
+                validate_while_typing=False,
+            ).strip()
+        except EOFError:
+            raise CancelOperation
+        except KeyboardInterrupt:
+            continue
+
+        return difficulties[int(input_)]
 
 
 # =====
@@ -681,6 +697,7 @@ class MenuValidator(Validator):
         )
 
 
+@cli_window('Main Menu')
 def menu_selecton() -> MenuAction:
     actions = get_game().actions
     table = tabulate(
@@ -689,28 +706,21 @@ def menu_selecton() -> MenuAction:
         colalign=('left', 'right'),
     )
 
-    # Compute table width
-    fnlp = table.find('\n')
-    width = table.find('\n', fnlp+1) - fnlp - 1
-
-    print(' Menu '.center(width, '='))
     print('\n', table, '\n', sep='')
-    try:
-        while True:
-            try:
-                input_ = prompt(
-                    'Enter key: ',
-                    validator=MenuValidator(get_game().actions),
-                    validate_while_typing=False,
-                ).strip()
-            except EOFError:
-                raise QuitGame
-            except KeyboardInterrupt:
-                continue
 
-            return actions[int(input_)]
-    finally:
-        print(''.center(width, '='))
+    while True:
+        try:
+            input_ = prompt(
+                'Enter key: ',
+                validator=MenuValidator(get_game().actions),
+                validate_while_typing=False,
+            ).strip()
+        except EOFError:
+            raise QuitGame
+        except KeyboardInterrupt:
+            continue
+
+        return actions[int(input_)]
 
 
 class PlayerValidator(Validator):
@@ -742,6 +752,9 @@ player_validator = PlayerValidator()
 
 
 def play_action() -> None:
+
+    RANKINGS_DIR.mkdir(exist_ok=True)
+
     try:
         difficulty = difficulty_selection()
     except CancelOperation:
@@ -754,6 +767,7 @@ def play_action() -> None:
 
     game = get_game()
     player = ''
+
     while True:
         try:
             game.round = Round(difficulty)
@@ -845,6 +859,7 @@ def help_action() -> None:
     pager(GAME_HELP)
 
 
+@cli_window('Show ranking')
 def show_ranking() -> None:
     RANKINGS_DIR.mkdir(exist_ok=True)
 
@@ -870,51 +885,44 @@ def show_ranking() -> None:
         colalign=('left', 'center', 'center'),
     )
 
-    # Compute table width
-    fnlp = table.find('\n')
-    width = table.find('\n', fnlp+1) - fnlp - 1
-
-    print(' Show ranking '.center(width, '='))
     print('\n', table, '\n', sep='')
-    try:
-        while True:
-            try:
-                input_ = prompt(
-                    'Enter key: ',
-                    validator=MenuValidator(ranking_groups.index),
-                    validate_while_typing=False,
-                ).strip()
-            except EOFError:
-                return
-            except KeyboardInterrupt:
-                continue
 
-            ranking_file = ranking_groups.loc[int(input_)].file
-            ranking = pd.read_csv(
-                ranking_file,
-                names=['datetime', 'score', 'player'],
-                parse_dates=['datetime'],
+    while True:
+        try:
+            input_ = prompt(
+                'Enter key: ',
+                validator=MenuValidator(ranking_groups.index),
+                validate_while_typing=False,
+            ).strip()
+        except EOFError:
+            return
+        except KeyboardInterrupt:
+            continue
+
+        ranking_file = ranking_groups.loc[int(input_)].file
+        ranking = pd.read_csv(
+            ranking_file,
+            names=['datetime', 'score', 'player'],
+            parse_dates=['datetime'],
+        )
+
+        ranking = (
+            ranking
+            [['score', 'player']]
+            .astype({'score': object, 'player': object})
+            .join(
+                pd.Series(range(1, RANKING_SIZE + 1), name='pos.'),
+                how='outer',
             )
+            .set_index('pos.')
+            .fillna('-')
+        )
 
-            ranking = (
-                ranking
-                [['score', 'player']]
-                .astype({'score': object, 'player': object})
-                .join(
-                    pd.Series(range(1, RANKING_SIZE + 1), name='pos.'),
-                    how='outer',
-                )
-                .set_index('pos.')
-                .fillna('-')
-            )
-
-            pager(tabulate(
-                ranking,
-                headers='keys',
-                colalign=('left', 'center', 'left'),
-            ))
-    finally:
-        print(''.center(width, '='))
+        pager(tabulate(
+            ranking,
+            headers='keys',
+            colalign=('left', 'center', 'left'),
+        ))
 
 
 def quit_action() -> NoReturn:
