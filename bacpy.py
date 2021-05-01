@@ -786,7 +786,6 @@ def play_action() -> None:
     )
 
     game = get_game()
-    player = ''
 
     while True:
         try:
@@ -821,17 +820,11 @@ def play_action() -> None:
 
         while True:
             try:
-                input_ = ask_player_name.prompt(
-                    'Save score as: ',
-                    default=player,
-                ).strip()
+                player = ask_player_name.prompt('Save score as: ').strip()
             except EOFError:
                 break
             except KeyboardInterrupt:
-                player = ''
                 continue
-
-            player = input_
 
             try:
                 if not ask_ok(f'Confirm player: "{player}" [Y/n] '):
