@@ -747,7 +747,7 @@ def play_action() -> None:
     except CancelOperation:
         return
 
-    ask_player_name = PromptSession(
+    ask_player_name: PromptSession = PromptSession(
         validator=player_validator,
         validate_while_typing=False,
     )
