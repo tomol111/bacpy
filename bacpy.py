@@ -253,6 +253,26 @@ def pager(text: str) -> None:
     subprocess.run(['less', '-C'], input=text.encode())
 
 
+def show_ranking(ranking: pd.DataFrame) -> None:
+    ranking = (
+        ranking
+        [['score', 'player']]
+        .astype({'score': str})
+        .join(
+            pd.Series(range(1, RANKING_SIZE + 1), name='pos.'),
+            how='outer',
+        )
+        .set_index('pos.')
+        .fillna('-')
+    )
+
+    pager(tabulate(
+        ranking,
+        headers='keys',
+        colalign=('left', 'center', 'left'),
+    ))
+
+
 # ========
 # Commands
 # ========
@@ -834,23 +854,7 @@ def play_action() -> None:
 
             ranking.to_csv(ranking_file, header=False, index=False)
 
-            ranking = (
-                ranking
-                [['score', 'player']]
-                .astype({'score': object, 'player': object})
-                .join(
-                    pd.Series(range(1, RANKING_SIZE + 1), name='pos.'),
-                    how='outer',
-                )
-                .set_index('pos.')
-                .fillna('-')
-            )
-
-            pager(tabulate(
-                ranking,
-                headers='keys',
-                colalign=('left', 'center', 'left'),
-            ))
+            show_ranking(ranking)
 
             break
 
@@ -859,8 +863,8 @@ def help_action() -> None:
     pager(GAME_HELP)
 
 
-@cli_window('Show ranking')
-def show_ranking() -> None:
+@cli_window('Show Ranking')
+def show_ranking_cmd() -> None:
     RANKINGS_DIR.mkdir(exist_ok=True)
 
     ranking_files = []
@@ -906,23 +910,7 @@ def show_ranking() -> None:
             parse_dates=['datetime'],
         )
 
-        ranking = (
-            ranking
-            [['score', 'player']]
-            .astype({'score': object, 'player': object})
-            .join(
-                pd.Series(range(1, RANKING_SIZE + 1), name='pos.'),
-                how='outer',
-            )
-            .set_index('pos.')
-            .fillna('-')
-        )
-
-        pager(tabulate(
-            ranking,
-            headers='keys',
-            colalign=('left', 'center', 'left'),
-        ))
+        show_ranking(ranking)
 
 
 def quit_action() -> NoReturn:
@@ -936,7 +924,7 @@ class ActionContainer:
         self._actions = pd.DataFrame(
             [
                 ['Play', play_action],
-                ['Show rankings', show_ranking],
+                ['Show rankings', show_ranking_cmd],
                 ['Show help', help_action],
                 ['EXIT', quit_action],
             ],
