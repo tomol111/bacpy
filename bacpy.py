@@ -52,7 +52,7 @@ if importlib_metadata:
 T = TypeVar('T')
 
 # Constants
-SCORES_PATH = Path('.scores.csv')
+RANKINGS_DIR = Path('.rankings')
 DIF_INDEX_START = 1
 RANKING_SIZE = 10
 
@@ -767,32 +767,21 @@ def play_action() -> None:
         finally:
             del game.round
 
-        SCORES_PATH.touch()
-        scores = pd.read_csv(
-            SCORES_PATH,
-            names=[
-                'datetime',
-                'possible_digits',
-                'number_size',
-                'score',
-                'player',
-            ],
+        ranking_file = (
+            RANKINGS_DIR
+            / f'{difficulty.digs_num}_{difficulty.num_size}.csv'
+        )
+        ranking_file.touch()
+
+        ranking = pd.read_csv(
+            ranking_file,
+            names=['datetime', 'score', 'player'],
             parse_dates=['datetime'],
         )
 
-        sub_scores = (
-            scores
-            [
-                (scores.possible_digits == difficulty.digs_num)
-                & (scores.number_size == difficulty.num_size)
-            ]
-            .sort_values(by=['score', 'datetime'])
-            .head(RANKING_SIZE)
-        )
-
         if (
-                len(sub_scores) >= RANKING_SIZE
-                and sub_scores.score.iat[-1] <= score
+                len(ranking) >= RANKING_SIZE
+                and ranking.score.iat[-1] <= score
         ):
             continue
 
@@ -816,32 +805,25 @@ def play_action() -> None:
             except CancelOperation:
                 break
 
-            new_position = pd.Series({
-                'datetime': datetime.now(),
-                'possible_digits': difficulty.digs_num,
-                'number_size': difficulty.num_size,
-                'score': score,
-                'player': player,
-            })
-
-            if len(sub_scores) == RANKING_SIZE:
-                label_to_substitute = sub_scores.iloc[-1].name
-                scores.loc[label_to_substitute] = new_position
-                sub_scores.iloc[-1] = new_position
-            else:
-                scores = scores.append(new_position, ignore_index=True)
-                sub_scores = sub_scores.append(
-                    new_position, ignore_index=True,
+            ranking = (
+                ranking.append(
+                    {
+                        'datetime': datetime.now(),
+                        'score': score,
+                        'player': player,
+                    },
+                    ignore_index=True,
                 )
-
-            scores.to_csv(SCORES_PATH, header=False, index=False)
-
-            sub_scores = (
-                sub_scores
                 .sort_values(by=['score', 'datetime'])
+                .head(RANKING_SIZE)
+            )
+
+            ranking.to_csv(ranking_file, header=False, index=False)
+
+            ranking = (
+                ranking
                 [['score', 'player']]
                 .astype({'score': object, 'player': object})
-                .reset_index(drop=True)
                 .join(
                     pd.Series(range(1, RANKING_SIZE + 1), name='pos.'),
                     how='outer',
@@ -851,7 +833,7 @@ def play_action() -> None:
             )
 
             pager(tabulate(
-                sub_scores,
+                ranking,
                 headers='keys',
                 colalign=('left', 'center', 'left'),
             ))
@@ -864,32 +846,26 @@ def help_action() -> None:
 
 
 def show_ranking() -> None:
-    SCORES_PATH.touch()
-    scores = pd.read_csv(
-        SCORES_PATH,
-        names=[
-            'datetime',
-            'possible_digits',
-            'number_size',
-            'score',
-            'player',
-        ],
-        parse_dates=['datetime'],
+    RANKINGS_DIR.mkdir(exist_ok=True)
+
+    ranking_files = []
+    for file in RANKINGS_DIR.glob('*.csv'):
+        digs_num, sep, num_size = file.stem.partition('_')
+        if sep or digs_num.isdigit() or num_size.isdigit():
+            ranking_files.append((digs_num, num_size, file))
+
+    if not ranking_files:
+        print('\nEmpty rankings\n')
+        return
+
+    ranking_groups = pd.DataFrame(
+        sorted(ranking_files),
+        index=pd.RangeIndex(1, len(ranking_files) + 1, name='Key'),
+        columns=['Digits', 'Size', 'file'],
     )
 
-    grouped = scores.groupby(['possible_digits', 'number_size'])
-    data = pd.DataFrame(
-        [
-            [key, pos_digs, num_size]
-            for key, (pos_digs, num_size) in enumerate(
-                grouped.groups, start=1,
-            )
-        ],
-        columns=['Key', 'Digits', 'Size'],
-    ).set_index('Key')
-
     table = tabulate(
-        data,
+        ranking_groups[['Digits', 'Size']],
         headers='keys',
         colalign=('left', 'center', 'center'),
     )
@@ -905,7 +881,7 @@ def show_ranking() -> None:
             try:
                 input_ = prompt(
                     'Enter key: ',
-                    validator=MenuValidator(data.index),
+                    validator=MenuValidator(ranking_groups.index),
                     validate_while_typing=False,
                 ).strip()
             except EOFError:
@@ -913,16 +889,17 @@ def show_ranking() -> None:
             except KeyboardInterrupt:
                 continue
 
-            digssize = tuple(data.loc[int(input_)])
+            ranking_file = ranking_groups.loc[int(input_)].file
+            ranking = pd.read_csv(
+                ranking_file,
+                names=['datetime', 'score', 'player'],
+                parse_dates=['datetime'],
+            )
 
-            scores = (
-                grouped
-                .get_group(digssize)
-                .sort_values(by=['score', 'datetime'])
+            ranking = (
+                ranking
                 [['score', 'player']]
-                .head(RANKING_SIZE)
                 .astype({'score': object, 'player': object})
-                .reset_index(drop=True)
                 .join(
                     pd.Series(range(1, RANKING_SIZE + 1), name='pos.'),
                     how='outer',
@@ -932,7 +909,7 @@ def show_ranking() -> None:
             )
 
             pager(tabulate(
-                scores,
+                ranking,
                 headers='keys',
                 colalign=('left', 'center', 'left'),
             ))
