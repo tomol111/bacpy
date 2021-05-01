@@ -259,7 +259,10 @@ def show_ranking(ranking: pd.DataFrame) -> None:
         [['score', 'player']]
         .astype({'score': str})
         .reset_index(drop=True)
-        .join(pd.Series(range(1, RANKING_SIZE + 1), name='pos.'))
+        .join(
+            pd.Series(range(1, RANKING_SIZE + 1), name='pos.'),
+            how='outer',
+        )
         .set_index('pos.')
         .fillna('-')
     )
@@ -732,7 +735,7 @@ def menu_selecton() -> MenuAction:
         try:
             input_ = prompt(
                 'Enter key: ',
-                validator=MenuValidator(get_game().actions),
+                validator=MenuValidator(get_game().actions.index),
                 validate_while_typing=False,
             ).strip()
         except EOFError:
@@ -926,18 +929,15 @@ class ActionContainer:
         )
 
     def __getitem__(self, key: int) -> MenuAction:
-        """Give Command by given name or shorthand."""
-        if isinstance(key, int):
-            return self._actions.loc[key].action
-        raise IndexError(key)
+        """Get Command by index."""
+        return self._actions.loc[key].action
 
-    def __contains__(self, item: T) -> bool:
-        if isinstance(item, int):
-            return item in self._actions.index
-        return False
+    @property
+    def index(self) -> pd.Index:
+        return self._actions.index
 
     def table(self) -> pd.DataFrame:
-        return self._actions[['label']].copy()
+        return self._actions[['label']]
 
 
 # ====
