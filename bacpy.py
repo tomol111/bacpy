@@ -54,6 +54,7 @@ T = TypeVar('T')
 # Constants
 SCORES_PATH = Path('.scores.csv')
 DIF_INDEX_START = 1
+RANKING_SIZE = 10
 
 GAME_HELP = """
 # HELP
@@ -751,7 +752,7 @@ def play_action() -> None:
     while True:
         try:
             game.round = Round(difficulty)
-            history = game.round.run()
+            score = len(game.round.run())
         except RestartGame as rg:
             if rg.difficulty is not None:
                 difficulty = rg.difficulty
@@ -760,6 +761,35 @@ def play_action() -> None:
             return
         finally:
             del game.round
+
+        SCORES_PATH.touch()
+        scores = pd.read_csv(
+            SCORES_PATH,
+            names=[
+                'datetime',
+                'possible_digits',
+                'number_size',
+                'score',
+                'player',
+            ],
+            parse_dates=['datetime'],
+        )
+
+        sub_scores = (
+            scores
+            [
+                (scores.possible_digits == difficulty.digs_num)
+                & (scores.number_size == difficulty.num_size)
+            ]
+            .sort_values(by=['score', 'datetime'])
+            .head(RANKING_SIZE)
+        )
+
+        if (
+                len(sub_scores) >= RANKING_SIZE
+                and sub_scores.score.iat[-1] <= score
+        ):
+            continue
 
         while True:
             try:
@@ -776,66 +806,54 @@ def play_action() -> None:
                 continue
 
             player = input_
+
             try:
-                if ask_ok(f'Confirm player: "{player}" [Y/n] '):
-                    SCORES_PATH.touch()
-                    scores = pd.read_csv(
-                        SCORES_PATH,
-                        names=[
-                            'datetime',
-                            'possible_digits',
-                            'number_size',
-                            'score',
-                            'player',
-                        ],
-                        parse_dates=['datetime'],
-                    )
-
-                    dtindex = datetime.now()
-                    scores.loc[len(scores)] = (
-                        dtindex,
-                        difficulty.digs_num,
-                        difficulty.num_size,
-                        len(history),
-                        player,
-                    )
-
-                    scores.to_csv(SCORES_PATH, header=False, index=False)
-
-                    scores = (
-                        scores
-                        [
-                            (scores['possible_digits'] == difficulty.digs_num)
-                            & (scores['number_size'] == difficulty.num_size)
-                        ]
-                        .sort_values(by=['score', 'datetime'])
-                        .head(10)
-                    )
-
-                    if dtindex in list(scores['datetime']):
-                        scores = (
-                            scores
-                            [['score', 'player']]
-                            .astype({'score': object, 'player': object})
-                            .reset_index(drop=True)
-                            .join(
-                                pd.Series(range(1, 11), name='pos.'),
-                                how='outer',
-                            )
-                            .set_index('pos.')
-                            .fillna('-')
-                        )
-
-                        pager(tabulate(
-                            scores,
-                            headers='keys',
-                            colalign=('left', 'center', 'left'),
-                        ))
-
-                    break
-
+                if not ask_ok(f'Confirm player: "{player}" [Y/n] '):
+                    continue
             except CancelOperation:
                 break
+
+            new_position = pd.Series({
+                'datetime': datetime.now(),
+                'possible_digits': difficulty.digs_num,
+                'number_size':difficulty.num_size,
+                'score': score,
+                'player': player,
+            })
+
+            if len(sub_scores) == RANKING_SIZE:
+                label_to_substitute = sub_scores.iloc[-1].name
+                scores.loc[label_to_substitute] = new_position
+                sub_scores.iloc[-1] = new_position
+            else:
+                scores = scores.append(new_position, ignore_index=True)
+                sub_scores = sub_scores.append(
+                    new_position, ignore_index=True,
+                )
+
+            scores.to_csv(SCORES_PATH, header=False, index=False)
+
+            sub_scores = (
+                sub_scores
+                .sort_values(by=['score', 'datetime'])
+                [['score', 'player']]
+                .astype({'score': object, 'player': object})
+                .reset_index(drop=True)
+                .join(
+                    pd.Series(range(1, RANKING_SIZE + 1), name='pos.'),
+                    how='outer',
+                )
+                .set_index('pos.')
+                .fillna('-')
+            )
+
+            pager(tabulate(
+                sub_scores,
+                headers='keys',
+                colalign=('left', 'center', 'left'),
+            ))
+
+            break
 
         try:
             if ask_ok('Do you want to continue? [Y/n]: '):
@@ -907,9 +925,13 @@ def show_ranking() -> None:
                 .get_group(digssize)
                 .sort_values(by=['score', 'datetime'])
                 [['score', 'player']]
-                .head(10).astype({'score': object, 'player': object})
+                .head(RANKING_SIZE)
+                .astype({'score': object, 'player': object})
                 .reset_index(drop=True)
-                .join(pd.Series(range(1, 11), name='pos.'), how='outer')
+                .join(
+                    pd.Series(range(1, RANKING_SIZE + 1), name='pos.'),
+                    how='outer',
+                )
                 .set_index('pos.')
                 .fillna('-')
             )
