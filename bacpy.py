@@ -5,6 +5,7 @@ from datetime import datetime
 import os
 from pathlib import Path
 import random
+import shlex
 import subprocess
 import sys
 from typing import (
@@ -160,7 +161,7 @@ class History:
     """Stores `HistRecord`s."""
 
     def __init__(self) -> None:
-        self._data = deque()
+        self._data: deque = deque()
 
     def add_record(self, number: str, bulls: int, cows: int) -> None:
         """Create `HistRecord` from passed data and store it."""
@@ -293,7 +294,6 @@ class Command:
     doc: Optional[str]
     name: str
     shorthand: str
-    splitlines: bool = True
 
     def __init__(self, cmdfunc: Callable[..., None], **kwargs: T) -> None:
         self.instances.append(self)
@@ -305,11 +305,8 @@ class Command:
         if not hasattr(self, 'doc'):
             self.doc = cmdfunc.__doc__
 
-    def __call__(self, args: str = '') -> None:
-        if args:
-            self._cmdfunc(*args.split() if self.splitlines else args)
-        else:
-            self._cmdfunc()
+    def __call__(self, *args: str) -> None:
+        self._cmdfunc(*args)
 
     @classmethod
     def add(cls, **kwargs: T) -> Callable[[Callable[..., None]], 'Command']:
@@ -376,13 +373,12 @@ class CommandContainer(Collection[Command], Iterable[Command]):
 
     def parse_cmd(self, input_: str) -> None:
         """Search for command and execute it."""
-        input_ = input_[len(Command.PREFIX):].lstrip()
+        input_ = input_[len(Command.PREFIX):]
         if input_:
-            name, *largs = input_.split(maxsplit=1)
+            name, *args = shlex.split(input_)
             if name in self:
-                args = largs[0] if largs else ''
                 try:
-                    self[name](args)
+                    self[name](*args)
                 except (CommandError, TypeError) as err:
                     print(err)
                 return
@@ -393,7 +389,7 @@ class CommandContainer(Collection[Command], Iterable[Command]):
         )
 
 
-@Command.add(name='help', shorthand='h', splitlines=False)
+@Command.add(name='help', shorthand='h')
 def help_cmd(arg: str = '') -> None:
     """!h[elp] [{subject}]
 
@@ -507,11 +503,15 @@ def history_cmd(arg: str = '') -> None:
         clear_cmd()
     elif arg:
         raise CommandError(f"  invalid argument '{arg}'")
+
+    if game.round.steps == 0:
+        print("History is empty")
+        return
+
     print(tabulate(
         iter(game.round.history),
         headers=('Number', 'Bulls', 'Cows'),
         colalign=('center', 'center', 'center'),
-        showindex=False,
         tablefmt='plain',
     ))
 
