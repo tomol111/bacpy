@@ -1,4 +1,4 @@
-from collections import Counter
+from collections import Counter, deque
 import contextlib
 from contextvars import ContextVar
 from datetime import datetime
@@ -17,6 +17,7 @@ from typing import (
     Iterable,
     Iterator,
     List,
+    NamedTuple,
     NoReturn,
     Optional,
     overload,
@@ -146,26 +147,30 @@ class DifficultyContainer:
 # =======
 
 
+class HistRecord(NamedTuple):
+    """
+    History record of passed number and the corresponding bulls and cows.
+    """
+    number: str
+    bulls: int
+    cows: int
+
+
 class History:
-    """Keep history of the Round."""
+    """Stores `HistRecord`s."""
 
     def __init__(self) -> None:
-        self._hist = pd.DataFrame(
-            columns=['number', 'bulls', 'cows'],
-            index=pd.Index([], name='step'),
-        )
+        self._data = deque()
 
-    def __iter__(self) -> Iterator[Tuple[int, pd.Series]]:
-        return self._hist.iterrows()
+    def add_record(self, number: str, bulls: int, cows: int) -> None:
+        """Create `HistRecord` from passed data and store it."""
+        self._data.append(HistRecord(number, bulls, cows))
 
     def __len__(self) -> int:
-        return len(self._hist)
+        return len(self._data)
 
-    def append(self, number: str, bulls: int, cows: int) -> None:
-        self._hist.loc[len(self) + 1] = number, bulls, cows
-
-    def table(self) -> pd.DataFrame:
-        return self._hist
+    def __iter__(self) -> Iterator[HistRecord]:
+        return iter(self._data)
 
 
 # ======
@@ -503,7 +508,7 @@ def history_cmd(arg: str = '') -> None:
     elif arg:
         raise CommandError(f"  invalid argument '{arg}'")
     print(tabulate(
-        game.round.history.table(),
+        iter(game.round.history),
         headers=('Number', 'Bulls', 'Cows'),
         colalign=('center', 'center', 'center'),
         showindex=False,
@@ -602,7 +607,7 @@ class Round:
 
     def __init__(self, difficulty: Difficulty) -> None:
         self._difficulty = difficulty
-        self.history = History()
+        self._history = History()
 
         self._draw_number()
         if sys.flags.dev_mode:
@@ -615,8 +620,12 @@ class Round:
         )
 
     @property
+    def history(self) -> History:
+        return self._history
+
+    @property
     def steps(self) -> int:
-        return len(self.history)
+        return len(self._history)
 
     @property
     def difficulty(self) -> Difficulty:
@@ -644,11 +653,11 @@ class Round:
             while True:
                 number = self._number_input()
                 bulls, cows = self.comput_bullscows(number)
-                self.history.append(number, bulls, cows)
+                self.history.add_record(number, bulls, cows)
 
                 if bulls == self.difficulty.num_size:
                     print(f"\n *** You guessed in {self.steps} steps ***")
-                    return len(self.history)
+                    return self.steps
 
                 print(f"  bulls: {bulls:>2}, cows: {cows:>2}")
         finally:
