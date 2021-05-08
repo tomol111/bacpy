@@ -1,7 +1,9 @@
 from collections import Counter, deque
 import contextlib
 from contextvars import ContextVar
+from dataclasses import dataclass, field
 from datetime import datetime
+from operator import attrgetter, itemgetter
 import os
 from pathlib import Path
 import random
@@ -14,9 +16,10 @@ from typing import (
     Collection,
     Container,
     Dict,
-    Set,
+    FrozenSet,
     Iterable,
     Iterator,
+    KeysView,
     List,
     NamedTuple,
     NoReturn,
@@ -36,14 +39,11 @@ from tabulate import tabulate
 
 if sys.version_info >= (3, 8):
     import importlib.metadata as importlib_metadata
-    from typing import Protocol
 else:
     try:
         import importlib_metadata
     except ModuleNotFoundError:
         importlib_metadata = None
-
-    from typing_extensions import Protocol
 
 
 VERSION_STR = " BacPy "
@@ -56,7 +56,7 @@ T = TypeVar('T')
 
 # Constants
 RANKINGS_DIR = Path('.rankings')
-DIF_INDEX_START = 1
+IDX_START = 1
 RANKING_SIZE = 10
 
 GAME_HELP = """
@@ -83,64 +83,71 @@ Special commands:
 # ============
 
 
-class Difficulty(Protocol):
-    """Protocol for items in `DifficultyContainer`."""
-    name_: str
-    digs_set: Set[str]
-    digs_range: str
+DIGITS_RANGE = '123456789abcdef'
+
+
+@dataclass(order=True, frozen=True)
+class Difficulty:
+
     num_size: int
     digs_num: int
+    name: str = field(default='', compare=False)
+
+    @property
+    def digs_set(self) -> FrozenSet[str]:
+        return frozenset(DIGITS_RANGE[:self.digs_num])
+
+    @property
+    def digs_range(self) -> str:
+        if 3 <= self.digs_num <= 9:
+            return f'1-{self.digs_num}'
+        if self.digs_num == 10:
+            return '1-9,a'
+        if 11 <= self.digs_num <= 15:
+            return f'1-9,a-{DIGITS_RANGE[self.digs_num-1]}'
+        raise AttributeError
 
 
 class DifficultyContainer:
-    """Keeps available difficulties.
-
-    Uses DIF_INDEX_START to handle index.
-    """
+    """Keeps available difficulties."""
 
     def __init__(self) -> None:
-        self._difs = pd.DataFrame(
-            [
-                ['easy', set('123456'), '1-6', 3],
-                ['normal', set('123456789'), '1-9', 4],
-                ['hard', set('123456789abcdf'), '1-9a-f', 5],
-            ],
-            columns=['name_', 'digs_set', 'digs_range', 'num_size'],
-        )
-        self._difs['digs_num'] = self._difs['digs_set'].map(len)
-        # self._difs.sort_values(by=['digs_num', 'num_size'], inplace=True)
-        self._difs.index = pd.RangeIndex(
-            DIF_INDEX_START,
-            len(self._difs) + DIF_INDEX_START,
-        )
+        self._data = [
+            Difficulty(*dif)
+            for dif in [
+                (3, 6, 'easy'),
+                (4, 9, 'normal'),
+                (5, 15, 'hard'),
+            ]
+        ]
+
+        self._mapping = {dif.name: dif for dif in self._data if dif.name}
+        self._indexes = range(IDX_START, len(self) + IDX_START)
 
     def __iter__(self) -> Iterator[Difficulty]:
-        return iter(self._difs)
+        return iter(self._data)
 
     def __len__(self) -> int:
-        return len(self._difs)
+        return len(self._data)
 
     def __getitem__(self, key: Union[str, int]) -> Difficulty:
         """Return Difficulty by given name or index."""
         if isinstance(key, int):
-            return self._difs.loc[key]
+            return self._data[self.indexes.index(key)]
         if isinstance(key, str):
-            return self._difs[self._difs['name_'] == key].iloc[0]
-        return
-
-    def __contains__(self, name: object) -> bool:
-        """Return True if given name is available."""
-        return name in list(self._difs['name_'])
+            return self._mapping[key]
+        raise TypeError(
+            f"Given key have wrong type ({type(key)}). "
+            "'str' or 'int' needed."
+        )
 
     @property
-    def index(self) -> pd.Index:
-        """Return True if given number is available index."""
-        return self._difs.index
+    def names(self) -> KeysView[str]:
+        return self._mapping.keys()
 
-    def table(self) -> pd.DataFrame:
-        """pd.DataFrame containing difficulties` 'name_', 'num_size'
-        and 'digs_range'."""
-        return self._difs[['name_', 'num_size', 'digs_range']]
+    @property
+    def indexes(self) -> range:
+        return self._indexes
 
 
 # =======
@@ -463,9 +470,10 @@ def difficulty_cmd(arg: str = '') -> None:
 
     if arg == '-l':
         print(tabulate(
-            game.difs.table(),
+            map(attrgetter('name', 'num_size', 'digs_range'), game.difs),
             headers=('Key', 'Difficulty', 'Size', 'Digits'),
             tablefmt='plain',
+            showindex=game.difs.indexes,
         ))
         return
 
@@ -523,11 +531,12 @@ def history_cmd(arg: str = '') -> None:
 @cli_window('Difficulty Selection')
 def difficulty_selection() -> Difficulty:
     """Difficulty selection."""
-    difficulties = get_game().difs
+    difs = get_game().difs
     table = tabulate(
-        difficulties.table(),
+        map(attrgetter('name', 'num_size', 'digs_range'), difs),
         headers=('Key', 'Difficulty', 'Size', 'Digits'),
         colalign=('right', 'left', 'center', 'center'),
+        showindex=difs.indexes,
     )
 
     print('\n', table, '\n', sep='')
@@ -536,7 +545,7 @@ def difficulty_selection() -> Difficulty:
         try:
             input_ = prompt(
                 'Enter key: ',
-                validator=MenuValidator(difficulties.index),
+                validator=MenuValidator(difs.indexes),
                 validate_while_typing=False,
             ).strip()
         except EOFError:
@@ -544,7 +553,7 @@ def difficulty_selection() -> Difficulty:
         except KeyboardInterrupt:
             continue
 
-        return difficulties[int(input_)]
+        return difs[int(input_)]
 
 
 # =====
@@ -634,7 +643,7 @@ class Round:
     @property
     def toolbar(self) -> str:
         return "  |  ".join([
-            f" Difficulty: {self.difficulty.name_}",
+            f" Difficulty: {self.difficulty.name}",
             f"Size: {self.difficulty.num_size}",
             f"Digits: {self.difficulty.digs_range}",
         ])
@@ -883,7 +892,7 @@ def show_ranking_action() -> None:
         return
 
     ranking_groups = pd.DataFrame(
-        sorted(ranking_files),
+        sorted(ranking_files, key=itemgetter(1, 0)),
         index=pd.RangeIndex(1, len(ranking_files) + 1, name='Key'),
         columns=['Digits', 'Size', 'file'],
     )
