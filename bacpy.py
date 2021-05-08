@@ -524,9 +524,27 @@ def history_cmd(arg: str = '') -> None:
     ))
 
 
-# ====================
-# Difficulty selection
-# ====================
+# =====
+# Menus
+# =====
+
+
+class MenuValidator(Validator):
+
+    def __init__(self, index: Container[int]) -> None:
+        self._index = index
+
+    def validate(self, document: Document) -> None:
+        text: str = document.text.strip()
+
+        if text.isdigit() and int(text) in self._index:
+            return
+
+        raise ValidationError(
+            message="Invalid key",
+            cursor_position=document.cursor_position,
+        )
+
 
 @cli_window('Difficulty Selection')
 def difficulty_selection() -> Difficulty:
@@ -718,52 +736,6 @@ class Round:
 # ============
 
 
-MenuAction = Callable[[], None]
-
-
-class MenuValidator(Validator):
-
-    def __init__(self, index: Container[int]) -> None:
-        self._index = index
-
-    def validate(self, document: Document) -> None:
-        text: str = document.text.strip()
-
-        if text.isdigit() and int(text) in self._index:
-            return
-
-        raise ValidationError(
-            message="Invalid key",
-            cursor_position=document.cursor_position,
-        )
-
-
-@cli_window('Main Menu')
-def menu_selecton() -> MenuAction:
-    actions = get_game().actions
-    table = tabulate(
-        actions.table(),
-        headers=('Key', 'Action'),
-        colalign=('left', 'right'),
-    )
-
-    print('\n', table, '\n', sep='')
-
-    while True:
-        try:
-            input_ = prompt(
-                'Enter key: ',
-                validator=MenuValidator(get_game().actions.index),
-                validate_while_typing=False,
-            ).strip()
-        except EOFError:
-            raise QuitGame
-        except KeyboardInterrupt:
-            continue
-
-        return actions[int(input_)]
-
-
 class PlayerValidator(Validator):
 
     def validate(self, document: Document) -> None:
@@ -792,7 +764,7 @@ class PlayerValidator(Validator):
 player_validator = PlayerValidator()
 
 
-def play_action() -> None:
+def play() -> None:
 
     RANKINGS_DIR.mkdir(exist_ok=True)
 
@@ -873,10 +845,6 @@ def play_action() -> None:
             break
 
 
-def help_action() -> None:
-    pager(GAME_HELP)
-
-
 @cli_window('Show Ranking')
 def show_ranking_action() -> None:
     RANKINGS_DIR.mkdir(exist_ok=True)
@@ -927,37 +895,6 @@ def show_ranking_action() -> None:
         show_ranking(ranking)
 
 
-def quit_action() -> NoReturn:
-    raise QuitGame
-
-
-class ActionContainer:
-    """Contain Command objects and allows execute them."""
-
-    def __init__(self) -> None:
-        self._actions = pd.DataFrame(
-            [
-                ['Play', play_action],
-                ['Show rankings', show_ranking_action],
-                ['Show help', help_action],
-                ['EXIT', quit_action],
-            ],
-            columns=['label', 'action'],
-            index=[1, 2, 3, 0],
-        )
-
-    def __getitem__(self, key: int) -> MenuAction:
-        """Get Command by index."""
-        return self._actions.loc[key].action
-
-    @property
-    def index(self) -> pd.Index:
-        return self._actions.index
-
-    def table(self) -> pd.DataFrame:
-        return self._actions[['label']]
-
-
 # ====
 # Game
 # ====
@@ -971,7 +908,6 @@ class Game:
     def __init__(self) -> None:
         self.difs = DifficultyContainer()
         self.commands = CommandContainer()
-        self.actions = ActionContainer()
 
     def _print_starting_header(self) -> None:
         line = '=' * len(VERSION_STR)
@@ -986,13 +922,9 @@ class Game:
         token = _current_game.set(self)
         try:
             self._print_starting_header()
-            while True:
-                try:
-                    action = menu_selecton()
-                    action()
-                except QuitGame:
-                    return
-
+            play()
+        except QuitGame:
+            return
         finally:
             _current_game.reset(token)
 
