@@ -17,6 +17,7 @@ from typing import (
     Container,
     Dict,
     FrozenSet,
+    Generator,
     Iterable,
     Iterator,
     KeysView,
@@ -462,7 +463,7 @@ def difficulty_cmd(arg: str = '') -> None:
     game = get_game()
     if not arg:
         try:
-            difficulty = difficulty_selection()
+            difficulty = difficulty_selection(game.difs)
         except CancelOperation:
             return
         else:
@@ -547,7 +548,7 @@ class MenuValidator(Validator):
 
 
 @cli_window('Difficulty Selection')
-def difficulty_selection() -> Difficulty:
+def difficulty_selection(difficulties: DifficultyContainer) -> Difficulty:
     """Difficulty selection."""
     difs = get_game().difs
     table = tabulate(
@@ -736,115 +737,6 @@ class Round:
 # ============
 
 
-class PlayerValidator(Validator):
-
-    def validate(self, document: Document) -> None:
-        text = document.text.strip()
-        min_len, max_len = 3, 20
-
-        if len(text) < min_len:
-            raise ValidationError(
-                message=(
-                    "Too short name. "
-                    f"At least {min_len} characters needed."
-                ),
-                cursor_position=document.cursor_position,
-            )
-
-        if len(text) > max_len:
-            raise ValidationError(
-                message=(
-                    "Too long name. "
-                    f"Maximum {max_len} characters allowed."
-                ),
-                cursor_position=document.cursor_position,
-            )
-
-
-player_validator = PlayerValidator()
-
-
-def play() -> None:
-
-    RANKINGS_DIR.mkdir(exist_ok=True)
-
-    try:
-        difficulty = difficulty_selection()
-    except CancelOperation:
-        return
-
-    ask_player_name: PromptSession = PromptSession(
-        validator=player_validator,
-        validate_while_typing=False,
-    )
-
-    game = get_game()
-
-    while True:
-        try:
-            game.round = Round(difficulty)
-            score = game.round.run()
-        except RestartGame as rg:
-            if rg.difficulty is not None:
-                difficulty = rg.difficulty
-            continue
-        except StopPlaying:
-            return
-        finally:
-            del game.round
-
-        ranking_file = (
-            RANKINGS_DIR
-            / f'{difficulty.digs_num}_{difficulty.num_size}.csv'
-        )
-        ranking_file.touch()
-
-        ranking = pd.read_csv(
-            ranking_file,
-            names=['datetime', 'score', 'player'],
-            parse_dates=['datetime'],
-        )
-
-        if (
-                len(ranking) >= RANKING_SIZE
-                and ranking.score.iat[-1] <= score
-        ):
-            continue
-
-        while True:
-            try:
-                player = ask_player_name.prompt('Save score as: ').strip()
-            except EOFError:
-                break
-            except KeyboardInterrupt:
-                continue
-
-            try:
-                if not ask_ok(f'Confirm player: "{player}" [Y/n] '):
-                    continue
-            except CancelOperation:
-                break
-
-            ranking = (
-                ranking.append(
-                    {
-                        'datetime': datetime.now(),
-                        'score': score,
-                        'player': player,
-                    },
-                    ignore_index=True,
-                )
-                .sort_values(by=['score', 'datetime'])
-                .head(RANKING_SIZE)
-            )
-
-            ranking.to_csv(ranking_file, header=False, index=False)
-
-            show_ranking(ranking)
-
-            break
-
-
 @cli_window('Show Ranking')
 def show_ranking_action() -> None:
     RANKINGS_DIR.mkdir(exist_ok=True)
@@ -900,12 +792,39 @@ def show_ranking_action() -> None:
 # ====
 
 
+class PlayerValidator(Validator):
+
+    def validate(self, document: Document) -> None:
+        text = document.text.strip()
+        min_len, max_len = 3, 20
+
+        if len(text) < min_len:
+            raise ValidationError(
+                message=(
+                    "Too short name. "
+                    f"At least {min_len} characters needed."
+                ),
+                cursor_position=document.cursor_position,
+            )
+
+        if len(text) > max_len:
+            raise ValidationError(
+                message=(
+                    "Too long name. "
+                    f"Maximum {max_len} characters allowed."
+                ),
+                cursor_position=document.cursor_position,
+            )
+
+
+player_validator = PlayerValidator()
+
+
 class Game:
     """Game class."""
 
-    round: Round
-
     def __init__(self) -> None:
+        self._round: Optional[Round] = None
         self.difs = DifficultyContainer()
         self.commands = CommandContainer()
 
@@ -922,11 +841,101 @@ class Game:
         token = _current_game.set(self)
         try:
             self._print_starting_header()
-            play()
+            self._run()
         except QuitGame:
             return
         finally:
             _current_game.reset(token)
+
+    @property
+    def round(self) -> Round:
+        if self._round is not None:
+            return self._round
+        raise AttributeError("Round not set now")
+
+    @contextlib.contextmanager
+    def set_round(self, round_: Round) -> Generator[Round, None, None]:
+        try:
+            self._round = round_
+            yield round_
+        finally:
+            self._round = None
+
+    def _run(self) -> None:
+
+        RANKINGS_DIR.mkdir(exist_ok=True)
+
+        try:
+            difficulty = difficulty_selection(self.difs)
+        except CancelOperation:
+            return
+
+        ask_player_name: PromptSession = PromptSession(
+            validator=player_validator,
+            validate_while_typing=False,
+        )
+
+        while True:
+            try:
+                with self.set_round(Round(difficulty)) as round_:
+                    score = round_.run()
+            except RestartGame as rg:
+                if rg.difficulty is not None:
+                    difficulty = rg.difficulty
+                continue
+            except StopPlaying:
+                return
+
+            ranking_file = (
+                RANKINGS_DIR
+                / f'{difficulty.digs_num}_{difficulty.num_size}.csv'
+            )
+            ranking_file.touch()
+
+            ranking = pd.read_csv(
+                ranking_file,
+                names=['datetime', 'score', 'player'],
+                parse_dates=['datetime'],
+            )
+
+            if (
+                    len(ranking) >= RANKING_SIZE
+                    and ranking.score.iat[-1] <= score
+            ):
+                continue
+
+            while True:
+                try:
+                    player = ask_player_name.prompt('Save score as: ').strip()
+                except EOFError:
+                    break
+                except KeyboardInterrupt:
+                    continue
+
+                try:
+                    if not ask_ok(f'Confirm player: "{player}" [Y/n] '):
+                        continue
+                except CancelOperation:
+                    break
+
+                ranking = (
+                    ranking.append(
+                        {
+                            'datetime': datetime.now(),
+                            'score': score,
+                            'player': player,
+                        },
+                        ignore_index=True,
+                    )
+                    .sort_values(by=['score', 'datetime'])
+                    .head(RANKING_SIZE)
+                )
+
+                ranking.to_csv(ranking_file, header=False, index=False)
+
+                show_ranking(ranking)
+
+                break
 
 
 _current_game: ContextVar[Game] = ContextVar('game')
