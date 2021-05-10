@@ -670,40 +670,42 @@ class RoundValidator(Validator):
         digs_set = self._difficulty.digs_set
         num_size = self._difficulty.num_size
 
-        if not input_.startswith(Command.PREFIX):
-            # Check if number have wrong characters
-            wrong_chars = set(input_) - digs_set
-            if wrong_chars:
-                raise ValidationError(
-                    message=(
-                        "Wrong characters: %s"
-                        % ', '.join(map(lambda x: f"'{x}'", wrong_chars))
-                    ),
-                    cursor_position=max(
-                        input_.rfind(dig) for dig in wrong_chars
-                    ) + 1,
-                )
+        if input_.startswith(Command.PREFIX):
+            return
 
-            # Check length
-            if len(input_) != num_size:
-                raise ValidationError(
-                    message=f"Digit must have {num_size} digits",
-                    cursor_position=len(input_),
-                )
+        # Check if number have wrong characters
+        wrong_chars = set(input_) - digs_set
+        if wrong_chars:
+            raise ValidationError(
+                message=(
+                    "Wrong characters: %s"
+                    % ', '.join(map(lambda x: f"'{x}'", wrong_chars))
+                ),
+                cursor_position=max(
+                    input_.rfind(dig) for dig in wrong_chars
+                ) + 1,
+            )
 
-            # Check that digits don't repeat
-            digits = Counter(input_)
-            rep_digs = {i for i, n in digits.items() if n > 1}
-            if rep_digs:
-                raise ValidationError(
-                    message=(
-                        "Number can't have repeated digits. %s repeated."
-                        % ', '.join(map(lambda x: f"'{x}'", rep_digs))
-                    ),
-                    cursor_position=max(
-                        input_.rfind(dig) for dig in rep_digs
-                    ) + 1,
-                )
+        # Check length
+        if len(input_) != num_size:
+            raise ValidationError(
+                message=f"Digit must have {num_size} digits",
+                cursor_position=len(input_),
+            )
+
+        # Check that digits don't repeat
+        digits = Counter(input_)
+        rep_digs = {i for i, n in digits.items() if n > 1}
+        if rep_digs:
+            raise ValidationError(
+                message=(
+                    "Number can't have repeated digits. %s repeated."
+                    % ', '.join(map(lambda x: f"'{x}'", rep_digs))
+                ),
+                cursor_position=max(
+                    input_.rfind(dig) for dig in rep_digs
+                ) + 1,
+            )
 
 
 class Round:
