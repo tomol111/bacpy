@@ -242,11 +242,11 @@ class cli_window(contextlib.ContextDecorator):
 
     def __enter__(self):
         wing = self.fillchar * self.wing_size
-        print(f'{wing} {self.header} {wing}')
+        print(f'\n{wing} {self.header} {wing}')
         return self
 
     def __exit__(self, *exc):
-        print(self.fillchar * self.width)
+        print(self.fillchar * self.width, end='\n\n')
         return False
 
 
@@ -472,6 +472,7 @@ def restart_cmd() -> NoReturn:
 
     Restart the round.
     """
+    print("\n-- Game restarted --\n")
     raise RestartGame
 
 
@@ -503,6 +504,7 @@ def difficulty_cmd(arg: str = '') -> None:
     except IndexError:
         raise CommandError(f"Invalid index: {arg}")
     else:
+        print("\n-- Difficulty changed --\n")
         raise RestartGame(difficulty=difficulty)
 
 
@@ -707,9 +709,6 @@ class RoundValidator(Validator):
 class Round:
     """Round class."""
 
-    ROUND_START = '\n===== Round started ======\n'
-    ROUND_END = '\n======= Round ended ======\n'
-
     def __init__(self, difficulty: Difficulty) -> None:
         self._difficulty = difficulty
         self._history = History()
@@ -747,26 +746,25 @@ class Round:
     def run(self) -> int:
         """Run round loop.
 
-        Return score."""
-        print(self.ROUND_START)
-        try:
-            self.ps: PromptSession = PromptSession(
-                bottom_toolbar=self.toolbar,
-                validator=RoundValidator(self.difficulty),
-                validate_while_typing=False,
-            )
-            while True:
-                number = self._number_input()
-                bulls, cows = self.comput_bullscows(number)
-                self.history.add_record(number, bulls, cows)
+        Return score.
+        """
 
-                if bulls == self.difficulty.num_size:
-                    print(f"\n *** You guessed in {self.steps} steps ***")
-                    return self.steps
+        self.ps: PromptSession = PromptSession(
+            bottom_toolbar=self.toolbar,
+            validator=RoundValidator(self.difficulty),
+            validate_while_typing=False,
+        )
 
-                print(f"  bulls: {bulls:>2}, cows: {cows:>2}")
-        finally:
-            print(self.ROUND_END)
+        while True:
+            number = self._number_input()
+            bulls, cows = self.comput_bullscows(number)
+            self.history.add_record(number, bulls, cows)
+
+            if bulls == self.difficulty.num_size:
+                print(f"\n *** You guessed in {self.steps} steps ***\n")
+                return self.steps
+
+            print(f"  bulls: {bulls:>2}, cows: {cows:>2}")
 
     def comput_bullscows(self, guess: str) -> Tuple[int, int]:
         """Return bulls and cows for given input."""
@@ -954,6 +952,8 @@ class Game:
                 show_ranking(ranking)
 
                 break
+
+            print()
 
 
 _current_game: ContextVar[Game] = ContextVar('game')
