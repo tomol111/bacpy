@@ -3,7 +3,7 @@ import contextlib
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import datetime
-from operator import attrgetter, itemgetter
+from operator import attrgetter
 import os
 from pathlib import Path
 import random
@@ -112,15 +112,18 @@ class Difficulty:
 class DifficultyContainer:
     """Keeps available difficulties."""
 
-    def __init__(self) -> None:
-        self._data = [
-            Difficulty(*dif)
-            for dif in [
-                (3, 6, 'easy'),
-                (4, 9, 'normal'),
-                (5, 15, 'hard'),
+    def __init__(self, data: Optional[Iterable[Difficulty]] = None) -> None:
+        if data is None:
+            self._data = [
+                Difficulty(*dif)
+                for dif in [
+                    (3, 6, 'easy'),
+                    (4, 9, 'normal'),
+                    (5, 15, 'hard'),
+                ]
             ]
-        ]
+        else:
+            self._data = list(data)
 
         self._mapping = {dif.name: dif for dif in self._data if dif.name}
         self._indexes = range(IDX_START, len(self) + IDX_START)
@@ -134,7 +137,11 @@ class DifficultyContainer:
     def __getitem__(self, key: Union[str, int]) -> Difficulty:
         """Return Difficulty by given name or index."""
         if isinstance(key, int):
-            return self._data[self.indexes.index(key)]
+            try:
+                index = self.indexes.index(key)
+            except ValueError:
+                raise IndexError(key) from None
+            return self._data[index]
         if isinstance(key, str):
             return self._mapping[key]
         raise TypeError(
@@ -288,6 +295,16 @@ def show_ranking(ranking: pd.DataFrame) -> None:
     ))
 
 
+def show_difficulties_table(difficulties: DifficultyContainer) -> None:
+    table = tabulate(
+        map(attrgetter('name', 'num_size', 'digs_range'), difficulties),
+        headers=('Key', 'Difficulty', 'Size', 'Digits'),
+        colalign=('right', 'left', 'center', 'center'),
+        showindex=difficulties.indexes,
+    )
+    print('\n', table, '\n', sep='')
+
+
 # ========
 # Commands
 # ========
@@ -303,13 +320,19 @@ class Command:
     name: str
     shorthand: str
 
-    def __init__(self, cmdfunc: Callable[..., None], **kwargs: T) -> None:
+    def __init__(
+            self,
+            cmdfunc: Callable[..., None],
+            name: str,
+            **kwargs: T,
+    ) -> None:
         self.instances.append(self)
         self._cmdfunc = cmdfunc
+        self.name = name
+
         for attrname, variable in kwargs.items():
             setattr(self, attrname, variable)
-        if not hasattr(self, 'name'):
-            self.name = cmdfunc.__name__
+
         if not hasattr(self, 'doc'):
             self.doc = cmdfunc.__doc__
 
@@ -443,7 +466,7 @@ def stop_cmd() -> NoReturn:
     raise StopPlaying
 
 
-@Command.add(shorthand='r')
+@Command.add(name='restart', shorthand='r')
 def restart_cmd() -> NoReturn:
     """!r[estart]
 
@@ -460,28 +483,25 @@ def difficulty_cmd(arg: str = '') -> None:
     difficulty selection.
     """
 
-    game = get_game()
+    difficulties = get_game().difficulties
     if not arg:
         try:
-            difficulty = difficulty_selection(game.difs)
+            difficulty = difficulty_selection(difficulties)
         except CancelOperation:
             return
         else:
             raise RestartGame(difficulty=difficulty)
 
     if arg == '-l':
-        print(tabulate(
-            map(attrgetter('name', 'num_size', 'digs_range'), game.difs),
-            headers=('Key', 'Difficulty', 'Size', 'Digits'),
-            tablefmt='plain',
-            showindex=game.difs.indexes,
-        ))
+        show_difficulties_table(difficulties)
         return
 
     try:
-        difficulty = game.difs[int(arg) if arg.isdigit() else arg]
-    except (KeyError, IndexError):
-        raise CommandError(f"  There is no '{arg}' difficulty")
+        difficulty = difficulties[int(arg) if arg.isdigit() else arg]
+    except KeyError:
+        raise CommandError(f"No '{arg}' difficulty available")
+    except IndexError:
+        raise CommandError(f"Invalid index: {arg}")
     else:
         raise RestartGame(difficulty=difficulty)
 
@@ -500,7 +520,7 @@ def clear_cmd() -> None:
         clear()
 
 
-@Command.add(shorthand='hi')
+@Command.add(name='history', shorthand='hi')
 def history_cmd(arg: str = '') -> None:
     """!hi[story] [-c]
 
@@ -523,6 +543,70 @@ def history_cmd(arg: str = '') -> None:
         colalign=('center', 'center', 'center'),
         tablefmt='plain',
     ))
+
+
+@Command.add(name='ranking', shorthand='ra')
+def ranking_cmd(arg: str = '') -> None:
+    """!ra[nking] [{difficulty_name} | {difficulty_key} | -l]
+
+    Show ranking of given difficulty. If not given directly show
+    difficulty selection.
+
+        -l  List available ranking`s difficulties.
+    """
+
+    difficulties = get_game().difficulties
+
+    RANKINGS_DIR.mkdir(exist_ok=True)
+
+    ranking_files = {}
+    for difficulty in difficulties:
+        ranking_file = (
+            RANKINGS_DIR
+            / f'{difficulty.digs_num}_{difficulty.num_size}.csv'
+        )
+        if ranking_file.exists():
+            ranking_files[difficulty] = ranking_file
+
+    if not ranking_files:
+        print('\nEmpty rankings\n')
+        return
+
+    difficulties = DifficultyContainer(ranking_files.keys())
+
+    if arg == '-l':
+        show_difficulties_table(difficulties)
+        return
+    elif arg:
+        try:
+            difficulty = difficulties[int(arg) if arg.isdigit() else arg]
+        except KeyError:
+            raise CommandError(f"No '{arg}' difficulty available")
+        except IndexError:
+            raise CommandError(f"Invalid index: {arg}")
+    else:
+        try:
+            difficulty = difficulty_selection(difficulties)
+        except CancelOperation:
+            return
+
+    ranking_file = ranking_files[difficulty]
+    ranking = load_ranking(ranking_file)
+
+    show_ranking(ranking)
+
+
+# ==========
+# Core tools
+# ==========
+
+
+def load_ranking(file_path: Path) -> pd.DataFrame:
+    return pd.read_csv(
+        file_path,
+        names=['datetime', 'score', 'player'],
+        parse_dates=['datetime'],
+    )
 
 
 # =====
@@ -550,21 +634,14 @@ class MenuValidator(Validator):
 @cli_window('Difficulty Selection')
 def difficulty_selection(difficulties: DifficultyContainer) -> Difficulty:
     """Difficulty selection."""
-    difs = get_game().difs
-    table = tabulate(
-        map(attrgetter('name', 'num_size', 'digs_range'), difs),
-        headers=('Key', 'Difficulty', 'Size', 'Digits'),
-        colalign=('right', 'left', 'center', 'center'),
-        showindex=difs.indexes,
-    )
 
-    print('\n', table, '\n', sep='')
+    show_difficulties_table(difficulties)
 
     while True:
         try:
             input_ = prompt(
                 'Enter key: ',
-                validator=MenuValidator(difs.indexes),
+                validator=MenuValidator(difficulties.indexes),
                 validate_while_typing=False,
             ).strip()
         except EOFError:
@@ -572,7 +649,7 @@ def difficulty_selection(difficulties: DifficultyContainer) -> Difficulty:
         except KeyboardInterrupt:
             continue
 
-        return difs[int(input_)]
+        return difficulties[int(input_)]
 
 
 # =====
@@ -732,61 +809,6 @@ class Round:
             return input_
 
 
-# ============
-# Menu actions
-# ============
-
-
-@cli_window('Show Ranking')
-def show_ranking_action() -> None:
-    RANKINGS_DIR.mkdir(exist_ok=True)
-
-    ranking_files = []
-    for file in RANKINGS_DIR.glob('*.csv'):
-        digs_num, sep, num_size = file.stem.partition('_')
-        if sep or digs_num.isdigit() or num_size.isdigit():
-            ranking_files.append((digs_num, num_size, file))
-
-    if not ranking_files:
-        print('\nEmpty rankings\n')
-        return
-
-    ranking_groups = pd.DataFrame(
-        sorted(ranking_files, key=itemgetter(1, 0)),
-        index=pd.RangeIndex(1, len(ranking_files) + 1, name='Key'),
-        columns=['Digits', 'Size', 'file'],
-    )
-
-    table = tabulate(
-        ranking_groups[['Digits', 'Size']],
-        headers='keys',
-        colalign=('left', 'center', 'center'),
-    )
-
-    print('\n', table, '\n', sep='')
-
-    while True:
-        try:
-            input_ = prompt(
-                'Enter key: ',
-                validator=MenuValidator(ranking_groups.index),
-                validate_while_typing=False,
-            ).strip()
-        except EOFError:
-            return
-        except KeyboardInterrupt:
-            continue
-
-        ranking_file = ranking_groups.loc[int(input_)].file
-        ranking = pd.read_csv(
-            ranking_file,
-            names=['datetime', 'score', 'player'],
-            parse_dates=['datetime'],
-        )
-
-        show_ranking(ranking)
-
-
 # ====
 # Game
 # ====
@@ -825,7 +847,7 @@ class Game:
 
     def __init__(self) -> None:
         self._round: Optional[Round] = None
-        self.difs = DifficultyContainer()
+        self.difficulties = DifficultyContainer()
         self.commands = CommandContainer()
 
     def _print_starting_header(self) -> None:
@@ -866,7 +888,7 @@ class Game:
         RANKINGS_DIR.mkdir(exist_ok=True)
 
         try:
-            difficulty = difficulty_selection(self.difs)
+            difficulty = difficulty_selection(self.difficulties)
         except CancelOperation:
             return
 
@@ -892,11 +914,7 @@ class Game:
             )
             ranking_file.touch()
 
-            ranking = pd.read_csv(
-                ranking_file,
-                names=['datetime', 'score', 'player'],
-                parse_dates=['datetime'],
-            )
+            ranking = load_ranking(ranking_file)
 
             if (
                     len(ranking) >= RANKING_SIZE
