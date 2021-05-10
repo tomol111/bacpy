@@ -1,4 +1,4 @@
-from collections import Counter, deque
+from collections import Counter
 import contextlib
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -15,6 +15,7 @@ from typing import (
     ClassVar,
     Collection,
     Container,
+    Deque,
     Dict,
     FrozenSet,
     Generator,
@@ -176,7 +177,7 @@ class History:
     """Stores `HistRecord`s."""
 
     def __init__(self) -> None:
-        self._data: deque = deque()
+        self._data: Deque[HistRecord] = Deque()
 
     def add_record(self, number: str, bulls: int, cows: int) -> None:
         """Create `HistRecord` from passed data and store it."""
