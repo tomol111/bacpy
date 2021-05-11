@@ -12,8 +12,8 @@ import subprocess
 import sys
 from typing import (
     Callable,
+    cast,
     ClassVar,
-    Collection,
     Container,
     Deque,
     Dict,
@@ -23,6 +23,7 @@ from typing import (
     Iterator,
     KeysView,
     List,
+    Mapping,
     NamedTuple,
     NoReturn,
     Optional,
@@ -354,61 +355,63 @@ class Command:
         return decorator
 
 
-class CommandContainer(Collection[Command], Iterable[Command]):
-    """Contain Command objects and allows execute them."""
+class CommandBase(Mapping[str, Command]):
+    """Mapping of string keys and Command instanses values.
+
+    Allows execute commands."""
 
     def __init__(self) -> None:
-        self._cmds: Dict[str, Command] = {
-            cmd.name: cmd for cmd in Command.instances
+        self._mapping: Dict[str, Command] = {
+            cmd.name: cmd
+            for cmd in Command.instances
         }
         self._shorthands_map: Dict[str, str] = {
-            cmd.shorthand: cmd.name for cmd in Command.instances
+            cmd.shorthand: cmd.name
+            for cmd in Command.instances
+            if hasattr(cmd, 'shorthand')
         }
 
-    def __iter__(self) -> Iterator[Command]:
-        return iter(self._cmds.values())
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._mapping)
 
     def __getitem__(self, key: str) -> Command:
-        """Give Command by given name or shorthand."""
+        """Get Command by given name or shorthand."""
         if key in self._shorthands_map:
-            return self._cmds[self._shorthands_map[key]]
-        if key in self._cmds:
-            return self._cmds[key]
-        raise IndexError(key)
+            return self._mapping[self._shorthands_map[key]]
+        if key in self._mapping:
+            return self._mapping[key]
+        raise KeyError(key)
 
     def __len__(self) -> int:
         """Return number of Commands."""
-        return len(self._cmds)
+        return len(self._mapping)
 
     def __contains__(self, key: object) -> bool:
-        """Return True if given name or shorthand is available."""
-        return key in self.names or key in self.shorthands
+        """Check if given name or shorthand is available."""
+        return (
+            key in self._mapping
+            or key in self._shorthands_map
+        )
 
-    @property
-    def names(self) -> List[str]:
-        """Return list of names."""
-        return list(self._cmds)
+    def keys(self) -> KeysView[str]:
+        """Get names and shorthands view."""
+        new_mapping: Mapping[str, object] = {
+            **self._mapping,
+            **self._shorthands_map,
+        }
+        return cast(
+            # suppress mypy issue that shows AbstractSet[str] type
+            KeysView[str],
+            new_mapping.keys(),
+        )
 
-    @property
-    def shorthands(self) -> List[str]:
-        """Return list of shorthands."""
-        return list(self._shorthands_map)
+    def names(self) -> KeysView[str]:
+        """Get names view."""
+        return self._mapping.keys()
 
-    def get(
-            self,
-            key: str,
-            default: Optional[T] = None,
-    ) -> Union[Command, Optional[T]]:
-        """Return command class for key.
-
-        If key don't exist return 'default'.
-        """
-        try:
-            item = self[key]
-        except KeyError:
-            return default
-        else:
-            return item
+    def shorthands(self) -> KeysView[str]:
+        """Get shorthands view."""
+        return self._shorthands_map.keys()
 
     def parse_cmd(self, input_: str) -> None:
         """Search for command and execute it."""
@@ -443,7 +446,7 @@ def help_cmd(arg: str = '') -> None:
     if arg == 'commands':
         pager('\n'.join([
             cmd.doc
-            for cmd in commands
+            for cmd in commands.values()
             if cmd.doc is not None
         ]))
     elif arg in commands:
@@ -856,7 +859,7 @@ class Game:
     def __init__(self) -> None:
         self._round: Optional[Round] = None
         self.difficulties = DifficultyContainer()
-        self.commands = CommandContainer()
+        self.commands = CommandBase()
 
     def _print_starting_header(self) -> None:
         line = '=' * len(PROGRAM_VERSION)
