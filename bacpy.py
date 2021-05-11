@@ -41,27 +41,32 @@ from tabulate import tabulate
 
 if sys.version_info >= (3, 8):
     import importlib.metadata as importlib_metadata
+    from typing import Final, Literal
 else:
     try:
         import importlib_metadata
     except ModuleNotFoundError:
         importlib_metadata = None
 
+    from typing_extensions import Final, Literal
 
-VERSION_STR = " BacPy "
-if importlib_metadata:
-    VERSION_STR += f"v{importlib_metadata.version('bacpy')} "
+PROGRAM_NAME: Final[str] = "BacPy"
+PROGRAM_VERSION: Final[str] = (
+    f" {PROGRAM_NAME} v{importlib_metadata.version('bacpy')} "
+    if importlib_metadata
+    else f" {PROGRAM_NAME} "
+)
 
 
 # Type variables
 T = TypeVar('T')
 
 # Constants
-RANKINGS_DIR = Path('.rankings')
-IDX_START = 1
-RANKING_SIZE = 10
+RANKINGS_DIR: Final[Path] = Path('.rankings')
+IDX_START: Final[Literal[0, 1]] = 1
+RANKING_SIZE: Final[int] = 10
 
-GAME_HELP = """
+GAME_HELP: Final[str] = """
 # HELP
 
 BacPy is "Bulls and Cows" game implementation.
@@ -85,7 +90,7 @@ Special commands:
 # ============
 
 
-DIGITS_RANGE = '123456789abcdef'
+DIGITS_RANGE: Final[str] = '123456789abcdef'
 
 
 @dataclass(order=True, frozen=True)
@@ -311,10 +316,12 @@ def show_difficulties_table(difficulties: DifficultyContainer) -> None:
 # ========
 
 
+COMMAND_PREFIX: Final[str] = '!'
+
+
 class Command:
     """Command abstract class and commands manager."""
 
-    PREFIX: ClassVar[str] = '!'
     instances: ClassVar[List['Command']] = []
 
     doc: Optional[str]
@@ -405,7 +412,7 @@ class CommandContainer(Collection[Command], Iterable[Command]):
 
     def parse_cmd(self, input_: str) -> None:
         """Search for command and execute it."""
-        input_ = input_[len(Command.PREFIX):]
+        input_ = input_[len(COMMAND_PREFIX):]
         if input_:
             name, *args = shlex.split(input_)
             if name in self:
@@ -671,7 +678,7 @@ class RoundValidator(Validator):
         digs_set = self._difficulty.digs_set
         num_size = self._difficulty.num_size
 
-        if input_.startswith(Command.PREFIX):
+        if input_.startswith(COMMAND_PREFIX):
             return
 
         # Check if number have wrong characters
@@ -803,7 +810,7 @@ class Round:
             if not input_:
                 continue
 
-            if input_.startswith(Command.PREFIX):
+            if input_.startswith(COMMAND_PREFIX):
                 get_game().commands.parse_cmd(input_)
                 continue
 
@@ -852,8 +859,8 @@ class Game:
         self.commands = CommandContainer()
 
     def _print_starting_header(self) -> None:
-        line = '=' * len(VERSION_STR)
-        print('\n'.join([line, VERSION_STR, line]))
+        line = '=' * len(PROGRAM_VERSION)
+        print('\n'.join([line, PROGRAM_VERSION, line]))
 
     def run(self) -> None:
         """Runs game loop.
@@ -973,7 +980,7 @@ class _MISSING_TYPE:
         return cls._instance
 
 
-MISSING = _MISSING_TYPE()
+MISSING: Final[_MISSING_TYPE] = _MISSING_TYPE()
 
 
 @overload
