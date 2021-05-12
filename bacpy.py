@@ -705,6 +705,44 @@ def save_ranking(ranking: pd.DataFrame, difficulty: Difficulty) -> None:
     )
 
 
+class RankingUpdater:
+    """Read ranking. Check if score fit in. If so, allow update it."""
+
+    def __init__(self, difficulty: Difficulty, score: int) -> None:
+        self._difficulty = difficulty
+        self._score = score
+        self._datetime = datetime.now()
+        self._ranking = ranking = load_ranking(difficulty)
+        self._is_score_fit_in = (
+            len(ranking) >= RANKING_SIZE
+            and ranking.score.iat[-1] <= score
+        )
+
+    @property
+    def is_score_fit_in(self) -> bool:
+        return self._is_score_fit_in
+
+    def update(self, player: str) -> pd.DataFrame:
+
+        ranking = (
+            self._ranking
+            .append(
+                {
+                    'datetime': self._datetime,
+                    'score': self._score,
+                    'player': player,
+                },
+                ignore_index=True,
+            )
+            .sort_values(by=['score', 'datetime'])
+            .head(RANKING_SIZE)
+        )
+
+        save_ranking(ranking, self._difficulty)
+
+        return ranking
+
+
 # =====
 # Menus
 # =====
@@ -1001,12 +1039,9 @@ class Game:
             except StopPlaying:
                 return
 
-            ranking = load_ranking(difficulty)
+            ranking_updater = RankingUpdater(difficulty, score)
 
-            if (
-                    len(ranking) >= RANKING_SIZE
-                    and ranking.score.iat[-1] <= score
-            ):
+            if not RankingUpdater.is_score_fit_in:
                 continue
 
             while True:
@@ -1023,21 +1058,7 @@ class Game:
                 except CancelOperation:
                     break
 
-                ranking = (
-                    ranking.append(
-                        {
-                            'datetime': datetime.now(),
-                            'score': score,
-                            'player': player,
-                        },
-                        ignore_index=True,
-                    )
-                    .sort_values(by=['score', 'datetime'])
-                    .head(RANKING_SIZE)
-                )
-
-                save_ranking(ranking, difficulty)
-
+                ranking = ranking_updater.update(player)
                 show_ranking(ranking)
 
                 break
