@@ -809,6 +809,12 @@ class Round:
         self._difficulty = difficulty
         self._history = History()
 
+        self.prompt_session: PromptSession = PromptSession(
+            bottom_toolbar=self.toolbar,
+            validator=RoundValidator(self.difficulty),
+            validate_while_typing=False,
+        )
+
         self._draw_number()
         if sys.flags.dev_mode:
             print(self._number)
@@ -844,13 +850,6 @@ class Round:
 
         Return score.
         """
-
-        self.ps: PromptSession = PromptSession(
-            bottom_toolbar=self.toolbar,
-            validator=RoundValidator(self.difficulty),
-            validate_while_typing=False,
-        )
-
         while True:
             number = self._number_input()
             bulls, cows = self.comput_bullscows(number)
@@ -880,7 +879,9 @@ class Round:
         Supports special input."""
         while True:
             try:
-                input_ = self.ps.prompt(f"[{self.steps+1}] ").strip()
+                input_ = self.prompt_session.prompt(
+                    f"[{self.steps + 1}] "
+                ).strip()
             except EOFError:
                 try:
                     if ask_ok('Do you really want to quit? [Y/n]: '):
