@@ -65,6 +65,7 @@ T = TypeVar('T')
 
 # Constants
 RANKINGS_DIR: Final[Path] = Path('.rankings')
+RANKINGS_DIR.mkdir(exist_ok=True)
 IDX_START: Final[Literal[0, 1]] = 1
 RANKING_SIZE: Final[int] = 10
 
@@ -633,22 +634,11 @@ class RankingCmd(Command):
 
         difficulties = self.game.difficulties
 
-        RANKINGS_DIR.mkdir(exist_ok=True)
+        difficulties = available_rankings(difficulties)
 
-        ranking_files = {}
-        for difficulty in difficulties:
-            ranking_file = (
-                RANKINGS_DIR
-                / f'{difficulty.digs_num}_{difficulty.num_size}.csv'
-            )
-            if ranking_file.exists():
-                ranking_files[difficulty] = ranking_file
-
-        if not ranking_files:
+        if not difficulties:
             print('\nEmpty rankings\n')
             return
-
-        difficulties = DifficultyContainer(ranking_files.keys())
 
         if arg == '-l':
             show_difficulties_table(difficulties)
@@ -668,10 +658,7 @@ class RankingCmd(Command):
             except CancelOperation:
                 return
 
-        ranking_file = ranking_files[difficulty]
-        ranking = load_ranking(ranking_file)
-
-        show_ranking(ranking)
+        show_ranking(load_ranking(difficulty))
 
 
 # ==========
@@ -679,11 +666,42 @@ class RankingCmd(Command):
 # ==========
 
 
-def load_ranking(file_path: Path) -> pd.DataFrame:
+def _get_ranking_path(difficulty: Difficulty) -> Path:
+    return (
+        RANKINGS_DIR
+        / f'{difficulty.digs_num}_{difficulty.num_size}.csv'
+    )
+
+
+def available_rankings(
+        difficulties: DifficultyContainer,
+) -> DifficultyContainer:
+    """Filter difficulties by the fact that corresponding ranking is
+    available.
+    """
+    return DifficultyContainer(
+        difficulty
+        for difficulty in difficulties
+        if _get_ranking_path(difficulty).exists()
+    )
+
+
+def load_ranking(difficulty: Difficulty) -> pd.DataFrame:
+    """Read and return ranking by given difficulty."""
+    path = _get_ranking_path(difficulty)
+    path.touch()
     return pd.read_csv(
-        file_path,
+        path,
         names=['datetime', 'score', 'player'],
         parse_dates=['datetime'],
+    )
+
+
+def save_ranking(ranking: pd.DataFrame, difficulty: Difficulty) -> None:
+    ranking.to_csv(
+        _get_ranking_path(difficulty),
+        header=False,
+        index=False,
     )
 
 
@@ -961,8 +979,6 @@ class Game:
 
     def _run(self) -> None:
 
-        RANKINGS_DIR.mkdir(exist_ok=True)
-
         try:
             difficulty = difficulty_selection(self.difficulties)
         except CancelOperation:
@@ -984,13 +1000,7 @@ class Game:
             except StopPlaying:
                 return
 
-            ranking_file = (
-                RANKINGS_DIR
-                / f'{difficulty.digs_num}_{difficulty.num_size}.csv'
-            )
-            ranking_file.touch()
-
-            ranking = load_ranking(ranking_file)
+            ranking = load_ranking(difficulty)
 
             if (
                     len(ranking) >= RANKING_SIZE
@@ -1025,7 +1035,7 @@ class Game:
                     .head(RANKING_SIZE)
                 )
 
-                ranking.to_csv(ranking_file, header=False, index=False)
+                save_ranking(ranking, difficulty)
 
                 show_ranking(ranking)
 
