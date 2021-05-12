@@ -982,6 +982,10 @@ class Game:
         self._round: Optional[Round] = None
         self.difficulties = DifficultyContainer()
         self.commands = CommandBase(self)
+        self._ask_player_name: PromptSession = PromptSession(
+            validator=player_validator,
+            validate_while_typing=False,
+        )
 
     def _print_starting_header(self) -> None:
         line = '=' * len(PROGRAM_VERSION)
@@ -1016,17 +1020,35 @@ class Game:
         finally:
             self._round = None
 
+    def get_palyer_name(self) -> Optional[str]:
+        """Ask for player name and return it.
+
+        If operation canceled return `None`.
+        """
+        while True:
+            try:
+                player = self._ask_player_name.prompt(
+                    'Save score as: '
+                ).strip()
+            except EOFError:
+                return None
+            except KeyboardInterrupt:
+                continue
+
+            try:
+                if not ask_ok(f'Confirm player: "{player}" [Y/n] '):
+                    continue
+            except CancelOperation:
+                return None
+
+            return player
+
     def _run(self) -> None:
 
         try:
             difficulty = difficulty_selection(self.difficulties)
         except CancelOperation:
             return
-
-        ask_player_name: PromptSession = PromptSession(
-            validator=player_validator,
-            validate_while_typing=False,
-        )
 
         while True:
             try:
@@ -1044,24 +1066,10 @@ class Game:
             if not RankingUpdater.is_score_fit_in:
                 continue
 
-            while True:
-                try:
-                    player = ask_player_name.prompt('Save score as: ').strip()
-                except EOFError:
-                    break
-                except KeyboardInterrupt:
-                    continue
-
-                try:
-                    if not ask_ok(f'Confirm player: "{player}" [Y/n] '):
-                        continue
-                except CancelOperation:
-                    break
-
+            player = self.get_palyer_name()
+            if player:
                 ranking = ranking_updater.update(player)
                 show_ranking(ranking)
-
-                break
 
             print()
 
