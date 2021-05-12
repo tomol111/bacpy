@@ -1,8 +1,10 @@
+from abc import ABCMeta, abstractmethod
 from collections import Counter
 import contextlib
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import datetime
+import inspect
 from operator import attrgetter
 import os
 from pathlib import Path
@@ -11,7 +13,6 @@ import shlex
 import subprocess
 import sys
 from typing import (
-    Callable,
     cast,
     ClassVar,
     Container,
@@ -22,7 +23,6 @@ from typing import (
     Iterable,
     Iterator,
     KeysView,
-    List,
     Mapping,
     NamedTuple,
     NoReturn,
@@ -320,58 +320,48 @@ def show_difficulties_table(difficulties: DifficultyContainer) -> None:
 COMMAND_PREFIX: Final[str] = '!'
 
 
-class Command:
-    """Command abstract class and commands manager."""
+class Command(metaclass=ABCMeta):
+    """Command abstract class."""
 
-    instances: ClassVar[List['Command']] = []
+    shorthand: ClassVar[Optional[str]] = None
 
-    doc: Optional[str]
-    name: str
-    shorthand: str
+    def __init__(self, game: 'Game') -> None:
+        self.game = game
 
-    def __init__(
-            self,
-            cmdfunc: Callable[..., None],
-            name: str,
-            **kwargs: T,
-    ) -> None:
-        self.instances.append(self)
-        self._cmdfunc = cmdfunc
-        self.name = name
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        pass
 
-        for attrname, variable in kwargs.items():
-            setattr(self, attrname, variable)
-
-        if not hasattr(self, 'doc'):
-            self.doc = cmdfunc.__doc__
-
-    def __call__(self, *args: str) -> None:
-        self._cmdfunc(*args)
-
-    @classmethod
-    def add(cls, **kwargs: T) -> Callable[[Callable[..., None]], 'Command']:
-        def decorator(cmdfunc):
-            return cls(cmdfunc, **kwargs)
-        return decorator
+    @abstractmethod
+    def execute(self):
+        """Execute command by parsing `str` type arguments."""
 
 
 class CommandBase(Mapping[str, Command]):
-    """Mapping of string keys and Command instanses values.
+    """Mapping of string keys and `Command` instanses values.
 
-    Allows execute commands."""
+    Allows execute commands by `parse_cmd()`."""
 
-    def __init__(self) -> None:
+    def __init__(self, game: 'Game') -> None:
+        command_classes = Command.__subclasses__()
+        commands = [
+            # mypy issue -- shows that `Command` is in `command_classes`
+            command(game)  # type: ignore[abstract]
+            for command in command_classes
+        ]
         self._mapping: Dict[str, Command] = {
             cmd.name: cmd
-            for cmd in Command.instances
+            for cmd in commands
         }
         self._shorthands_map: Dict[str, str] = {
             cmd.shorthand: cmd.name
-            for cmd in Command.instances
-            if hasattr(cmd, 'shorthand')
+            for cmd in commands
+            if cmd.shorthand
         }
 
     def __iter__(self) -> Iterator[str]:
+        """Iterate through names."""
         return iter(self._mapping)
 
     def __getitem__(self, key: str) -> Command:
@@ -420,7 +410,7 @@ class CommandBase(Mapping[str, Command]):
             name, *args = shlex.split(input_)
             if name in self:
                 try:
-                    self[name](*args)
+                    self[name].execute(*args)
                 except (CommandError, TypeError) as err:
                     print(err)
                 return
@@ -431,182 +421,228 @@ class CommandBase(Mapping[str, Command]):
         )
 
 
-@Command.add(name='help', shorthand='h')
-def help_cmd(arg: str = '') -> None:
-    """!h[elp] [{subject}]
+class HelpCmd(Command):
+    """
+    h[elp] [{subject}]
 
-    Show help about {subject}. When {subject} is not parsed show game help.
+        Show help about {subject}. When {subject} is not parsed show game help.
     """
 
-    if not arg:
-        pager(GAME_HELP)
-        return
+    name = 'help'
+    shorthand = 'h'
 
-    commands = get_game().commands
-    if arg == 'commands':
-        pager('\n'.join([
-            cmd.doc
-            for cmd in commands.values()
-            if cmd.doc is not None
-        ]))
-    elif arg in commands:
-        cmd = commands[arg]
-        if cmd.doc is not None:
-            print(cmd.doc)
-        else:
-            print(f"  Command {cmd} don't have documentation")
-    else:
-        raise CommandError(f"  No help for '{arg}'")
+    def execute(self, arg: str = '') -> None:
 
-
-@Command.add(name='quit', shorthand='q')
-def quit_cmd() -> NoReturn:
-    """!q[uit]
-
-    Stop playing.
-    """
-    raise QuitGame
-
-
-@Command.add(name='stop', shorthand='s')
-def stop_cmd() -> NoReturn:
-    """!q[uit]
-
-    Exit the game.
-    """
-    raise StopPlaying
-
-
-@Command.add(name='restart', shorthand='r')
-def restart_cmd() -> NoReturn:
-    """!r[estart]
-
-    Restart the round.
-    """
-    print("\n-- Game restarted --\n")
-    raise RestartGame
-
-
-@Command.add(name='difficulty', shorthand='d')
-def difficulty_cmd(arg: str = '') -> None:
-    """!d[ifficulty] [{difficulty_name} | {difficulty_key} | -l]
-
-    Change difficulty to the given one. If not given directly show
-    difficulty selection.
-    """
-
-    difficulties = get_game().difficulties
-    if not arg:
-        try:
-            difficulty = difficulty_selection(difficulties)
-        except CancelOperation:
+        if not arg:
+            pager(GAME_HELP)
             return
+
+        commands = self.game.commands
+        if arg == 'commands':
+            docs = (
+                inspect.getdoc(cmd)
+                for cmd in commands.values()
+            )
+            pager('\n\n\n'.join([
+                doc
+                for doc in docs
+                if doc is not None
+            ]))
+        elif arg in commands:
+            cmd = commands[arg]
+            doc = inspect.getdoc(cmd)
+            if doc is not None:
+                print(doc)
+            else:
+                print(f"Command '{cmd.name}' don't have documentation")
         else:
-            raise RestartGame(difficulty=difficulty)
-
-    if arg == '-l':
-        show_difficulties_table(difficulties)
-        return
-
-    try:
-        difficulty = difficulties[int(arg) if arg.isdigit() else arg]
-    except KeyError:
-        raise CommandError(f"No '{arg}' difficulty available")
-    except IndexError:
-        raise CommandError(f"Invalid index: {arg}")
-    else:
-        print("\n-- Difficulty changed --\n")
-        raise RestartGame(difficulty=difficulty)
+            raise CommandError(f"No command '{arg}'")
 
 
-@Command.add(name='clear', shorthand='c')
-def clear_cmd() -> None:
-    """!c[lean]
-
-    Clear screan.
+class QuitCmd(Command):
     """
-    if os.name in ('nt', 'dos'):
-        subprocess.call('cls')
-    elif os.name in ('linux', 'osx', 'posix'):
-        subprocess.call('clear')
-    else:
-        clear()
+    q[uit]
 
-
-@Command.add(name='history', shorthand='hi')
-def history_cmd(arg: str = '') -> None:
-    """!hi[story] [-c]
-
-    Show history.
-        '-c' - before showing history clear the screan
-    """
-    game = get_game()
-    if arg == '-c':
-        clear_cmd()
-    elif arg:
-        raise CommandError(f"  invalid argument '{arg}'")
-
-    if game.round.steps == 0:
-        print("History is empty")
-        return
-
-    print(tabulate(
-        iter(game.round.history),
-        headers=('Number', 'Bulls', 'Cows'),
-        colalign=('center', 'center', 'center'),
-        tablefmt='plain',
-    ))
-
-
-@Command.add(name='ranking', shorthand='ra')
-def ranking_cmd(arg: str = '') -> None:
-    """!ra[nking] [{difficulty_name} | {difficulty_key} | -l]
-
-    Show ranking of given difficulty. If not given directly show
-    difficulty selection.
-
-        -l  List available ranking`s difficulties.
+        Stop playing.
     """
 
-    difficulties = get_game().difficulties
+    name = 'quit'
+    shorthand = 'q'
 
-    RANKINGS_DIR.mkdir(exist_ok=True)
+    def execute(self) -> NoReturn:
+        raise QuitGame
 
-    ranking_files = {}
-    for difficulty in difficulties:
-        ranking_file = (
-            RANKINGS_DIR
-            / f'{difficulty.digs_num}_{difficulty.num_size}.csv'
-        )
-        if ranking_file.exists():
-            ranking_files[difficulty] = ranking_file
 
-    if not ranking_files:
-        print('\nEmpty rankings\n')
-        return
+class StopCmd(Command):
+    """
+    s[top]
 
-    difficulties = DifficultyContainer(ranking_files.keys())
+        Exit the game.
+    """
 
-    if arg == '-l':
-        show_difficulties_table(difficulties)
-        return
-    elif arg:
+    name = 'stop'
+    shorthand = 's'
+
+    def execute(self) -> NoReturn:
+        raise StopPlaying
+
+
+class RestartCmd(Command):
+    """
+    r[estart]
+
+        Restart the round.
+    """
+
+    name = 'restart'
+    shorthand = 'r'
+
+    def execute(self) -> NoReturn:
+        print("\n-- Game restarted --\n")
+        raise RestartGame
+
+
+class DifficultyCmd(Command):
+    """
+    d[ifficulty] [{difficulty_name} | {difficulty_key} | -l]
+
+        Change difficulty to the given one. If not given directly show
+        difficulty selection.
+    """
+
+    name = 'difficulty'
+    shorthand = 'd'
+
+    def execute(self, arg: str = '') -> None:
+
+        difficulties = self.game.difficulties
+
+        if not arg:
+            try:
+                difficulty = difficulty_selection(difficulties)
+            except CancelOperation:
+                return
+            else:
+                raise RestartGame(difficulty=difficulty)
+
+        if arg == '-l':
+            show_difficulties_table(difficulties)
+            return
+
         try:
             difficulty = difficulties[int(arg) if arg.isdigit() else arg]
         except KeyError:
             raise CommandError(f"No '{arg}' difficulty available")
         except IndexError:
             raise CommandError(f"Invalid index: {arg}")
-    else:
-        try:
-            difficulty = difficulty_selection(difficulties)
-        except CancelOperation:
+        else:
+            print("\n-- Difficulty changed --\n")
+            raise RestartGame(difficulty=difficulty)
+
+
+class ClearCmd(Command):
+    """
+    c[lean]
+
+        Clear screan.
+    """
+
+    name = 'clear'
+    shorthand = 'c'
+
+    def execute(self) -> None:
+        if os.name in ('nt', 'dos'):
+            subprocess.call('cls')
+        elif os.name in ('linux', 'osx', 'posix'):
+            subprocess.call('clear')
+        else:
+            clear()
+
+
+class HistoryCmd(Command):
+    """
+    hi[story] [-c]
+
+        Show history.
+            -c  before showing history clear the screan
+    """
+
+    name = 'history'
+    shorthand = 'hi'
+
+    def execute(self, arg: str = '') -> None:
+
+        if arg == '-c':
+            self.game.commands['clear'].execute()
+        elif arg:
+            raise CommandError(f"  invalid argument '{arg}'")
+
+        if self.game.round.steps == 0:
+            print("History is empty")
             return
 
-    ranking_file = ranking_files[difficulty]
-    ranking = load_ranking(ranking_file)
+        print(tabulate(
+            iter(self.game.round.history),
+            headers=('Number', 'Bulls', 'Cows'),
+            colalign=('center', 'center', 'center'),
+            tablefmt='plain',
+        ))
 
-    show_ranking(ranking)
+
+class RankingCmd(Command):
+    """
+    ra[nking] [{difficulty_name} | {difficulty_key} | -l]
+
+        Show ranking of given difficulty. If not given directly show
+        difficulty selection.
+
+            -l  List available ranking`s difficulties.
+    """
+
+    name = 'ranking'
+    shorthand = 'ra'
+
+    def execute(self, arg: str = '') -> None:
+
+        difficulties = self.game.difficulties
+
+        RANKINGS_DIR.mkdir(exist_ok=True)
+
+        ranking_files = {}
+        for difficulty in difficulties:
+            ranking_file = (
+                RANKINGS_DIR
+                / f'{difficulty.digs_num}_{difficulty.num_size}.csv'
+            )
+            if ranking_file.exists():
+                ranking_files[difficulty] = ranking_file
+
+        if not ranking_files:
+            print('\nEmpty rankings\n')
+            return
+
+        difficulties = DifficultyContainer(ranking_files.keys())
+
+        if arg == '-l':
+            show_difficulties_table(difficulties)
+            return
+        elif arg:
+            try:
+                difficulty = difficulties[int(arg) if arg.isdigit() else arg]
+            except KeyError:
+                raise CommandError(f"No '{arg}' difficulty available")
+            except IndexError:
+                raise CommandError(f"Invalid index: {arg}")
+        else:
+            try:
+                difficulty = difficulty_selection(difficulties)
+            except CancelOperation:
+                return
+
+        ranking_file = ranking_files[difficulty]
+        ranking = load_ranking(ranking_file)
+
+        show_ranking(ranking)
 
 
 # ==========
@@ -859,7 +895,7 @@ class Game:
     def __init__(self) -> None:
         self._round: Optional[Round] = None
         self.difficulties = DifficultyContainer()
-        self.commands = CommandBase()
+        self.commands = CommandBase(self)
 
     def _print_starting_header(self) -> None:
         line = '=' * len(PROGRAM_VERSION)
