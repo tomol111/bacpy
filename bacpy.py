@@ -634,7 +634,7 @@ class RankingCmd(Command):
 
         difficulties = self.game.difficulties
 
-        difficulties = available_rankings(difficulties)
+        difficulties = available_ranking_difficulties(difficulties)
 
         if not difficulties:
             print('\nEmpty rankings\n')
@@ -673,7 +673,7 @@ def _get_ranking_path(difficulty: Difficulty) -> Path:
     )
 
 
-def available_rankings(
+def available_ranking_difficulties(
         difficulties: DifficultyContainer,
 ) -> DifficultyContainer:
     """Filter difficulties by the fact that corresponding ranking is
@@ -697,7 +697,7 @@ def load_ranking(difficulty: Difficulty) -> pd.DataFrame:
     )
 
 
-def save_ranking(ranking: pd.DataFrame, difficulty: Difficulty) -> None:
+def _save_ranking(ranking: pd.DataFrame, difficulty: Difficulty) -> None:
     ranking.to_csv(
         _get_ranking_path(difficulty),
         header=False,
@@ -738,7 +738,7 @@ class RankingUpdater:
             .head(RANKING_SIZE)
         )
 
-        save_ranking(ranking, self._difficulty)
+        _save_ranking(ranking, self._difficulty)
 
         return ranking
 
