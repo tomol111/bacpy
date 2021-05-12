@@ -1020,7 +1020,7 @@ class Game:
         finally:
             self._round = None
 
-    def get_palyer_name(self) -> Optional[str]:
+    def get_player_name(self) -> Optional[str]:
         """Ask for player name and return it.
 
         If operation canceled return `None`.
@@ -1066,7 +1066,7 @@ class Game:
             if not RankingUpdater.is_score_fit_in:
                 continue
 
-            player = self.get_palyer_name()
+            player = self.get_player_name()
             if player:
                 ranking = ranking_updater.update(player)
                 show_ranking(ranking)
