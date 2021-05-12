@@ -1,6 +1,6 @@
 from abc import ABCMeta, abstractmethod
 from collections import Counter
-import contextlib
+from contextlib import ContextDecorator, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -230,7 +230,7 @@ class CancelOperation(GameEvent):
 # =========
 
 
-class cli_window(contextlib.ContextDecorator):
+class cli_window(ContextDecorator):
 
     def __init__(
             self, header: str,
@@ -969,7 +969,7 @@ class Game:
             return self._round
         raise AttributeError("Round not set now")
 
-    @contextlib.contextmanager
+    @contextmanager
     def set_round(self, round_: Round) -> Generator[Round, None, None]:
         try:
             self._round = round_
