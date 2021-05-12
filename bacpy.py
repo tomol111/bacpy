@@ -23,6 +23,7 @@ from typing import (
     Iterable,
     Iterator,
     KeysView,
+    List,
     Mapping,
     NamedTuple,
     NoReturn,
@@ -223,13 +224,6 @@ class CancelOperation(GameEvent):
     """Operation canceled event."""
 
 
-class CommandError(GameEvent):
-    """Exception raised by Command.
-
-    Error description will be shown on the interface.
-    """
-
-
 # =========
 # CLI tools
 # =========
@@ -327,6 +321,40 @@ class Command(metaclass=ABCMeta):
 
     def __init__(self, game: 'Game') -> None:
         self.game = game
+        self._args_range = self._get_args_range()
+
+    def _get_args_range(self) -> Tuple[int, float]:
+        params = inspect.signature(self.execute).parameters.values()
+        min_, max_ = 0, 0
+        for param in params:
+            if param.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD:
+                if param.default is inspect.Parameter.empty:
+                    min_ += 1
+                max_ += 1
+            elif param.kind is inspect.Parameter.VAR_POSITIONAL:
+                return min_, float('inf')
+        return min_, max_
+
+    def parse_args(self, args: List[str]) -> None:
+        """Execute command if valid number of arguments passed.
+
+        If number of arguments is invalid print warning.
+        """
+        min_, max_ = self._args_range
+
+        if min_ <= len(args) <= max_:
+            self.execute(*args)
+
+        if min_ == max_:
+            print(
+                f"'{self.name}' command get {min_} arguments. "
+                f"{len(args)} was given."
+            )
+        else:
+            print(
+                f"'{self.name}' command get between {min_} and {max_} "
+                f"arguments. {len(args)} was given."
+            )
 
     @property
     @abstractmethod
@@ -406,19 +434,15 @@ class CommandBase(Mapping[str, Command]):
     def parse_cmd(self, input_: str) -> None:
         """Search for command and execute it."""
         input_ = input_[len(COMMAND_PREFIX):]
-        if input_:
-            name, *args = shlex.split(input_)
-            if name in self:
-                try:
-                    self[name].execute(*args)
-                except (CommandError, TypeError) as err:
-                    print(err)
-                return
-        print(
-            "  Type '!help' to show game help or '!help commands' ",
-            "  to show help about available commands",
-            sep='\n',
-        )
+
+        if not input_:
+            return
+
+        name, *args = shlex.split(input_)
+        if name in self:
+            self[name].parse_args(args)
+        else:
+            print(f"No command: {name}")
 
 
 class HelpCmd(Command):
@@ -456,7 +480,7 @@ class HelpCmd(Command):
             else:
                 print(f"Command '{cmd.name}' don't have documentation")
         else:
-            raise CommandError(f"No command '{arg}'")
+            print(f"No command: {arg}")
 
 
 class QuitCmd(Command):
@@ -532,9 +556,11 @@ class DifficultyCmd(Command):
         try:
             difficulty = difficulties[int(arg) if arg.isdigit() else arg]
         except KeyError:
-            raise CommandError(f"No '{arg}' difficulty available")
+            print(f"No '{arg}' difficulty available")
+            return
         except IndexError:
-            raise CommandError(f"Invalid index: {arg}")
+            print(f"Invalid index: {arg}")
+            return
         else:
             print("\n-- Difficulty changed --\n")
             raise RestartGame(difficulty=difficulty)
@@ -575,7 +601,8 @@ class HistoryCmd(Command):
         if arg == '-c':
             self.game.commands['clear'].execute()
         elif arg:
-            raise CommandError(f"  invalid argument '{arg}'")
+            print(f"Invalid argument '{arg}'")
+            return
 
         if self.game.round.steps == 0:
             print("History is empty")
@@ -630,9 +657,11 @@ class RankingCmd(Command):
             try:
                 difficulty = difficulties[int(arg) if arg.isdigit() else arg]
             except KeyError:
-                raise CommandError(f"No '{arg}' difficulty available")
+                print(f"No '{arg}' difficulty available")
+                return
             except IndexError:
-                raise CommandError(f"Invalid index: {arg}")
+                print(f"Invalid index: {arg}")
+                return
         else:
             try:
                 difficulty = difficulty_selection(difficulties)
