@@ -244,7 +244,7 @@ class cli_window(ContextDecorator):
         return self
 
     def __exit__(self, *exc):
-        print(self.fillchar * self.width, end='\n\n')
+        print(self.fillchar * self.width)
         return False
 
 
@@ -341,8 +341,7 @@ class Command(metaclass=ABCMeta):
 
         if min_ <= len(args) <= max_:
             self.execute(*args)
-
-        if min_ == max_:
+        elif min_ == max_:
             print(
                 f"'{self.name}' command get {min_} arguments. "
                 f"{len(args)} was given."
@@ -510,57 +509,43 @@ class StopCmd(Command):
 
 class RestartCmd(Command):
     """
-    r[estart]
+    r[estart] [-l | -i | {difficulty_key} | {difficulty_name}]
 
-        Restart the round.
+        Restart the round. If argument given change difficulty.
+
+        -l  List difficulties.
+
+        -i  Interactively choose new difficulty.
     """
-
     name = 'restart'
     shorthand = 'r'
 
-    def execute(self) -> NoReturn:
-        print("\n-- Game restarted --\n")
-        raise RestartGame
-
-
-class DifficultyCmd(Command):
-    """
-    d[ifficulty] [{difficulty_name} | {difficulty_key} | -l]
-
-        Change difficulty to the given one. If not given directly show
-        difficulty selection.
-    """
-
-    name = 'difficulty'
-    shorthand = 'd'
-
     def execute(self, arg: str = '') -> None:
+
+        if not arg:
+            raise RestartGame
 
         difficulties = self.game.difficulties
 
-        if not arg:
+        if arg == '-i':
             try:
                 difficulty = difficulty_selection(difficulties)
             except EOFError:
                 return
-            else:
-                raise RestartGame(difficulty=difficulty)
-
-        if arg == '-l':
+        elif arg == '-l':
             show_difficulties_table(difficulties)
             return
-
-        try:
-            difficulty = difficulties[int(arg) if arg.isdigit() else arg]
-        except KeyError:
-            print(f"No '{arg}' difficulty available")
-            return
-        except IndexError:
-            print(f"Invalid index: {arg}")
-            return
         else:
-            print("\n-- Difficulty changed --\n")
-            raise RestartGame(difficulty=difficulty)
+            try:
+                difficulty = difficulties[int(arg) if arg.isdigit() else arg]
+            except KeyError:
+                print(f"No '{arg}' difficulty available")
+                return
+            except IndexError:
+                print(f"Invalid key: {arg}")
+                return
+
+        raise RestartGame(difficulty=difficulty)
 
 
 class ClearCmd(Command):
@@ -1045,6 +1030,9 @@ class Game:
             return
 
         while True:
+
+            print()
+
             try:
                 with self.set_round(Round(difficulty)) as round_:
                     score = round_.run()
@@ -1064,8 +1052,6 @@ class Game:
             if player:
                 ranking = ranking_updater.update(player)
                 show_ranking(ranking)
-
-            print()
 
 
 _current_game: ContextVar[Game] = ContextVar('game')
