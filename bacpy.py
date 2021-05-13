@@ -221,10 +221,6 @@ class RestartGame(GameEvent):
         self.difficulty = difficulty
 
 
-class CancelOperation(GameEvent):
-    """Operation canceled event."""
-
-
 # =========
 # CLI tools
 # =========
@@ -252,13 +248,13 @@ class cli_window(ContextDecorator):
         return False
 
 
-def ask_ok(prompt_message: str, default: bool = True) -> bool:
-    """Yes-No input."""
+def ask_ok(prompt_message: str, default: Optional[bool] = True) -> bool:
+    """Yes/No input.
+
+    Can raise EOFError"""
     while True:
         try:
             input_ = prompt(prompt_message).strip().lower()
-        except EOFError:
-            raise CancelOperation
         except KeyboardInterrupt:
             continue
 
@@ -545,7 +541,7 @@ class DifficultyCmd(Command):
         if not arg:
             try:
                 difficulty = difficulty_selection(difficulties)
-            except CancelOperation:
+            except EOFError:
                 return
             else:
                 raise RestartGame(difficulty=difficulty)
@@ -655,7 +651,7 @@ class RankingCmd(Command):
         else:
             try:
                 difficulty = difficulty_selection(difficulties)
-            except CancelOperation:
+            except EOFError:
                 return
 
         show_ranking(load_ranking(difficulty))
@@ -767,7 +763,9 @@ class MenuValidator(Validator):
 
 @cli_window('Difficulty Selection')
 def difficulty_selection(difficulties: DifficultyContainer) -> Difficulty:
-    """Difficulty selection."""
+    """Difficulty selection.
+
+    Can raise EOFError."""
 
     show_difficulties_table(difficulties)
 
@@ -778,8 +776,6 @@ def difficulty_selection(difficulties: DifficultyContainer) -> Difficulty:
                 validator=MenuValidator(difficulties.indexes),
                 validate_while_typing=False,
             ).strip()
-        except EOFError:
-            raise CancelOperation
         except KeyboardInterrupt:
             continue
 
@@ -924,11 +920,9 @@ class Round:
                 try:
                     if ask_ok('Do you really want to quit? [Y/n]: '):
                         raise StopPlaying
-                    else:
-                        continue
-                except CancelOperation:
+                    continue
+                except EOFError:
                     raise StopPlaying
-                continue
             except KeyboardInterrupt:
                 continue
 
@@ -1038,7 +1032,7 @@ class Game:
             try:
                 if not ask_ok(f'Confirm player: "{player}" [Y/n] '):
                     continue
-            except CancelOperation:
+            except EOFError:
                 return None
 
             return player
@@ -1047,7 +1041,7 @@ class Game:
 
         try:
             difficulty = difficulty_selection(self.difficulties)
-        except CancelOperation:
+        except EOFError:
             return
 
         while True:
