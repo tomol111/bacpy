@@ -30,6 +30,7 @@ from typing import (
     Optional,
     overload,
     Union,
+    Sequence,
     Tuple,
     TypeVar,
 )
@@ -62,6 +63,7 @@ PROGRAM_VERSION: Final[str] = (
 
 # Type variables
 T = TypeVar('T')
+T_co = TypeVar('T_co', covariant=True)
 
 # Constants
 RANKINGS_DIR: Final[Path] = Path('.rankings')
@@ -86,6 +88,32 @@ Rules are:
 Special commands:
     You can type '!h commands' to show available commands.
 """
+
+
+# ============
+# SequenceView
+# ============
+
+
+class SequenceView(Sequence[T_co]):
+
+    def __init__(self, data: Sequence[T_co]) -> None:
+        self._data = data
+
+    @overload
+    def __getitem__(self, index: int) -> T_co: ...
+
+    @overload
+    def __getitem__(self, index: slice) -> Sequence[T_co]: ...
+
+    def __getitem__(self, index):
+        return self._data[index]
+
+    def __len__(self) -> int:
+        return len(self._data)
+
+    def __repr__(self) -> str:
+        return f'{type(self).__name__}({self._data})'
 
 
 # ============
@@ -179,23 +207,6 @@ class HistRecord(NamedTuple):
     number: str
     bulls: int
     cows: int
-
-
-class History:
-    """Stores `HistRecord`s."""
-
-    def __init__(self) -> None:
-        self._data: Deque[HistRecord] = Deque()
-
-    def add_record(self, number: str, bulls: int, cows: int) -> None:
-        """Create `HistRecord` from passed data and store it."""
-        self._data.append(HistRecord(number, bulls, cows))
-
-    def __len__(self) -> int:
-        return len(self._data)
-
-    def __iter__(self) -> Iterator[HistRecord]:
-        return iter(self._data)
 
 
 # ======
@@ -826,7 +837,7 @@ class Round:
 
     def __init__(self, difficulty: Difficulty) -> None:
         self._difficulty = difficulty
-        self._history = History()
+        self._history: Deque[HistRecord] = Deque()
 
         self.prompt_session: PromptSession = PromptSession(
             bottom_toolbar=self.toolbar,
@@ -845,8 +856,8 @@ class Round:
         )
 
     @property
-    def history(self) -> History:
-        return self._history
+    def history(self) -> SequenceView[HistRecord]:
+        return SequenceView(self._history)
 
     @property
     def steps(self) -> int:
@@ -872,7 +883,7 @@ class Round:
         while True:
             number = self._number_input()
             bulls, cows = self.comput_bullscows(number)
-            self.history.add_record(number, bulls, cows)
+            self._history.append(HistRecord(number, bulls, cows))
 
             if bulls == self.difficulty.num_size:
                 print(f"\n *** You guessed in {self.steps} steps ***\n")
