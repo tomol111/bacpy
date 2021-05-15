@@ -602,7 +602,7 @@ class HistoryCmd(Command):
             return
 
         print(tabulate(
-            iter(self.game.round.history),
+            self.game.round.history,
             headers=('Number', 'Bulls', 'Cows'),
             colalign=('center', 'center', 'center'),
             tablefmt='plain',
