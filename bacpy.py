@@ -283,7 +283,7 @@ def pager(text: str) -> None:
     subprocess.run(['less', '-C'], input=text.encode())
 
 
-def show_ranking(ranking: pd.DataFrame) -> None:
+def ranking_table(ranking: pd.DataFrame) -> str:
     ranking = (
         ranking
         [['score', 'player']]
@@ -297,21 +297,21 @@ def show_ranking(ranking: pd.DataFrame) -> None:
         .fillna('-')
     )
 
-    pager(tabulate(
+    return tabulate(
         ranking,
         headers='keys',
         colalign=('left', 'center', 'left'),
-    ))
+    )
 
 
-def show_difficulties_table(difficulties: DifficultyContainer) -> None:
+def difficulties_table(difficulties: DifficultyContainer) -> str:
     table = tabulate(
         map(attrgetter('name', 'num_size', 'digs_range'), difficulties),
         headers=('Key', 'Difficulty', 'Size', 'Digits'),
         colalign=('right', 'left', 'center', 'center'),
         showindex=difficulties.indexes,
     )
-    print('\n', table, '\n', sep='')
+    return f'\n{table}\n'
 
 
 # ========
@@ -544,7 +544,7 @@ class RestartCmd(Command):
             except EOFError:
                 return
         elif arg == '-l':
-            show_difficulties_table(difficulties)
+            print(difficulties_table(difficulties))
             return
         else:
             try:
@@ -633,7 +633,7 @@ class RankingCmd(Command):
             return
 
         if arg == '-l':
-            show_difficulties_table(difficulties)
+            print(difficulties_table(difficulties))
             return
         elif arg:
             try:
@@ -650,7 +650,7 @@ class RankingCmd(Command):
             except EOFError:
                 return
 
-        show_ranking(load_ranking(difficulty))
+        pager(ranking_table(load_ranking(difficulty)))
 
 
 # ==========
@@ -763,7 +763,7 @@ def difficulty_selection(difficulties: DifficultyContainer) -> Difficulty:
 
     Can raise EOFError."""
 
-    show_difficulties_table(difficulties)
+    print(difficulties_table(difficulties))
 
     while True:
         try:
@@ -977,9 +977,9 @@ class Game:
             validate_while_typing=False,
         )
 
-    def _print_starting_header(self) -> None:
+    def _starting_header(self) -> str:
         line = '=' * len(PROGRAM_VERSION)
-        print('\n'.join([line, PROGRAM_VERSION, line]))
+        return f'{line}\n{PROGRAM_VERSION}\n{line}'
 
     def run(self) -> None:
         """Runs game loop.
@@ -989,7 +989,7 @@ class Game:
         """
         token = _current_game.set(self)
         try:
-            self._print_starting_header()
+            print(self._starting_header())
             self._run()
         except QuitGame:
             return
@@ -1062,7 +1062,7 @@ class Game:
             player = self.get_player_name()
             if player:
                 ranking = ranking_updater.update(player)
-                show_ranking(ranking)
+                pager(ranking_table(ranking))
 
 
 _current_game: ContextVar[Game] = ContextVar('game')
