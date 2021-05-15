@@ -839,7 +839,7 @@ class Round:
         self._difficulty = difficulty
         self._history: Deque[HistRecord] = Deque()
 
-        self.prompt_session: PromptSession = PromptSession(
+        self._prompt_session: PromptSession = PromptSession(
             bottom_toolbar=self.toolbar,
             validator=RoundValidator(self.difficulty),
             validate_while_typing=False,
@@ -882,7 +882,7 @@ class Round:
         """
         while True:
             number = self._number_input()
-            bulls, cows = self.comput_bullscows(number)
+            bulls, cows = self._comput_bullscows(number)
             self._history.append(HistRecord(number, bulls, cows))
 
             if bulls == self.difficulty.num_size:
@@ -891,7 +891,7 @@ class Round:
 
             print(f"  bulls: {bulls:>2}, cows: {cows:>2}")
 
-    def comput_bullscows(self, guess: str) -> Tuple[int, int]:
+    def _comput_bullscows(self, guess: str) -> Tuple[int, int]:
         """Return bulls and cows for given input."""
         bulls, cows = 0, 0
 
@@ -909,7 +909,7 @@ class Round:
         Supports special input."""
         while True:
             try:
-                input_ = self.prompt_session.prompt(
+                input_ = self._prompt_session.prompt(
                     f"[{self.steps + 1}] "
                 ).strip()
             except EOFError:
@@ -970,8 +970,8 @@ class Game:
 
     def __init__(self) -> None:
         self._round: Optional[Round] = None
-        self.difficulties = DifficultyContainer()
-        self.commands = CommandBase(self)
+        self._difficulties = DifficultyContainer()
+        self._commands = CommandBase(self)
         self._ask_player_name: PromptSession = PromptSession(
             validator=player_validator,
             validate_while_typing=False,
@@ -995,6 +995,14 @@ class Game:
             return
         finally:
             _current_game.reset(token)
+
+    @property
+    def difficulties(self) -> DifficultyContainer:
+        return self._difficulties
+
+    @property
+    def commands(self) -> CommandBase:
+        return self._commands
 
     @property
     def round(self) -> Round:
