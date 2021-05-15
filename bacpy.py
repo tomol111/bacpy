@@ -706,8 +706,8 @@ class RankingUpdater:
         self._datetime = datetime.now()
         self._ranking = ranking = load_ranking(difficulty)
         self._is_score_fit_in = (
-            len(ranking) >= RANKING_SIZE
-            and ranking.score.iat[-1] <= score
+            len(ranking) < RANKING_SIZE
+            or ranking.score.iat[-1] > score
         )
 
     @property
@@ -1056,7 +1056,7 @@ class Game:
 
             ranking_updater = RankingUpdater(difficulty, score)
 
-            if not RankingUpdater.is_score_fit_in:
+            if not ranking_updater.is_score_fit_in:
                 continue
 
             player = self.get_player_name()
