@@ -2,37 +2,30 @@ from abc import ABCMeta, abstractmethod
 from collections import Counter
 from contextlib import ContextDecorator, contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass, field
-from datetime import datetime
 import inspect
 from operator import attrgetter
 import os
-from pathlib import Path
-import random
 import shlex
 import subprocess
 import sys
 from typing import (
     cast,
+    Callable,
     ClassVar,
     Container,
-    Deque,
     Dict,
-    FrozenSet,
     Generator,
     Iterable,
     Iterator,
     KeysView,
     List,
     Mapping,
-    NamedTuple,
     NoReturn,
     Optional,
     overload,
-    Union,
-    Sequence,
     Tuple,
     TypeVar,
+    Union,
 )
 
 import pandas as pd
@@ -41,6 +34,19 @@ from prompt_toolkit.document import Document
 from prompt_toolkit.shortcuts import clear, prompt
 from prompt_toolkit.validation import Validator, ValidationError
 from tabulate import tabulate
+
+from .core import (
+    available_ranking_difficulties,
+    DEFAULT_DIFFICULTIES,
+    Difficulty,
+    load_ranking,
+    QuitGame,
+    RANKING_SIZE,
+    RANKINGS_DIR,
+    RestartGame,
+    RoundCore,
+    StopPlaying,
+)
 
 if sys.version_info >= (3, 8):
     import importlib.metadata as importlib_metadata
@@ -53,23 +59,19 @@ else:
 
     from typing_extensions import Final, Literal
 
+
+# Type variables
+T = TypeVar('T')
+
+
+# Constants
 PROGRAM_NAME: Final[str] = "BacPy"
 PROGRAM_VERSION: Final[str] = (
     f" {PROGRAM_NAME} v{importlib_metadata.version('bacpy')} "
     if importlib_metadata
     else f" {PROGRAM_NAME} "
 )
-
-
-# Type variables
-T = TypeVar('T')
-T_co = TypeVar('T_co', covariant=True)
-
-# Constants
-RANKINGS_DIR: Final[Path] = Path('.rankings')
-RANKINGS_DIR.mkdir(exist_ok=True)
 IDX_START: Final[Literal[0, 1]] = 1
-RANKING_SIZE: Final[int] = 10
 
 GAME_HELP: Final[str] = """
 # HELP
@@ -90,78 +92,16 @@ Special commands:
 """
 
 
-# ============
-# SequenceView
-# ============
-
-
-class SequenceView(Sequence[T_co]):
-
-    def __init__(self, data: Sequence[T_co]) -> None:
-        self._data = data
-
-    @overload
-    def __getitem__(self, index: int) -> T_co: ...
-
-    @overload
-    def __getitem__(self, index: slice) -> Sequence[T_co]: ...
-
-    def __getitem__(self, index):
-        return self._data[index]
-
-    def __len__(self) -> int:
-        return len(self._data)
-
-    def __repr__(self) -> str:
-        return f'{type(self).__name__}({self._data})'
-
-
-# ============
-# Difficulties
-# ============
-
-
-DIGITS_RANGE: Final[str] = '123456789abcdef'
-
-
-@dataclass(order=True, frozen=True)
-class Difficulty:
-
-    num_size: int
-    digs_num: int
-    name: str = field(default='', compare=False)
-
-    @property
-    def digs_set(self) -> FrozenSet[str]:
-        return frozenset(DIGITS_RANGE[:self.digs_num])
-
-    @property
-    def digs_range(self) -> str:
-        if 3 <= self.digs_num <= 9:
-            return f'1-{self.digs_num}'
-        if self.digs_num == 10:
-            return '1-9,a'
-        if 11 <= self.digs_num <= 15:
-            return f'1-9,a-{DIGITS_RANGE[self.digs_num-1]}'
-        raise AttributeError
+# ===================
+# DifficultyContainer
+# ===================
 
 
 class DifficultyContainer:
     """Keeps available difficulties."""
 
-    def __init__(self, data: Optional[Iterable[Difficulty]] = None) -> None:
-        if data is None:
-            self._data = [
-                Difficulty(*dif)
-                for dif in [
-                    (3, 6, 'easy'),
-                    (4, 9, 'normal'),
-                    (5, 15, 'hard'),
-                ]
-            ]
-        else:
-            self._data = list(data)
-
+    def __init__(self, data: Iterable[Difficulty]) -> None:
+        self._data = tuple(data)
         self._mapping = {dif.name: dif for dif in self._data if dif.name}
         self._indexes = range(IDX_START, len(self) + IDX_START)
 
@@ -193,43 +133,6 @@ class DifficultyContainer:
     @property
     def indexes(self) -> range:
         return self._indexes
-
-
-# =======
-# History
-# =======
-
-
-class HistRecord(NamedTuple):
-    """
-    History record of passed number and the corresponding bulls and cows.
-    """
-    number: str
-    bulls: int
-    cows: int
-
-
-# ======
-# Events
-# ======
-
-
-class GameEvent(Exception):
-    """Base game event class."""
-
-
-class QuitGame(GameEvent):
-    """Quit game event."""
-
-
-class StopPlaying(GameEvent):
-    """Stop playing event."""
-
-
-class RestartGame(GameEvent):
-    """Restart game event."""
-    def __init__(self, difficulty: 'Difficulty' = None):
-        self.difficulty = difficulty
 
 
 # =========
@@ -443,6 +346,7 @@ class CommandBase(Mapping[str, Command]):
         input_ = input_[len(COMMAND_PREFIX):]
 
         if not input_:
+            print("Type '!help commands' to get available commands")
             return
 
         name, *args = shlex.split(input_)
@@ -626,7 +530,9 @@ class RankingCmd(Command):
 
         difficulties = self.game.difficulties
 
-        difficulties = available_ranking_difficulties(difficulties)
+        difficulties = DifficultyContainer(
+            available_ranking_difficulties(difficulties)
+        )
 
         if not difficulties:
             print('\nEmpty rankings\n')
@@ -651,88 +557,6 @@ class RankingCmd(Command):
                 return
 
         pager(ranking_table(load_ranking(difficulty)))
-
-
-# ==========
-# Core tools
-# ==========
-
-
-def _get_ranking_path(difficulty: Difficulty) -> Path:
-    return (
-        RANKINGS_DIR
-        / f'{difficulty.digs_num}_{difficulty.num_size}.csv'
-    )
-
-
-def available_ranking_difficulties(
-        difficulties: DifficultyContainer,
-) -> DifficultyContainer:
-    """Filter difficulties by the fact that corresponding ranking is
-    available.
-    """
-    return DifficultyContainer(
-        difficulty
-        for difficulty in difficulties
-        if _get_ranking_path(difficulty).exists()
-    )
-
-
-def load_ranking(difficulty: Difficulty) -> pd.DataFrame:
-    """Read and return ranking by given difficulty."""
-    path = _get_ranking_path(difficulty)
-    path.touch()
-    return pd.read_csv(
-        path,
-        names=['datetime', 'score', 'player'],
-        parse_dates=['datetime'],
-    )
-
-
-def _save_ranking(ranking: pd.DataFrame, difficulty: Difficulty) -> None:
-    ranking.to_csv(
-        _get_ranking_path(difficulty),
-        header=False,
-        index=False,
-    )
-
-
-class RankingUpdater:
-    """Read ranking. Check if score fit in. If so, allow update it."""
-
-    def __init__(self, difficulty: Difficulty, score: int) -> None:
-        self._difficulty = difficulty
-        self._score = score
-        self._datetime = datetime.now()
-        self._ranking = ranking = load_ranking(difficulty)
-        self._is_score_fit_in = (
-            len(ranking) < RANKING_SIZE
-            or ranking.score.iat[-1] > score
-        )
-
-    @property
-    def is_score_fit_in(self) -> bool:
-        return self._is_score_fit_in
-
-    def update(self, player: str) -> pd.DataFrame:
-
-        ranking = (
-            self._ranking
-            .append(
-                {
-                    'datetime': self._datetime,
-                    'score': self._score,
-                    'player': player,
-                },
-                ignore_index=True,
-            )
-            .sort_values(by=['score', 'datetime'])
-            .head(RANKING_SIZE)
-        )
-
-        _save_ranking(ranking, self._difficulty)
-
-        return ranking
 
 
 # =====
@@ -776,11 +600,6 @@ def difficulty_selection(difficulties: DifficultyContainer) -> Difficulty:
             continue
 
         return difficulties[int(input_)]
-
-
-# =====
-# Round
-# =====
 
 
 class RoundValidator(Validator):
@@ -832,111 +651,6 @@ class RoundValidator(Validator):
             )
 
 
-class Round:
-    """Round class."""
-
-    def __init__(self, difficulty: Difficulty) -> None:
-        self._difficulty = difficulty
-        self._history: Deque[HistRecord] = Deque()
-
-        self._prompt_session: PromptSession = PromptSession(
-            bottom_toolbar=self.toolbar,
-            validator=RoundValidator(self.difficulty),
-            validate_while_typing=False,
-        )
-
-        self._draw_number()
-        if sys.flags.dev_mode:
-            print(self._number)
-
-    def _draw_number(self) -> None:
-        """Draw number digits from self.difficulty.digs_set."""
-        self._number = ''.join(
-            random.sample(self.difficulty.digs_set, self.difficulty.num_size)
-        )
-
-    @property
-    def history(self) -> SequenceView[HistRecord]:
-        return SequenceView(self._history)
-
-    @property
-    def steps(self) -> int:
-        return len(self._history)
-
-    @property
-    def difficulty(self) -> Difficulty:
-        return self._difficulty
-
-    @property
-    def toolbar(self) -> str:
-        return "  |  ".join([
-            f" Difficulty: {self.difficulty.name}",
-            f"Size: {self.difficulty.num_size}",
-            f"Digits: {self.difficulty.digs_range}",
-        ])
-
-    def run(self) -> int:
-        """Run round loop.
-
-        Return score.
-        """
-        while True:
-            number = self._number_input()
-            bulls, cows = self._comput_bullscows(number)
-            self._history.append(HistRecord(number, bulls, cows))
-
-            if bulls == self.difficulty.num_size:
-                print(f"\n *** You guessed in {self.steps} steps ***\n")
-                return self.steps
-
-            print(f"  bulls: {bulls:>2}, cows: {cows:>2}")
-
-    def _comput_bullscows(self, guess: str) -> Tuple[int, int]:
-        """Return bulls and cows for given input."""
-        bulls, cows = 0, 0
-
-        for g, n in zip(guess, self._number):
-            if g == n:
-                bulls += 1
-            elif g in self._number:
-                cows += 1
-
-        return bulls, cows
-
-    def _number_input(self) -> str:
-        """Take number from user.
-
-        Supports special input."""
-        while True:
-            try:
-                input_ = self._prompt_session.prompt(
-                    f"[{self.steps + 1}] "
-                ).strip()
-            except EOFError:
-                try:
-                    if ask_ok('Do you really want to quit? [Y/n]: '):
-                        raise StopPlaying
-                    continue
-                except EOFError:
-                    raise StopPlaying
-            except KeyboardInterrupt:
-                continue
-
-            if not input_:
-                continue
-
-            if input_.startswith(COMMAND_PREFIX):
-                get_game().commands.parse_cmd(input_)
-                continue
-
-            return input_
-
-
-# ====
-# Game
-# ====
-
-
 class PlayerValidator(Validator):
 
     def validate(self, document: Document) -> None:
@@ -965,36 +679,107 @@ class PlayerValidator(Validator):
 player_validator = PlayerValidator()
 
 
+def _get_toolbar(difficulty: Difficulty) -> str:
+    return "  |  ".join([
+        f"  Difficulty: {difficulty.name}",
+        f"Size: {difficulty.num_size}",
+        f"Digits: {difficulty.digs_range}",
+    ])
+
+
+def _number_getter(
+        difficulty: Difficulty,
+        get_steps: Callable[[], int],
+) -> Generator[str, None, None]:
+    """Take number from user.
+
+    Supports special input. Can raise `StopPlaying`.
+    """
+    prompt_session: PromptSession = PromptSession(
+        bottom_toolbar=_get_toolbar(difficulty),
+        validator=RoundValidator(difficulty),
+        validate_while_typing=False,
+    )
+    while True:
+        try:
+            input_ = prompt_session.prompt(f"[{get_steps() + 1}] ").strip()
+        except EOFError:
+            try:
+                if ask_ok('Do you really want to quit? [Y/n]: '):
+                    raise StopPlaying
+                continue
+            except EOFError:
+                raise StopPlaying
+        except KeyboardInterrupt:
+            continue
+
+        if input_.startswith(COMMAND_PREFIX):
+            get_game().commands.parse_cmd(input_)
+            continue
+
+        yield input_
+
+
+def _get_player_name() -> Optional[str]:
+    """Ask for player name and return it."""
+    while True:
+        try:
+            player = prompt(
+                'Save score as: ',
+                validator=player_validator,
+                validate_while_typing=False,
+            ).strip()
+        except EOFError:
+            return None
+        except KeyboardInterrupt:
+            continue
+
+        try:
+            if not ask_ok(f'Confirm player: "{player}" [Y/n] '):
+                continue
+        except EOFError:
+            return None
+
+        return player
+
+
+def play(round_core: RoundCore) -> None:
+    number_getter = _number_getter(
+        round_core.difficulty,
+        lambda: round_core.steps,
+    )
+
+    while not round_core.finished:
+        number = next(number_getter)
+        _, bulls, cows = round_core.parse_guess(number)
+        print(f"bulls: {bulls:>2}, cows: {bulls:>2}")
+
+    print(f"\n *** You guessed in {round_core.steps} steps ***\n")
+
+    if round_core.score_fit_in:
+        player = _get_player_name()
+        if player:
+            ranking = round_core.update_ranking(player)
+            pager(ranking_table(ranking))
+
+
+# ====
+# Game
+# ====
+
+
+def _starting_header(title: str = PROGRAM_VERSION) -> str:
+    line = '=' * len(title)
+    return f'{line}\n{title}\n{line}'
+
+
 class Game:
     """Game class."""
 
     def __init__(self) -> None:
-        self._round: Optional[Round] = None
-        self._difficulties = DifficultyContainer()
+        self._round: Optional[RoundCore] = None
+        self._difficulties = DifficultyContainer(DEFAULT_DIFFICULTIES)
         self._commands = CommandBase(self)
-        self._ask_player_name: PromptSession = PromptSession(
-            validator=player_validator,
-            validate_while_typing=False,
-        )
-
-    def _starting_header(self) -> str:
-        line = '=' * len(PROGRAM_VERSION)
-        return f'{line}\n{PROGRAM_VERSION}\n{line}'
-
-    def run(self) -> None:
-        """Runs game loop.
-
-        While this method is running `get_game()` will return caller
-        of that method.
-        """
-        token = _current_game.set(self)
-        try:
-            print(self._starting_header())
-            self._run()
-        except QuitGame:
-            return
-        finally:
-            _current_game.reset(token)
 
     @property
     def difficulties(self) -> DifficultyContainer:
@@ -1005,72 +790,18 @@ class Game:
         return self._commands
 
     @property
-    def round(self) -> Round:
+    def round(self) -> RoundCore:
         if self._round is not None:
             return self._round
         raise AttributeError("Round not set now")
 
     @contextmanager
-    def set_round(self, round_: Round) -> Generator[Round, None, None]:
+    def set_round(self, round_: RoundCore) -> Generator[RoundCore, None, None]:
         try:
             self._round = round_
             yield round_
         finally:
             self._round = None
-
-    def get_player_name(self) -> Optional[str]:
-        """Ask for player name and return it.
-
-        If operation canceled return `None`.
-        """
-        while True:
-            try:
-                player = self._ask_player_name.prompt(
-                    'Save score as: '
-                ).strip()
-            except EOFError:
-                return None
-            except KeyboardInterrupt:
-                continue
-
-            try:
-                if not ask_ok(f'Confirm player: "{player}" [Y/n] '):
-                    continue
-            except EOFError:
-                return None
-
-            return player
-
-    def _run(self) -> None:
-
-        try:
-            difficulty = difficulty_selection(self.difficulties)
-        except EOFError:
-            return
-
-        while True:
-
-            print()
-
-            try:
-                with self.set_round(Round(difficulty)) as round_:
-                    score = round_.run()
-            except RestartGame as rg:
-                if rg.difficulty is not None:
-                    difficulty = rg.difficulty
-                continue
-            except StopPlaying:
-                return
-
-            ranking_updater = RankingUpdater(difficulty, score)
-
-            if not ranking_updater.is_score_fit_in:
-                continue
-
-            player = self.get_player_name()
-            if player:
-                ranking = ranking_updater.update(player)
-                pager(ranking_table(ranking))
 
 
 _current_game: ContextVar[Game] = ContextVar('game')
@@ -1104,9 +835,38 @@ def get_game(default=MISSING):
     return _current_game.get()
 
 
-def run() -> None:
-    Game().run()
+# ========
+# Run game
+# ========
 
 
-if __name__ == '__main__':
-    run()
+def _run_game(game: Game) -> None:
+    try:
+        difficulty = difficulty_selection(game.difficulties)
+    except EOFError:
+        return
+
+    while True:
+        print()
+        try:
+            with game.set_round(RoundCore(difficulty)) as round_:
+                play(round_)
+        except RestartGame as rg:
+            if rg.difficulty is not None:
+                difficulty = rg.difficulty
+            continue
+        except StopPlaying:
+            return
+
+
+def run_game() -> None:
+    RANKINGS_DIR.mkdir(exist_ok=True)
+    game = Game()
+    token = _current_game.set(game)
+    try:
+        print(_starting_header())
+        _run_game(game)
+    except QuitGame:
+        return
+    finally:
+        _current_game.reset(token)
