@@ -101,15 +101,15 @@ class DifficultyContainer:
     """Keeps available difficulties."""
 
     def __init__(self, data: Iterable[Difficulty]) -> None:
-        self._data = tuple(data)
-        self._mapping = {dif.name: dif for dif in self._data if dif.name}
-        self._indexes = range(IDX_START, len(self) + IDX_START)
+        self.data = tuple(data)
+        self.mapping = {dif.name: dif for dif in self.data if dif.name}
+        self.indexes = range(IDX_START, len(self) + IDX_START)
 
     def __iter__(self) -> Iterator[Difficulty]:
-        return iter(self._data)
+        return iter(self.data)
 
     def __len__(self) -> int:
-        return len(self._data)
+        return len(self.data)
 
     def __getitem__(self, key: Union[str, int]) -> Difficulty:
         """Return Difficulty by given name or index."""
@@ -118,9 +118,9 @@ class DifficultyContainer:
                 index = self.indexes.index(key)
             except ValueError:
                 raise IndexError(key) from None
-            return self._data[index]
+            return self.data[index]
         if isinstance(key, str):
-            return self._mapping[key]
+            return self.mapping[key]
         raise TypeError(
             f"Given key have wrong type ({type(key)}). "
             "'str' or 'int' needed."
@@ -128,12 +128,7 @@ class DifficultyContainer:
 
     @property
     def names(self) -> KeysView[str]:
-        return self._mapping.keys()
-
-    @property
-    def indexes(self) -> range:
-        return self._indexes
-
+        return self.mapping.keys()
 
 # =========
 # CLI tools
@@ -232,7 +227,7 @@ class Command(metaclass=ABCMeta):
 
     def __init__(self, game: 'Game') -> None:
         self.game = game
-        self._args_range = self._get_args_range()
+        self.args_range = self._get_args_range()
 
     def _get_args_range(self) -> Tuple[int, float]:
         params = inspect.signature(self.execute).parameters.values()
@@ -251,7 +246,7 @@ class Command(metaclass=ABCMeta):
 
         If number of arguments is invalid print warning.
         """
-        min_, max_ = self._args_range
+        min_, max_ = self.args_range
 
         if min_ <= len(args) <= max_:
             self.execute(*args)
@@ -288,11 +283,11 @@ class CommandBase(Mapping[str, Command]):
             command(game)  # type: ignore[abstract]
             for command in command_classes
         ]
-        self._mapping: Dict[str, Command] = {
+        self.mapping: Dict[str, Command] = {
             cmd.name: cmd
             for cmd in commands
         }
-        self._shorthands_map: Dict[str, str] = {
+        self.shorthands_map: Dict[str, str] = {
             cmd.shorthand: cmd.name
             for cmd in commands
             if cmd.shorthand
@@ -300,32 +295,32 @@ class CommandBase(Mapping[str, Command]):
 
     def __iter__(self) -> Iterator[str]:
         """Iterate through names."""
-        return iter(self._mapping)
+        return iter(self.mapping)
 
     def __getitem__(self, key: str) -> Command:
         """Get Command by given name or shorthand."""
-        if key in self._shorthands_map:
-            return self._mapping[self._shorthands_map[key]]
-        if key in self._mapping:
-            return self._mapping[key]
+        if key in self.shorthands_map:
+            return self.mapping[self.shorthands_map[key]]
+        if key in self.mapping:
+            return self.mapping[key]
         raise KeyError(key)
 
     def __len__(self) -> int:
         """Return number of Commands."""
-        return len(self._mapping)
+        return len(self.mapping)
 
     def __contains__(self, key: object) -> bool:
         """Check if given name or shorthand is available."""
         return (
-            key in self._mapping
-            or key in self._shorthands_map
+            key in self.mapping
+            or key in self.shorthands_map
         )
 
     def keys(self) -> KeysView[str]:
         """Get names and shorthands view."""
         new_mapping: Mapping[str, object] = {
-            **self._mapping,
-            **self._shorthands_map,
+            **self.mapping,
+            **self.shorthands_map,
         }
         return cast(
             # suppress mypy issue that shows AbstractSet[str] type
@@ -335,11 +330,11 @@ class CommandBase(Mapping[str, Command]):
 
     def names(self) -> KeysView[str]:
         """Get names view."""
-        return self._mapping.keys()
+        return self.mapping.keys()
 
     def shorthands(self) -> KeysView[str]:
         """Get shorthands view."""
-        return self._shorthands_map.keys()
+        return self.shorthands_map.keys()
 
     def parse_cmd(self, input_: str) -> None:
         """Search for command and execute it."""
@@ -567,12 +562,12 @@ class RankingCmd(Command):
 class MenuValidator(Validator):
 
     def __init__(self, index: Container[int]) -> None:
-        self._index = index
+        self.index = index
 
     def validate(self, document: Document) -> None:
         text: str = document.text.strip()
 
-        if text.isdigit() and int(text) in self._index:
+        if text.isdigit() and int(text) in self.index:
             return
 
         raise ValidationError(
@@ -605,13 +600,13 @@ def difficulty_selection(difficulties: DifficultyContainer) -> Difficulty:
 class RoundValidator(Validator):
 
     def __init__(self, difficulty: Difficulty) -> None:
-        self._difficulty = difficulty
+        self.difficulty = difficulty
 
     def validate(self, document: Document) -> None:
         input_: str = document.text.strip()
 
-        digs_set = self._difficulty.digs_set
-        num_size = self._difficulty.num_size
+        digs_set = self.difficulty.digs_set
+        num_size = self.difficulty.num_size
 
         if input_.startswith(COMMAND_PREFIX):
             return
@@ -778,16 +773,8 @@ class Game:
 
     def __init__(self) -> None:
         self._round: Optional[RoundCore] = None
-        self._difficulties = DifficultyContainer(DEFAULT_DIFFICULTIES)
-        self._commands = CommandBase(self)
-
-    @property
-    def difficulties(self) -> DifficultyContainer:
-        return self._difficulties
-
-    @property
-    def commands(self) -> CommandBase:
-        return self._commands
+        self.difficulties = DifficultyContainer(DEFAULT_DIFFICULTIES)
+        self.commands = CommandBase(self)
 
     @property
     def round(self) -> RoundCore:
