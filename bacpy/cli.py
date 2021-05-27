@@ -9,7 +9,6 @@ import shlex
 import subprocess
 import sys
 from typing import (
-    cast,
     Callable,
     ClassVar,
     Container,
@@ -19,11 +18,11 @@ from typing import (
     Iterator,
     KeysView,
     List,
-    Mapping,
     NoReturn,
     Optional,
     overload,
     Tuple,
+    Type,
     TypeVar,
     Union,
 )
@@ -271,84 +270,28 @@ class Command(metaclass=ABCMeta):
         """Execute command by parsing `str` type arguments."""
 
 
-class CommandBase(Mapping[str, Command]):
-    """Mapping of string keys and `Command` instanses values.
+def get_commands(
+        game: 'Game',
+        *,
+        command_cls: Type[Command] = Command,
+) -> List[Command]:
+    return [
+        command(game)
+        for command in command_cls.__subclasses__()
+    ]
 
-    Allows execute commands by `parse_cmd()`."""
 
-    def __init__(self, game: 'Game') -> None:
-        command_classes = Command.__subclasses__()
-        commands = [
-            # mypy issue -- shows that `Command` is in `command_classes`
-            command(game)  # type: ignore[abstract]
-            for command in command_classes
-        ]
-        self.mapping: Dict[str, Command] = {
-            cmd.name: cmd
-            for cmd in commands
-        }
-        self.shorthands_map: Dict[str, str] = {
-            cmd.shorthand: cmd.name
-            for cmd in commands
-            if cmd.shorthand
-        }
-
-    def __iter__(self) -> Iterator[str]:
-        """Iterate through names."""
-        return iter(self.mapping)
-
-    def __getitem__(self, key: str) -> Command:
-        """Get Command by given name or shorthand."""
-        if key in self.shorthands_map:
-            return self.mapping[self.shorthands_map[key]]
-        if key in self.mapping:
-            return self.mapping[key]
-        raise KeyError(key)
-
-    def __len__(self) -> int:
-        """Return number of Commands."""
-        return len(self.mapping)
-
-    def __contains__(self, key: object) -> bool:
-        """Check if given name or shorthand is available."""
-        return (
-            key in self.mapping
-            or key in self.shorthands_map
-        )
-
-    def keys(self) -> KeysView[str]:
-        """Get names and shorthands view."""
-        new_mapping: Mapping[str, object] = {
-            **self.mapping,
-            **self.shorthands_map,
-        }
-        return cast(
-            # suppress mypy issue that shows AbstractSet[str] type
-            KeysView[str],
-            new_mapping.keys(),
-        )
-
-    def names(self) -> KeysView[str]:
-        """Get names view."""
-        return self.mapping.keys()
-
-    def shorthands(self) -> KeysView[str]:
-        """Get shorthands view."""
-        return self.shorthands_map.keys()
-
-    def parse_cmd(self, input_: str) -> None:
-        """Search for command and execute it."""
-        input_ = input_[len(COMMAND_PREFIX):]
-
-        if not input_:
-            print("Type '!help commands' to get available commands")
-            return
-
-        name, *args = shlex.split(input_)
-        if name in self:
-            self[name].parse_args(args)
-        else:
-            print(f"No command: {name}")
+def map_commands(commands: Iterable[Command]) -> Dict[str, Command]:
+    mapping = {
+        cmd.name: cmd
+        for cmd in commands
+    }
+    mapping.update({
+        cmd.shorthand: cmd
+        for cmd in commands
+        if cmd.shorthand
+    })
+    return mapping
 
 
 class HelpCmd(Command):
@@ -368,25 +311,26 @@ class HelpCmd(Command):
             return
 
         commands = self.game.commands
+        cmds_map = map_commands(commands)
         if arg == 'commands':
             docs = (
                 inspect.getdoc(cmd)
-                for cmd in commands.values()
+                for cmd in commands
             )
             pager('\n\n\n'.join([
                 doc
                 for doc in docs
                 if doc is not None
             ]))
-        elif arg in commands:
-            cmd = commands[arg]
+        elif arg in cmds_map:
+            cmd = cmds_map[arg]
             doc = inspect.getdoc(cmd)
             if doc is not None:
                 print(doc)
             else:
                 print(f"Command '{cmd.name}' don't have documentation")
         else:
-            print(f"No command: {arg}")
+            print(f"No command '{arg}'")
 
 
 class QuitCmd(Command):
@@ -452,7 +396,7 @@ class RestartCmd(Command):
                 print(f"No '{arg}' difficulty available")
                 return
             except IndexError:
-                print(f"Invalid key: {arg}")
+                print(f"Invalid key '{arg}'")
                 return
 
         raise RestartGame(difficulty=difficulty)
@@ -491,7 +435,7 @@ class HistoryCmd(Command):
     def execute(self, arg: str = '') -> None:
 
         if arg == '-c':
-            self.game.commands['clear'].execute()
+            ClearCmd(self.game).execute()
         elif arg:
             print(f"Invalid argument '{arg}'")
             return
@@ -543,7 +487,7 @@ class RankingCmd(Command):
                 print(f"No '{arg}' difficulty available")
                 return
             except IndexError:
-                print(f"Invalid index: {arg}")
+                print(f"Invalid index '{arg}'")
                 return
         else:
             try:
@@ -695,9 +639,11 @@ def _number_getter(
         validator=RoundValidator(difficulty),
         validate_while_typing=False,
     )
+    cmds_map = map_commands(get_game().commands)
+
     while True:
         try:
-            input_ = prompt_session.prompt(f"[{get_steps() + 1}] ").strip()
+            input_ = prompt_session.prompt(f"[{get_steps() + 1}] ").lstrip()
         except EOFError:
             try:
                 if ask_ok('Do you really want to quit? [Y/n]: '):
@@ -708,11 +654,23 @@ def _number_getter(
         except KeyboardInterrupt:
             continue
 
-        if input_.startswith(COMMAND_PREFIX):
-            get_game().commands.parse_cmd(input_)
+        if not input_.startswith(COMMAND_PREFIX):
+            yield input_.rstrip()
+
+        cmd_line = input_[len(COMMAND_PREFIX):].lstrip()
+
+        if not cmd_line:
+            print(
+                f"Type '{COMMAND_PREFIX}help commands' to get "
+                "available commands"
+            )
             continue
 
-        yield input_
+        cmd_name, *args = shlex.split(cmd_line)
+        try:
+            cmds_map[cmd_name].parse_args(args)
+        except KeyError:
+            print(f"No command '{cmd_name}'")
 
 
 def _get_player_name() -> Optional[str]:
@@ -774,7 +732,7 @@ class Game:
     def __init__(self) -> None:
         self._round: Optional[RoundCore] = None
         self.difficulties = DifficultyContainer(DEFAULT_DIFFICULTIES)
-        self.commands = CommandBase(self)
+        self.commands = get_commands(self)
 
     @property
     def round(self) -> RoundCore:
