@@ -4,7 +4,6 @@ from contextlib import ContextDecorator, contextmanager
 from contextvars import ContextVar
 import inspect
 from operator import attrgetter
-import os
 import shlex
 import subprocess
 import sys
@@ -31,7 +30,7 @@ from typing import (
 import pandas as pd
 from prompt_toolkit import PromptSession
 from prompt_toolkit.document import Document
-from prompt_toolkit.shortcuts import clear, prompt
+from prompt_toolkit.shortcuts import prompt
 from prompt_toolkit.validation import Validator, ValidationError
 from tabulate import tabulate
 
@@ -421,43 +420,17 @@ class RestartCmd(Command):
         raise RestartGame(difficulty=difficulty)
 
 
-class ClearCmd(Command):
-    """
-    c[lean]
-
-        Clear screan.
-    """
-
-    name = 'clear'
-    shorthand = 'c'
-
-    def execute(self) -> None:
-        if os.name in ('nt', 'dos'):
-            subprocess.call('cls')
-        elif os.name in ('linux', 'osx', 'posix'):
-            subprocess.call('clear')
-        else:
-            clear()
-
-
 class HistoryCmd(Command):
     """
-    hi[story] [-c]
+    hi[story]
 
         Show history.
-            -c  before showing history clear the screan
     """
 
     name = 'history'
     shorthand = 'hi'
 
-    def execute(self, arg: str = '') -> None:
-
-        if arg == '-c':
-            ClearCmd(self.game).execute()
-        elif arg:
-            print(f"Invalid argument '{arg}'")
-            return
+    def execute(self) -> None:
 
         if self.game.round.steps == 0:
             print("History is empty")
