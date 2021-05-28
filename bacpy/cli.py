@@ -21,6 +21,7 @@ from typing import (
     NoReturn,
     Optional,
     overload,
+    Set,
     Tuple,
     Type,
     TypeVar,
@@ -222,6 +223,9 @@ COMMAND_PREFIX: Final[str] = '!'
 class Command(metaclass=ABCMeta):
     """Command abstract class."""
 
+    names: Set[str] = set()
+    shorthands: Set[str] = set()
+
     shorthand: ClassVar[Optional[str]] = None
 
     def __init__(self, game: 'Game') -> None:
@@ -268,6 +272,21 @@ class Command(metaclass=ABCMeta):
     @abstractmethod
     def execute(self):
         """Execute command by parsing `str` type arguments."""
+
+    def __init_subclass__(cls, **kwargs):
+
+        if cls.name in Command.names:
+            raise RuntimeError(f"Command with name '{cls.name}' already exist")
+        Command.names.add(cls.name)
+
+        if cls.shorthand is not None:
+            if cls.shorthand in Command.shorthands:
+                raise RuntimeError(
+                    f"Command with shorthand '{cls.shorthand}' already exist"
+                )
+            Command.shorthands.add(cls.shorthand)
+
+        super().__init_subclass__(**kwargs)
 
 
 def get_commands(
