@@ -28,6 +28,7 @@ T_co = TypeVar('T_co', covariant=True)
 
 
 # Constants
+PLAYER_NAME_LIMS: Tuple[int, int] = (3, 20)
 RANKINGS_DIR: Final[Path] = Path('.rankings')
 RANKING_SIZE: Final[int] = 10
 

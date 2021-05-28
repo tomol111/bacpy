@@ -40,6 +40,7 @@ from .core import (
     Difficulty,
     load_ranking,
     QuitGame,
+    PLAYER_NAME_LIMS,
     RANKING_SIZE,
     RANKINGS_DIR,
     RestartGame,
@@ -587,7 +588,7 @@ class PlayerValidator(Validator):
 
     def validate(self, document: Document) -> None:
         text = document.text.strip()
-        min_len, max_len = 3, 20
+        min_len, max_len = PLAYER_NAME_LIMS
 
         if len(text) < min_len:
             raise ValidationError(
