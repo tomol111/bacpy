@@ -219,6 +219,19 @@ def difficulties_table(difficulties: DifficultyContainer) -> str:
 COMMAND_PREFIX: Final[str] = '!'
 
 
+def _get_args_lims(func: Callable) -> Tuple[int, float]:
+    params = inspect.signature(func).parameters.values()
+    min_, max_ = 0, 0
+    for param in params:
+        if param.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD:
+            if param.default is inspect.Parameter.empty:
+                min_ += 1
+            max_ += 1
+        elif param.kind is inspect.Parameter.VAR_POSITIONAL:
+            return min_, float('inf')
+    return min_, max_
+
+
 class Command(metaclass=ABCMeta):
     """Command abstract class."""
 
@@ -229,19 +242,7 @@ class Command(metaclass=ABCMeta):
 
     def __init__(self, game: 'Game') -> None:
         self.game = game
-        self.args_range = self._get_args_range()
-
-    def _get_args_range(self) -> Tuple[int, float]:
-        params = inspect.signature(self.execute).parameters.values()
-        min_, max_ = 0, 0
-        for param in params:
-            if param.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD:
-                if param.default is inspect.Parameter.empty:
-                    min_ += 1
-                max_ += 1
-            elif param.kind is inspect.Parameter.VAR_POSITIONAL:
-                return min_, float('inf')
-        return min_, max_
+        self.args_range = _get_args_lims(self.execute)
 
     def parse_args(self, args: List[str]) -> None:
         """Execute command if valid number of arguments passed.
