@@ -140,11 +140,9 @@ def available_ranking_difficulties(
     """Filter difficulties by the fact that corresponding ranking is
     available.
     """
-    return (
-        difficulty
-        for difficulty in difficulties
-        if _get_ranking_path(difficulty).exists()
-    )
+    for difficulty in difficulties:
+        if _get_ranking_path(difficulty).exists():
+            yield difficulty
 
 
 def load_ranking(difficulty: Difficulty) -> pd.DataFrame:

@@ -130,6 +130,7 @@ class DifficultyContainer:
     def names(self) -> KeysView[str]:
         return self.mapping.keys()
 
+
 # =========
 # CLI tools
 # =========
