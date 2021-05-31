@@ -11,7 +11,6 @@ from typing import (
     Callable,
     ClassVar,
     Container,
-    Dict,
     Iterable,
     Iterator,
     KeysView,
@@ -19,7 +18,6 @@ from typing import (
     NoReturn,
     Optional,
     overload,
-    Set,
     Tuple,
     Type,
     TypeVar,
@@ -236,9 +234,6 @@ def _get_args_lims(func: Callable) -> Tuple[int, float]:
 class Command(metaclass=ABCMeta):
     """Command abstract class."""
 
-    names: Set[str] = set()
-    shorthands: Set[str] = set()
-
     shorthand: ClassVar[Optional[str]] = None
 
     def __init__(self, game: 'Game') -> None:
@@ -274,44 +269,61 @@ class Command(metaclass=ABCMeta):
     def execute(self):
         """Execute command by parsing `str` type arguments."""
 
-    def __init_subclass__(cls, **kwargs):
 
-        if cls.name in Command.names:
-            raise RuntimeError(f"Command with name '{cls.name}' already exist")
-        Command.names.add(cls.name)
+class Commands:
+    """Store `Command`'s and let take it by name or shorthand."""
 
-        if cls.shorthand is not None:
-            if cls.shorthand in Command.shorthands:
-                raise RuntimeError(
-                    f"Command with shorthand '{cls.shorthand}' already exist"
-                )
-            Command.shorthands.add(cls.shorthand)
+    def __init__(self, cmds: Iterable[Command]) -> None:
+        self.data = data = tuple(cmds)
+        self.by_name = {
+            cmd.name: cmd
+            for cmd in data
+        }
+        self.by_shorthand = {
+            cmd.shorthand: cmd
+            for cmd in data
+            if cmd.shorthand
+        }
 
-        super().__init_subclass__(**kwargs)
+    def __iter__(self) -> Iterator[Command]:
+        return iter(self.data)
+
+    def __len__(self) -> int:
+        return len(self.data)
+
+    def __getitem__(self, key: str) -> Command:
+        """Return Command by given name or shorthand."""
+        try:
+            return self.by_shorthand[key]
+        except KeyError:
+            return self.by_name[key]
+
+    def __contains__(self, key: str) -> bool:
+        return key in self.by_name or key in self.by_shorthand
+
+    @property
+    def names(self) -> KeysView[str]:
+        return self.by_name.keys()
+
+    @property
+    def shorthands(self) -> KeysView[str]:
+        return self.by_shorthand.keys()
 
 
 def get_commands(
         game: 'Game',
         *,
-        command_cls: Type[Command] = Command,
-) -> List[Command]:
-    return [
-        command(game)
-        for command in command_cls.__subclasses__()
-    ]
-
-
-def map_commands(commands: Iterable[Command]) -> Dict[str, Command]:
-    mapping = {
-        cmd.name: cmd
-        for cmd in commands
-    }
-    mapping.update({
-        cmd.shorthand: cmd
-        for cmd in commands
-        if cmd.shorthand
-    })
-    return mapping
+        command_classes: Optional[Iterable[Type[Command]]] = None,
+) -> Commands:
+    command_classes = (
+        command_classes
+        if command_classes is not None
+        else Command.__subclasses__()
+    )
+    return Commands(
+        command_cls(game)
+        for command_cls in command_classes
+    )
 
 
 class HelpCmd(Command):
@@ -331,7 +343,6 @@ class HelpCmd(Command):
             return
 
         commands = self.game.commands
-        cmds_map = map_commands(commands)
         if arg == 'commands':
             docs = (
                 inspect.getdoc(cmd)
@@ -342,8 +353,8 @@ class HelpCmd(Command):
                 for doc in docs
                 if doc is not None
             ]))
-        elif arg in cmds_map:
-            cmd = cmds_map[arg]
+        elif arg in commands:
+            cmd = commands[arg]
             doc = inspect.getdoc(cmd)
             if doc is not None:
                 print(doc)
@@ -633,7 +644,7 @@ def _number_getter(
         validator=RoundValidator(difficulty),
         validate_while_typing=False,
     )
-    cmds_map = map_commands(get_game().commands)
+    commands = get_game().commands
 
     while True:
         try:
@@ -650,6 +661,7 @@ def _number_getter(
 
         if not input_.startswith(COMMAND_PREFIX):
             yield input_.rstrip()
+            continue
 
         cmd_line = input_[len(COMMAND_PREFIX):].lstrip()
 
@@ -662,7 +674,7 @@ def _number_getter(
 
         cmd_name, *args = shlex.split(cmd_line)
         try:
-            cmds_map[cmd_name].parse_args(args)
+            commands[cmd_name].parse_args(args)
         except KeyError:
             print(f"No command '{cmd_name}'")
 
