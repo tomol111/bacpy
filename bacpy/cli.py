@@ -89,12 +89,12 @@ Special commands:
 """
 
 
-# ===================
-# DifficultyContainer
-# ===================
+# ============
+# Difficulties
+# ============
 
 
-class DifficultyContainer:
+class Difficulties:
     """Keeps available difficulties."""
 
     def __init__(self, data: Iterable[Difficulty]) -> None:
@@ -200,7 +200,7 @@ def ranking_table(ranking: pd.DataFrame) -> str:
     )
 
 
-def difficulties_table(difficulties: DifficultyContainer) -> str:
+def difficulties_table(difficulties: Difficulties) -> str:
     table = tabulate(
         map(attrgetter('name', 'num_size', 'digs_range'), difficulties),
         headers=('Key', 'Difficulty', 'Size', 'Digits'),
@@ -474,7 +474,7 @@ class RankingCmd(Command):
 
         difficulties = self.game.difficulties
 
-        difficulties = DifficultyContainer(
+        difficulties = Difficulties(
             available_ranking_difficulties(difficulties)
         )
 
@@ -526,7 +526,7 @@ class MenuValidator(Validator):
 
 
 @cli_window('Difficulty Selection')
-def difficulty_selection(difficulties: DifficultyContainer) -> Difficulty:
+def difficulty_selection(difficulties: Difficulties) -> Difficulty:
     """Difficulty selection.
 
     Can raise EOFError."""
@@ -737,7 +737,7 @@ class Game:
 
     def __init__(self) -> None:
         self._round: Optional[RoundCore] = None
-        self.difficulties = DifficultyContainer(DEFAULT_DIFFICULTIES)
+        self.difficulties = Difficulties(DEFAULT_DIFFICULTIES)
         self.commands = get_commands(self)
 
     @property
