@@ -6,8 +6,8 @@ import sys
 from typing import (
     Deque,
     FrozenSet,
-    Generator,
     Iterable,
+    Iterator,
     NamedTuple,
     overload,
     Sequence,
@@ -136,7 +136,7 @@ def _get_ranking_path(difficulty: Difficulty) -> Path:
 
 def available_ranking_difficulties(
         difficulties: Iterable[Difficulty],
-) -> Generator[Difficulty, None, None]:
+) -> Iterator[Difficulty]:
     """Filter difficulties by the fact that corresponding ranking is
     available.
     """

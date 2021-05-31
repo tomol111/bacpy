@@ -12,7 +12,6 @@ from typing import (
     ClassVar,
     Container,
     Dict,
-    Generator,
     Iterable,
     Iterator,
     KeysView,
@@ -624,7 +623,7 @@ def _get_toolbar(difficulty: Difficulty) -> str:
 def _number_getter(
         difficulty: Difficulty,
         get_steps: Callable[[], int],
-) -> Generator[str, None, None]:
+) -> Iterator[str]:
     """Take number from user.
 
     Supports special input. Can raise `StopPlaying`.
@@ -736,7 +735,7 @@ class Game:
         raise AttributeError("Round not set now")
 
     @contextmanager
-    def set_round(self, round_: RoundCore) -> Generator[RoundCore, None, None]:
+    def set_round(self, round_: RoundCore) -> Iterator[RoundCore]:
         try:
             self._round = round_
             yield round_
