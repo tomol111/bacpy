@@ -100,9 +100,9 @@ class DifficultyContainer:
     """Keeps available difficulties."""
 
     def __init__(self, data: Iterable[Difficulty]) -> None:
-        self.data = tuple(data)
-        self.mapping = {dif.name: dif for dif in self.data if dif.name}
-        self.indexes = range(IDX_START, len(self) + IDX_START)
+        self.data = data = tuple(data)
+        self.by_name = {dif.name: dif for dif in data if dif.name}
+        self.indexes = range(IDX_START, len(data) + IDX_START)
 
     def __iter__(self) -> Iterator[Difficulty]:
         return iter(self.data)
@@ -119,7 +119,7 @@ class DifficultyContainer:
                 raise IndexError(key) from None
             return self.data[index]
         if isinstance(key, str):
-            return self.mapping[key]
+            return self.by_name[key]
         raise TypeError(
             f"Given key have wrong type ({type(key)}). "
             "'str' or 'int' needed."
@@ -127,7 +127,7 @@ class DifficultyContainer:
 
     @property
     def names(self) -> KeysView[str]:
-        return self.mapping.keys()
+        return self.by_name.keys()
 
 
 # =========
