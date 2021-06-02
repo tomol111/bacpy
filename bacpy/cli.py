@@ -89,6 +89,127 @@ Special commands:
 """
 
 
+# ========
+# Run game
+# ========
+
+
+def run_game() -> None:
+    RANKINGS_DIR.mkdir(exist_ok=True)
+    game = Game()
+    token = _current_game.set(game)
+    try:
+        print(_starting_header())
+        _run_game(game)
+    except QuitGame:
+        return
+    finally:
+        _current_game.reset(token)
+
+
+def _starting_header(title: str = PROGRAM_VERSION) -> str:
+    line = '=' * len(title)
+    return f'{line}\n{title}\n{line}'
+
+
+def _run_game(game: "Game") -> None:
+    try:
+        difficulty = difficulty_selection(game.difficulties)
+    except EOFError:
+        return
+
+    while True:
+        print()
+        try:
+            with game.set_round(RoundCore(difficulty)) as round_:
+                play(round_)
+        except RestartGame as rg:
+            if rg.difficulty is not None:
+                difficulty = rg.difficulty
+            continue
+        except StopPlaying:
+            return
+
+
+def play(round_core: RoundCore) -> None:
+    number_getter = _number_getter(
+        round_core.difficulty,
+        lambda: round_core.steps,
+    )
+
+    while not round_core.finished:
+        number = next(number_getter)
+        _, bulls, cows = round_core.parse_guess(number)
+        print(f"bulls: {bulls:>2}, cows: {bulls:>2}")
+
+    print(f"\n *** You guessed in {round_core.steps} steps ***\n")
+
+    if round_core.score_fit_in:
+        player = _get_player_name()
+        if player:
+            ranking = round_core.update_ranking(player)
+            pager(ranking_table(ranking))
+
+
+# ====
+# Game
+# ====
+
+
+class Game:
+    """Game class."""
+
+    def __init__(self) -> None:
+        self._round: Optional[RoundCore] = None
+        self.difficulties = Difficulties(DEFAULT_DIFFICULTIES)
+        self.commands = get_commands(self)
+
+    @property
+    def round(self) -> RoundCore:
+        if self._round is not None:
+            return self._round
+        raise AttributeError("Round not set now")
+
+    @contextmanager
+    def set_round(self, round_: RoundCore) -> Iterator[RoundCore]:
+        try:
+            self._round = round_
+            yield round_
+        finally:
+            self._round = None
+
+
+_current_game: ContextVar[Game] = ContextVar('game')
+
+
+class _MISSING_TYPE:
+    """Singleton to use as missing value."""
+
+    _instance: ClassVar[Optional['_MISSING_TYPE']] = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+
+MISSING: Final[_MISSING_TYPE] = _MISSING_TYPE()
+
+
+@overload
+def get_game(default: _MISSING_TYPE = MISSING) -> Game: ...
+
+
+@overload
+def get_game(default: Union[T, _MISSING_TYPE]) -> Union[Game, T]: ...
+
+
+def get_game(default=MISSING):
+    if default is not MISSING:
+        return _current_game.get(default)
+    return _current_game.get()
+
+
 # ============
 # Difficulties
 # ============
@@ -158,7 +279,8 @@ class cli_window(ContextDecorator):
 def ask_ok(prompt_message: str, default: Optional[bool] = True) -> bool:
     """Yes/No input.
 
-    Can raise EOFError"""
+    Can raise EOFError
+    """
     while True:
         try:
             input_ = prompt(prompt_message).strip().lower()
@@ -218,25 +340,12 @@ def difficulties_table(difficulties: Difficulties) -> str:
 COMMAND_PREFIX: Final[str] = '!'
 
 
-def _get_args_lims(func: Callable) -> Tuple[int, float]:
-    params = inspect.signature(func).parameters.values()
-    min_, max_ = 0, 0
-    for param in params:
-        if param.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD:
-            if param.default is inspect.Parameter.empty:
-                min_ += 1
-            max_ += 1
-        elif param.kind is inspect.Parameter.VAR_POSITIONAL:
-            return min_, float('inf')
-    return min_, max_
-
-
 class Command(metaclass=ABCMeta):
     """Command abstract class."""
 
     shorthand: ClassVar[Optional[str]] = None
 
-    def __init__(self, game: 'Game') -> None:
+    def __init__(self, game: Game) -> None:
         self.game = game
         self.args_range = _get_args_lims(self.execute)
 
@@ -268,6 +377,19 @@ class Command(metaclass=ABCMeta):
     @abstractmethod
     def execute(self):
         """Execute command by parsing `str` type arguments."""
+
+
+def _get_args_lims(func: Callable) -> Tuple[int, float]:
+    params = inspect.signature(func).parameters.values()
+    min_, max_ = 0, 0
+    for param in params:
+        if param.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD:
+            if param.default is inspect.Parameter.empty:
+                min_ += 1
+            max_ += 1
+        elif param.kind is inspect.Parameter.VAR_POSITIONAL:
+            return min_, float('inf')
+    return min_, max_
 
 
 class Commands:
@@ -508,23 +630,6 @@ class RankingCmd(Command):
 # =====
 
 
-class MenuValidator(Validator):
-
-    def __init__(self, index: Container[int]) -> None:
-        self.index = index
-
-    def validate(self, document: Document) -> None:
-        text: str = document.text.strip()
-
-        if text.isdigit() and int(text) in self.index:
-            return
-
-        raise ValidationError(
-            message="Invalid key",
-            cursor_position=document.cursor_position,
-        )
-
-
 @cli_window('Difficulty Selection')
 def difficulty_selection(difficulties: Difficulties) -> Difficulty:
     """Difficulty selection.
@@ -544,6 +649,23 @@ def difficulty_selection(difficulties: Difficulties) -> Difficulty:
             continue
 
         return difficulties[int(input_)]
+
+
+class MenuValidator(Validator):
+
+    def __init__(self, index: Container[int]) -> None:
+        self.index = index
+
+    def validate(self, document: Document) -> None:
+        text: str = document.text.strip()
+
+        if text.isdigit() and int(text) in self.index:
+            return
+
+        raise ValidationError(
+            message="Invalid key",
+            cursor_position=document.cursor_position,
+        )
 
 
 class RoundValidator(Validator):
@@ -700,124 +822,3 @@ def _get_player_name() -> Optional[str]:
             return None
 
         return player
-
-
-def play(round_core: RoundCore) -> None:
-    number_getter = _number_getter(
-        round_core.difficulty,
-        lambda: round_core.steps,
-    )
-
-    while not round_core.finished:
-        number = next(number_getter)
-        _, bulls, cows = round_core.parse_guess(number)
-        print(f"bulls: {bulls:>2}, cows: {bulls:>2}")
-
-    print(f"\n *** You guessed in {round_core.steps} steps ***\n")
-
-    if round_core.score_fit_in:
-        player = _get_player_name()
-        if player:
-            ranking = round_core.update_ranking(player)
-            pager(ranking_table(ranking))
-
-
-# ====
-# Game
-# ====
-
-
-def _starting_header(title: str = PROGRAM_VERSION) -> str:
-    line = '=' * len(title)
-    return f'{line}\n{title}\n{line}'
-
-
-class Game:
-    """Game class."""
-
-    def __init__(self) -> None:
-        self._round: Optional[RoundCore] = None
-        self.difficulties = Difficulties(DEFAULT_DIFFICULTIES)
-        self.commands = get_commands(self)
-
-    @property
-    def round(self) -> RoundCore:
-        if self._round is not None:
-            return self._round
-        raise AttributeError("Round not set now")
-
-    @contextmanager
-    def set_round(self, round_: RoundCore) -> Iterator[RoundCore]:
-        try:
-            self._round = round_
-            yield round_
-        finally:
-            self._round = None
-
-
-_current_game: ContextVar[Game] = ContextVar('game')
-
-
-class _MISSING_TYPE:
-    """Singleton to use as missing value."""
-
-    _instance: ClassVar[Optional['_MISSING_TYPE']] = None
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
-
-MISSING: Final[_MISSING_TYPE] = _MISSING_TYPE()
-
-
-@overload
-def get_game(default: _MISSING_TYPE = MISSING) -> Game: ...
-
-
-@overload
-def get_game(default: Union[T, _MISSING_TYPE]) -> Union[Game, T]: ...
-
-
-def get_game(default=MISSING):
-    if default is not MISSING:
-        return _current_game.get(default)
-    return _current_game.get()
-
-
-# ========
-# Run game
-# ========
-
-
-def _run_game(game: Game) -> None:
-    try:
-        difficulty = difficulty_selection(game.difficulties)
-    except EOFError:
-        return
-
-    while True:
-        print()
-        try:
-            with game.set_round(RoundCore(difficulty)) as round_:
-                play(round_)
-        except RestartGame as rg:
-            if rg.difficulty is not None:
-                difficulty = rg.difficulty
-            continue
-        except StopPlaying:
-            return
-
-
-def run_game() -> None:
-    RANKINGS_DIR.mkdir(exist_ok=True)
-    game = Game()
-    token = _current_game.set(game)
-    try:
-        print(_starting_header())
-        _run_game(game)
-    except QuitGame:
-        return
-    finally:
-        _current_game.reset(token)
