@@ -237,7 +237,7 @@ class StopPlaying(GameEvent):
 
 class RestartGame(GameEvent):
     """Restart game event."""
-    def __init__(self, difficulty: "Difficulty" = None):
+    def __init__(self, difficulty: Difficulty = None):
         self.difficulty = difficulty
 
 
