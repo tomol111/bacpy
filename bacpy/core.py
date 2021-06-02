@@ -44,7 +44,7 @@ class RoundCore:
 
     def __init__(self, difficulty: "Difficulty") -> None:
         self._difficulty = difficulty
-        self._history: List["HistRecord"] = []
+        self._history: List["GuessingRecord"] = []
         self._number = draw_number(difficulty)
         self._finished = False
 
@@ -52,7 +52,7 @@ class RoundCore:
             print(self._number)
 
     @property
-    def history(self) -> "SequenceView[HistRecord]":
+    def history(self) -> "SequenceView[GuessingRecord]":
         return SequenceView(self._history)
 
     @property
@@ -67,7 +67,7 @@ class RoundCore:
     def finished(self) -> bool:
         return self._finished
 
-    def parse_guess(self, guess: str) -> "HistRecord":
+    def parse_guess(self, guess: str) -> "GuessingRecord":
 
         if self._finished:
             raise RuntimeError("Can't parse guess when round is finished")
@@ -75,7 +75,7 @@ class RoundCore:
             raise ValueError("Parsed number is invalid")
 
         bulls, cows = _comput_bullscows(guess, self._number)
-        hist_record = HistRecord(guess, bulls, cows)
+        hist_record = GuessingRecord(guess, bulls, cows)
         self._history.append(hist_record)
 
         if bulls == self.difficulty.num_size:
@@ -144,7 +144,7 @@ def _comput_bullscows(guess: str, number: str) -> Tuple[int, int]:
     return bulls, cows
 
 
-class HistRecord(NamedTuple):
+class GuessingRecord(NamedTuple):
     """History record of passed guess and the corresponding bulls and cows.
     """
     number: str
