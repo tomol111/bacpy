@@ -298,5 +298,5 @@ def _save_ranking(ranking: pd.DataFrame, difficulty: Difficulty) -> None:
 def _get_ranking_path(difficulty: Difficulty) -> Path:
     return (
         RANKINGS_DIR
-        / f"{difficulty.digs_num}_{difficulty.num_size}.csv"
+        / f"{difficulty.num_size}_{difficulty.digs_num}.csv"
     )
