@@ -58,7 +58,7 @@ else:
 
 
 # Type variables
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 # Constants
@@ -108,8 +108,8 @@ def run_game() -> None:
 
 
 def _starting_header(title: str = PROGRAM_VERSION) -> str:
-    line = '=' * len(title)
-    return f'{line}\n{title}\n{line}'
+    line = "=" * len(title)
+    return f"{line}\n{title}\n{line}"
 
 
 def _run_game(game: "Game") -> None:
@@ -179,13 +179,13 @@ class Game:
             self._round = None
 
 
-_current_game: ContextVar[Game] = ContextVar('game')
+_current_game: ContextVar[Game] = ContextVar("game")
 
 
 class _MISSING_TYPE:
     """Singleton to use as missing value."""
 
-    _instance: ClassVar[Optional['_MISSING_TYPE']] = None
+    _instance: ClassVar[Optional["_MISSING_TYPE"]] = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -258,7 +258,7 @@ class cli_window(ContextDecorator):
 
     def __init__(
             self, header: str,
-            fillchar: str = '=',
+            fillchar: str = "=",
             wing_size: int = 5,
     ) -> None:
         self.header = header
@@ -268,7 +268,7 @@ class cli_window(ContextDecorator):
 
     def __enter__(self):
         wing = self.fillchar * self.wing_size
-        print(f'\n{wing} {self.header} {wing}')
+        print(f"\n{wing} {self.header} {wing}")
         return self
 
     def __exit__(self, *exc):
@@ -289,47 +289,47 @@ def ask_ok(prompt_message: str, default: Optional[bool] = True) -> bool:
 
         if not input_ and default is not None:
             return default
-        if 'yes'.startswith(input_):
+        if "yes".startswith(input_):
             return True
-        if 'no'.startswith(input_):
+        if "no".startswith(input_):
             return False
 
 
 def pager(text: str) -> None:
     """Use pager to show text."""
     # '-C' flag prevent from showing text on bottom of the screen
-    subprocess.run(['less', '-C'], input=text.encode())
+    subprocess.run(["less", "-C"], input=text.encode())
 
 
 def ranking_table(ranking: pd.DataFrame) -> str:
     ranking = (
         ranking
-        [['score', 'player']]
-        .astype({'score': str})
+        [["score", "player"]]
+        .astype({"score": str})
         .reset_index(drop=True)
         .join(
-            pd.Series(range(1, RANKING_SIZE + 1), name='pos.'),
-            how='outer',
+            pd.Series(range(1, RANKING_SIZE + 1), name="pos."),
+            how="outer",
         )
-        .set_index('pos.')
-        .fillna('-')
+        .set_index("pos.")
+        .fillna("-")
     )
 
     return tabulate(
         ranking,
-        headers='keys',
-        colalign=('left', 'center', 'left'),
+        headers="keys",
+        colalign=("left", "center", "left"),
     )
 
 
 def difficulties_table(difficulties: Difficulties) -> str:
     table = tabulate(
-        map(attrgetter('name', 'num_size', 'digs_range'), difficulties),
-        headers=('Key', 'Difficulty', 'Size', 'Digits'),
-        colalign=('right', 'left', 'center', 'center'),
+        map(attrgetter("name", "num_size", "digs_range"), difficulties),
+        headers=("Key", "Difficulty", "Size", "Digits"),
+        colalign=("right", "left", "center", "center"),
         showindex=difficulties.indexes,
     )
-    return f'\n{table}\n'
+    return f"\n{table}\n"
 
 
 # ========
@@ -337,7 +337,7 @@ def difficulties_table(difficulties: Difficulties) -> str:
 # ========
 
 
-COMMAND_PREFIX: Final[str] = '!'
+COMMAND_PREFIX: Final[str] = "!"
 
 
 class Command(metaclass=ABCMeta):
@@ -388,7 +388,7 @@ def _get_args_lims(func: Callable) -> Tuple[int, float]:
                 min_ += 1
             max_ += 1
         elif param.kind is inspect.Parameter.VAR_POSITIONAL:
-            return min_, float('inf')
+            return min_, float("inf")
     return min_, max_
 
 
@@ -433,7 +433,7 @@ class Commands:
 
 
 def get_commands(
-        game: 'Game',
+        game: Game,
         *,
         command_classes: Optional[Iterable[Type[Command]]] = None,
 ) -> Commands:
@@ -455,22 +455,22 @@ class HelpCmd(Command):
         Show help about {subject}. When {subject} is not parsed show game help.
     """
 
-    name = 'help'
-    shorthand = 'h'
+    name = "help"
+    shorthand = "h"
 
-    def execute(self, arg: str = '') -> None:
+    def execute(self, arg: str = "") -> None:
 
         if not arg:
             pager(GAME_HELP)
             return
 
         commands = self.game.commands
-        if arg == 'commands':
+        if arg == "commands":
             docs = (
                 inspect.getdoc(cmd)
                 for cmd in commands
             )
-            pager('\n\n\n'.join([
+            pager("\n\n\n".join([
                 doc
                 for doc in docs
                 if doc is not None
@@ -493,8 +493,8 @@ class QuitCmd(Command):
         Stop playing.
     """
 
-    name = 'quit'
-    shorthand = 'q'
+    name = "quit"
+    shorthand = "q"
 
     def execute(self) -> NoReturn:
         raise QuitGame
@@ -507,8 +507,8 @@ class StopCmd(Command):
         Exit the game.
     """
 
-    name = 'stop'
-    shorthand = 's'
+    name = "stop"
+    shorthand = "s"
 
     def execute(self) -> NoReturn:
         raise StopPlaying
@@ -524,22 +524,22 @@ class RestartCmd(Command):
 
         -i  Interactively choose new difficulty.
     """
-    name = 'restart'
-    shorthand = 'r'
+    name = "restart"
+    shorthand = "r"
 
-    def execute(self, arg: str = '') -> None:
+    def execute(self, arg: str = "") -> None:
 
         if not arg:
             raise RestartGame
 
         difficulties = self.game.difficulties
 
-        if arg == '-i':
+        if arg == "-i":
             try:
                 difficulty = difficulty_selection(difficulties)
             except EOFError:
                 return
-        elif arg == '-l':
+        elif arg == "-l":
             print(difficulties_table(difficulties))
             return
         else:
@@ -562,8 +562,8 @@ class HistoryCmd(Command):
         Show history.
     """
 
-    name = 'history'
-    shorthand = 'hi'
+    name = "history"
+    shorthand = "hi"
 
     def execute(self) -> None:
 
@@ -573,9 +573,9 @@ class HistoryCmd(Command):
 
         print(tabulate(
             self.game.round.history,
-            headers=('Number', 'Bulls', 'Cows'),
-            colalign=('center', 'center', 'center'),
-            tablefmt='plain',
+            headers=("Number", "Bulls", "Cows"),
+            colalign=("center", "center", "center"),
+            tablefmt="plain",
         ))
 
 
@@ -589,10 +589,10 @@ class RankingCmd(Command):
             -l  List available ranking`s difficulties.
     """
 
-    name = 'ranking'
-    shorthand = 'ra'
+    name = "ranking"
+    shorthand = "ra"
 
-    def execute(self, arg: str = '') -> None:
+    def execute(self, arg: str = "") -> None:
 
         difficulties = self.game.difficulties
 
@@ -601,10 +601,10 @@ class RankingCmd(Command):
         )
 
         if not difficulties:
-            print('\nEmpty rankings\n')
+            print("\nEmpty rankings\n")
             return
 
-        if arg == '-l':
+        if arg == "-l":
             print(difficulties_table(difficulties))
             return
         elif arg:
@@ -630,7 +630,7 @@ class RankingCmd(Command):
 # =====
 
 
-@cli_window('Difficulty Selection')
+@cli_window("Difficulty Selection")
 def difficulty_selection(difficulties: Difficulties) -> Difficulty:
     """Difficulty selection.
 
@@ -641,7 +641,7 @@ def difficulty_selection(difficulties: Difficulties) -> Difficulty:
     while True:
         try:
             input_ = prompt(
-                'Enter key: ',
+                "Enter key: ",
                 validator=MenuValidator(difficulties.indexes),
                 validate_while_typing=False,
             ).strip()
@@ -688,7 +688,7 @@ class RoundValidator(Validator):
             raise ValidationError(
                 message=(
                     "Wrong characters: %s"
-                    % ', '.join(map(lambda x: f"'{x}'", wrong_chars))
+                    % ", ".join(map(lambda x: f"'{x}'", wrong_chars))
                 ),
                 cursor_position=max(
                     input_.rfind(dig) for dig in wrong_chars
@@ -709,7 +709,7 @@ class RoundValidator(Validator):
             raise ValidationError(
                 message=(
                     "Number can't have repeated digits. %s repeated."
-                    % ', '.join(map(lambda x: f"'{x}'", rep_digs))
+                    % ", ".join(map(lambda x: f"'{x}'", rep_digs))
                 ),
                 cursor_position=max(
                     input_.rfind(dig) for dig in rep_digs
@@ -773,7 +773,7 @@ def _number_getter(
             input_ = prompt_session.prompt(f"[{get_steps() + 1}] ").lstrip()
         except EOFError:
             try:
-                if ask_ok('Do you really want to quit? [Y/n]: '):
+                if ask_ok("Do you really want to quit? [Y/n]: "):
                     raise StopPlaying
                 continue
             except EOFError:
@@ -806,7 +806,7 @@ def _get_player_name() -> Optional[str]:
     while True:
         try:
             player = prompt(
-                'Save score as: ',
+                "Save score as: ",
                 validator=player_validator,
                 validate_while_typing=False,
             ).strip()
@@ -816,7 +816,7 @@ def _get_player_name() -> Optional[str]:
             continue
 
         try:
-            if not ask_ok(f'Confirm player: "{player}" [Y/n] '):
+            if not ask_ok(f"Confirm player: '{player}' [Y/n] "):
                 continue
         except EOFError:
             return None

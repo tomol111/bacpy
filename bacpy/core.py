@@ -24,12 +24,12 @@ else:
 
 
 # Type variables
-T_co = TypeVar('T_co', covariant=True)
+T_co = TypeVar("T_co", covariant=True)
 
 
 # Constants
 PLAYER_NAME_LIMS: Tuple[int, int] = (3, 20)
-RANKINGS_DIR: Final[Path] = Path('.rankings')
+RANKINGS_DIR: Final[Path] = Path(".rankings")
 RANKING_SIZE: Final[int] = 10
 
 
@@ -117,7 +117,7 @@ def draw_number(difficulty: "Difficulty") -> str:
 
     It used by `RoundCore` but can be used to generate random guesses.
     """
-    return ''.join(
+    return "".join(
         random.sample(difficulty.digs_set, difficulty.num_size)
     )
 
@@ -175,7 +175,7 @@ class SequenceView(Sequence[T_co]):
         return len(self._data)
 
     def __repr__(self) -> str:
-        return f'{type(self).__name__}({self._data})'
+        return f"{type(self).__name__}({self._data})"
 
 
 # ============
@@ -183,7 +183,7 @@ class SequenceView(Sequence[T_co]):
 # ============
 
 
-DIGITS_RANGE: Final[str] = '123456789abcdef'
+DIGITS_RANGE: Final[str] = "123456789abcdef"
 
 
 @dataclass(order=True, frozen=True)
@@ -191,7 +191,7 @@ class Difficulty:
 
     num_size: int
     digs_num: int
-    name: str = field(default='', compare=False)
+    name: str = field(default="", compare=False)
 
     @property
     def digs_set(self) -> FrozenSet[str]:
@@ -200,20 +200,20 @@ class Difficulty:
     @property
     def digs_range(self) -> str:
         if 3 <= self.digs_num <= 9:
-            return f'1-{self.digs_num}'
+            return f"1-{self.digs_num}"
         if self.digs_num == 10:
-            return '1-9,a'
+            return "1-9,a"
         if 11 <= self.digs_num <= 15:
-            return f'1-9,a-{DIGITS_RANGE[self.digs_num-1]}'
+            return f"1-9,a-{DIGITS_RANGE[self.digs_num-1]}"
         raise AttributeError
 
 
 DEFAULT_DIFFICULTIES: Final[Tuple[Difficulty, ...]] = tuple(
     Difficulty(*args)
     for args in (
-        (3, 6, 'easy'),
-        (4, 9, 'normal'),
-        (5, 15, 'hard'),
+        (3, 6, "easy"),
+        (4, 9, "normal"),
+        (5, 15, "hard"),
     )
 )
 
@@ -237,7 +237,7 @@ class StopPlaying(GameEvent):
 
 class RestartGame(GameEvent):
     """Restart game event."""
-    def __init__(self, difficulty: 'Difficulty' = None):
+    def __init__(self, difficulty: "Difficulty" = None):
         self.difficulty = difficulty
 
 
@@ -263,8 +263,8 @@ def load_ranking(difficulty: Difficulty) -> pd.DataFrame:
     path.touch()
     return pd.read_csv(
         path,
-        names=['datetime', 'score', 'player'],
-        parse_dates=['datetime'],
+        names=["datetime", "score", "player"],
+        parse_dates=["datetime"],
     )
 
 
@@ -279,10 +279,10 @@ def _add_ranking_position(
     return (
         ranking
         .append(
-            {'datetime': finish_datetime, 'score': score, 'player': player},
+            {"datetime": finish_datetime, "score": score, "player": player},
             ignore_index=True,
         )
-        .sort_values(by=['score', 'datetime'])
+        .sort_values(by=["score", "datetime"])
         .head(ranking_size)
     )
 
@@ -298,5 +298,5 @@ def _save_ranking(ranking: pd.DataFrame, difficulty: Difficulty) -> None:
 def _get_ranking_path(difficulty: Difficulty) -> Path:
     return (
         RANKINGS_DIR
-        / f'{difficulty.digs_num}_{difficulty.num_size}.csv'
+        / f"{difficulty.digs_num}_{difficulty.num_size}.csv"
     )
