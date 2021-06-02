@@ -4,10 +4,10 @@ from pathlib import Path
 import random
 import sys
 from typing import (
-    Deque,
     FrozenSet,
     Iterable,
     Iterator,
+    List,
     NamedTuple,
     overload,
     Sequence,
@@ -44,7 +44,7 @@ class RoundCore:
 
     def __init__(self, difficulty: "Difficulty") -> None:
         self._difficulty = difficulty
-        self._history: Deque["HistRecord"] = Deque()
+        self._history: List["HistRecord"] = []
         self._number = draw_number(difficulty)
         self._finished = False
 
