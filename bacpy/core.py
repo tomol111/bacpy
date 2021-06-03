@@ -183,6 +183,7 @@ class SequenceView(Sequence[T_co]):
 # ============
 
 
+MIN_NUM_SIZE: Final[int] = 3
 DIGITS_RANGE: Final[str] = "123456789abcdef"
 
 
@@ -193,17 +194,32 @@ class Difficulty:
     digs_num: int
     name: str = field(default="", compare=False)
 
+    def __post_init__(self):
+        if self.num_size < MIN_NUM_SIZE:
+            raise ValueError(
+                f"`num_size` ({self.num_size}) smaller than {MIN_NUM_SIZE}"
+            )
+        if self.num_size >= self.digs_num:
+            raise ValueError(
+                f"`num_size` ({self.num_size}) not less "
+                f"than `digs_num` ({self.digs_num})"
+            )
+        if self.digs_num > len(DIGITS_RANGE):
+            raise ValueError(
+                f"`digs_num` ({self.digs_num}) over {len(DIGITS_RANGE)}"
+            )
+
     @property
     def digs_set(self) -> FrozenSet[str]:
         return frozenset(DIGITS_RANGE[:self.digs_num])
 
     @property
     def digs_range(self) -> str:
-        if 3 <= self.digs_num <= 9:
+        if MIN_NUM_SIZE <= self.digs_num <= 9:
             return f"1-{self.digs_num}"
         if self.digs_num == 10:
             return "1-9,a"
-        if 11 <= self.digs_num <= 15:
+        if 11 <= self.digs_num <= len(DIGITS_RANGE):
             return f"1-9,a-{DIGITS_RANGE[self.digs_num-1]}"
         raise AttributeError
 
