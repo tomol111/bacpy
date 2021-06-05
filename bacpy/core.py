@@ -273,24 +273,11 @@ def available_ranking_difficulties(
             yield difficulty
 
 
-def load_ranking(difficulty: Difficulty) -> pd.DataFrame:
-    """Read and return ranking by given difficulty."""
-    path = _get_ranking_path(difficulty)
-    path.touch()
-    return pd.read_csv(
-        path,
-        names=["datetime", "score", "player"],
-        parse_dates=["datetime"],
-    )
-
-
 def _add_ranking_position(
         ranking: pd.DataFrame,
         finish_datetime: datetime,
         score: int,
         player: str,
-        *,
-        ranking_size: int = RANKING_SIZE,
 ) -> pd.DataFrame:
     return (
         ranking
@@ -299,7 +286,23 @@ def _add_ranking_position(
             ignore_index=True,
         )
         .sort_values(by=["score", "datetime"])
-        .head(ranking_size)
+        .head(RANKING_SIZE)
+    )
+
+
+def load_ranking(difficulty: Difficulty) -> pd.DataFrame:
+    """Read and return ranking by given difficulty.
+
+    If ranking is not available return empty one."""
+    path = _get_ranking_path(difficulty)
+    if not path.exists():
+        return pd.DataFrame(
+            columns=["datetime", "score", "player"]
+        ).astype({"datetime": "datetime64", "score": int})
+    return pd.read_csv(
+        path,
+        names=["datetime", "score", "player"],
+        parse_dates=["datetime"],
     )
 
 
