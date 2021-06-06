@@ -10,12 +10,44 @@ from bacpy.core import (
     available_ranking_difficulties,
     Difficulty,
     DIGITS_RANGE,
+    GameException,
     _get_ranking_path,
     load_ranking,
     MIN_NUM_SIZE,
+    QuitGame,
     RANKINGS_DIR,
+    RestartGame,
     _save_ranking,
+    StopPlaying,
 )
+
+
+# ===============
+# Game Exceptions
+# ===============
+
+
+def test_base_game_exception():
+    assert isinstance(GameException(), Exception)
+
+
+@pytest.mark.parametrize(
+    "exception_cls",
+    (
+        GameException,
+        QuitGame,
+        StopPlaying,
+        RestartGame,
+    )
+)
+def test_game_exceptions(exception_cls):
+    assert isinstance(exception_cls(), GameException)
+
+
+def test_restart_game_exception():
+    difficulty = Difficulty(3, 5)
+    exception = RestartGame(difficulty)
+    assert exception.difficulty == difficulty
 
 
 # =============

@@ -234,25 +234,25 @@ DEFAULT_DIFFICULTIES: Final[Tuple[Difficulty, ...]] = tuple(
 )
 
 
-# ======
-# Events
-# ======
+# ===============
+# Game Exceptions
+# ===============
 
 
-class GameEvent(Exception):
-    """Base game event class."""
+class GameException(Exception):
+    """Base game exception class."""
 
 
-class QuitGame(GameEvent):
-    """Quit game event."""
+class QuitGame(GameException):
+    """Quit game exception."""
 
 
-class StopPlaying(GameEvent):
-    """Stop playing event."""
+class StopPlaying(GameException):
+    """Stop playing exception."""
 
 
-class RestartGame(GameEvent):
-    """Restart game event."""
+class RestartGame(GameException):
+    """Restart game exception."""
     def __init__(self, difficulty: Difficulty = None):
         self.difficulty = difficulty
 
