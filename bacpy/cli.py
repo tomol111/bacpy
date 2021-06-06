@@ -49,11 +49,7 @@ if sys.version_info >= (3, 8):
     import importlib.metadata as importlib_metadata
     from typing import Final, Literal
 else:
-    try:
-        import importlib_metadata
-    except ModuleNotFoundError:
-        importlib_metadata = None
-
+    import importlib_metadata
     from typing_extensions import Final, Literal
 
 
@@ -65,8 +61,6 @@ T = TypeVar("T")
 PROGRAM_NAME: Final[str] = "BacPy"
 PROGRAM_VERSION: Final[str] = (
     f" {PROGRAM_NAME} v{importlib_metadata.version('bacpy')} "
-    if importlib_metadata
-    else f" {PROGRAM_NAME} "
 )
 IDX_START: Final[Literal[0, 1]] = 1
 
