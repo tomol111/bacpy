@@ -740,11 +740,13 @@ player_validator = PlayerValidator()
 
 
 def _get_toolbar(difficulty: Difficulty) -> str:
-    return "  |  ".join([
-        f"  Difficulty: {difficulty.name}",
-        f"Size: {difficulty.num_size}",
-        f"Digits: {difficulty.digs_range}",
-    ])
+    return "  |  ".join(
+        [
+            f"  Difficulty: {difficulty.name}",
+            f"Size: {difficulty.num_size}",
+            f"Digits: {difficulty.digs_range}",
+        ]
+    )
 
 
 def _number_getter(
