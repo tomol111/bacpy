@@ -175,7 +175,7 @@ class SequenceView(Sequence[T_co]):
         return len(self._data)
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}({self._data})"
+        return f"{type(self).__name__}({self._data!r})"
 
 
 # ============
