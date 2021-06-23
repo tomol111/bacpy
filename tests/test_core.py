@@ -260,6 +260,10 @@ def test_difficulty_sorting():
 # ============
 
 
+# Sequence methods
+# ----------------
+
+
 def test_sequence_view_contains():
     sequence = SequenceView([1, 2, 3])
     assert 1 in sequence
@@ -309,11 +313,6 @@ def test_sequence_view_bool():
     assert SequenceView([1, 2, 3])
 
 
-def test_sequence_view_repr():
-    assert repr(SequenceView([1, 2, 3])) == "SequenceView([1, 2, 3])"
-    assert repr(SequenceView(range(3))) == "SequenceView(range(0, 3))"
-
-
 def test_sequence_view_index():
     sequence = SequenceView([1, 2, 3])
     assert sequence.index(2) == 1
@@ -328,12 +327,21 @@ def test_sequence_view_count():
     assert sequence.count(4) == 0
 
 
+# Other features
+# --------------
+
+
 def test_sequence_view_immutability():
     sequence = SequenceView([1, 2, 3])
     with pytest.raises(TypeError):
         sequence[0] = 10
     with pytest.raises(TypeError):
         del sequence[1]
+
+
+def test_sequence_view_repr():
+    assert repr(SequenceView([1, 2, 3])) == "SequenceView([1, 2, 3])"
+    assert repr(SequenceView(range(3))) == "SequenceView(range(0, 3))"
 
 
 def test_sequence_view_dynamic_view():
