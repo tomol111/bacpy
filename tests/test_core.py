@@ -28,10 +28,6 @@ from bacpy.core import (
 # ===============
 
 
-def test_base_game_exception():
-    assert isinstance(GameException(), Exception)
-
-
 @pytest.mark.parametrize(
     "exception_cls",
     (
@@ -42,7 +38,8 @@ def test_base_game_exception():
     )
 )
 def test_game_exceptions(exception_cls):
-    assert isinstance(exception_cls(), GameException)
+    with pytest.raises(GameException):
+        raise exception_cls
 
 
 def test_restart_game_exception():
