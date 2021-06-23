@@ -755,7 +755,7 @@ def _number_getter(
 
     Supports special input. Can raise `StopPlaying`.
     """
-    prompt_session: PromptSession = PromptSession(
+    prompt_session: PromptSession[str] = PromptSession(
         bottom_toolbar=_get_toolbar(difficulty),
         validator=RoundValidator(difficulty),
         validate_while_typing=False,
