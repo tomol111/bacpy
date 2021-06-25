@@ -14,6 +14,7 @@ from bacpy.core import (
     GameException,
     _get_ranking_path,
     GuessingRecord,
+    is_number_valid,
     load_ranking,
     MIN_NUM_SIZE,
     QuitGame,
@@ -358,6 +359,10 @@ def test_sequence_view_dynamic_view():
 # =====
 
 
+# GuessingRecord
+# --------------
+
+
 def test_guessing_record_as_tuple():
     tple = ("1234", 2, 1)
     record = GuessingRecord(*tple)
@@ -377,6 +382,10 @@ def test_guessint_record_as_namespace():
     assert record.cows == 1
 
 
+# _comput_bullscows
+# -----------------
+
+
 @pytest.mark.parametrize(
     ("guess", "number", "bulls", "cows"),
     (
@@ -388,3 +397,57 @@ def test_guessint_record_as_namespace():
 )
 def test_compute_bullscows(guess, number, bulls, cows):
     assert _comput_bullscows(guess, number) == (bulls, cows)
+
+
+# is_number_valid
+# ---------------
+
+
+@pytest.mark.parametrize(
+    ("difficulty", "number"),
+    (
+        (Difficulty(3, 6), "163"),
+        (Difficulty(4, 9), "1593"),
+        (Difficulty(5, 15), "2f5a9"),
+    )
+)
+def test_is_number_valid(difficulty, number):
+    assert is_number_valid(difficulty, number)
+
+
+@pytest.mark.parametrize(
+    ("difficulty", "number"),
+    (
+        (Difficulty(3, 6), "301"),
+        (Difficulty(4, 9), "51a9"),
+        (Difficulty(5, 15), "1g4a8"),
+    )
+)
+def test_is_number_valid_wrong_characters(difficulty, number):
+    assert not is_number_valid(difficulty, number)
+
+
+@pytest.mark.parametrize(
+    ("difficulty", "number"),
+    (
+        (Difficulty(3, 5), "1234"),
+        (Difficulty(3, 5), "34"),
+        (Difficulty(4, 9), "12349"),
+        (Difficulty(4, 9), "31"),
+        (Difficulty(5, 15), "12f3a49b"),
+        (Difficulty(5, 15), "31d"),
+    )
+)
+def test_is_number_valid_wrong_length(difficulty, number):
+    assert not is_number_valid(difficulty, number)
+
+@pytest.mark.parametrize(
+    ("difficulty", "number"),
+    (
+        (Difficulty(3, 5), "232"),
+        (Difficulty(4, 9), "3727"),
+        (Difficulty(5, 15), "3b5b8"),
+    )
+)
+def test_is_number_valid_not_unique_characters(difficulty, number):
+    assert not is_number_valid(difficulty, number)
