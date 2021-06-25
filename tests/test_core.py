@@ -11,6 +11,7 @@ from bacpy.core import (
     Difficulty,
     DIGITS_RANGE,
     GameException,
+    GuessingRecord,
     _get_ranking_path,
     load_ranking,
     MIN_NUM_SIZE,
@@ -349,3 +350,27 @@ def test_sequence_view_dynamic_view():
         left is right
         for left, right in zip(sequence, lst)
     )
+
+
+# =====
+# Round
+# =====
+
+
+def test_guessing_record_as_tuple():
+    tple = ("1234", 2, 1)
+    record = GuessingRecord(*tple)
+    assert record == tple
+
+
+def test_guessing_record_unpacking():
+    tple = ("1234", 2, 1)
+    number, bulls, cows = GuessingRecord(*tple)
+    assert (number, bulls, cows) == tple
+
+
+def test_guessint_record_as_namespace():
+    record = GuessingRecord(number="1234", bulls=2, cows=1)
+    assert record.number == "1234"
+    assert record.bulls == 2
+    assert record.cows == 1
