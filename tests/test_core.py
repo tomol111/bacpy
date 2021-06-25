@@ -11,6 +11,7 @@ from bacpy.core import (
     _comput_bullscows,
     Difficulty,
     DIGITS_RANGE,
+    draw_number,
     GameException,
     _get_ranking_path,
     GuessingRecord,
@@ -451,3 +452,20 @@ def test_is_number_valid_wrong_length(difficulty, number):
 )
 def test_is_number_valid_not_unique_characters(difficulty, number):
     assert not is_number_valid(difficulty, number)
+
+
+# draw_number
+# -----------
+
+
+@pytest.mark.parametrize(
+    "difficulty",
+    (
+        Difficulty(3, 5),
+        Difficulty(4, 9),
+        Difficulty(5, 15),
+    )
+)
+def test_draw_number(difficulty):
+    number = draw_number(difficulty)
+    assert is_number_valid(difficulty, number)
