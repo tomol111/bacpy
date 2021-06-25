@@ -8,11 +8,12 @@ import bacpy.core
 from bacpy.core import (
     _add_ranking_position,
     available_ranking_difficulties,
+    _comput_bullscows,
     Difficulty,
     DIGITS_RANGE,
     GameException,
-    GuessingRecord,
     _get_ranking_path,
+    GuessingRecord,
     load_ranking,
     MIN_NUM_SIZE,
     QuitGame,
@@ -374,3 +375,16 @@ def test_guessint_record_as_namespace():
     assert record.number == "1234"
     assert record.bulls == 2
     assert record.cows == 1
+
+
+@pytest.mark.parametrize(
+    ("guess", "number", "bulls", "cows"),
+    (
+        ("1234", "1234", 4, 0),
+        ("4321", "1234", 0, 4),
+        ("3214", "1234", 2, 2),
+        ("5678", "1234", 0, 0),
+    )
+)
+def test_compute_bullscows(guess, number, bulls, cows):
+    assert _comput_bullscows(guess, number) == (bulls, cows)
