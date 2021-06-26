@@ -504,17 +504,24 @@ def test_round_core():
     assert round_core.history[1] == guess_record_1
     assert round_core.steps == 2
 
-    # XXX test or patch score saving
     # succesive guess
-    #guess_record_last = round_core.parse_guess(number)
-    #assert guess_record_last.bulls == difficulty.num_size
-    #assert guess_record_last.cows == 0
-    #assert round_core.steps == 3
-    #assert round_core.finished
+    guess_record_last = round_core.parse_guess(number)
+    assert guess_record_last.bulls == difficulty.num_size
+    assert guess_record_last.cows == 0
+    assert round_core.steps == 3
+    assert round_core.finished
 
     # finished
-    #with pytest.raises(RuntimeError):
-    #    round_core.parse_guess(number)
+    with pytest.raises(RuntimeError):
+        round_core.parse_guess(number)
+    score_data = round_core.get_score_data()
+    assert score_data.finish_datetime
+    assert score_data.difficulty == difficulty
+    assert score_data.score == 3
+
+    # score data available once
+    with pytest.raises(RuntimeError):
+        round_core.get_score_data()
 
 
 def get_other_number(number: str, difficulty: Difficulty) -> str:
