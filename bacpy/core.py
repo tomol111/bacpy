@@ -47,6 +47,7 @@ class RoundCore:
         self._history: List["GuessingRecord"] = []
         self._number = draw_number(difficulty)
         self._finished = False
+        self._score_fit_in = False
 
         if sys.flags.dev_mode:
             print(self._number)
