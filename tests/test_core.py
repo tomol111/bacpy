@@ -479,9 +479,8 @@ def test_round_core():
     assert not round_core.history
     assert not round_core.steps
     assert not round_core.finished
-    assert not round_core.score_fit_in
     with pytest.raises(RuntimeError):
-        round_core.update_ranking("Tomek")
+        round_core.get_score_data()
 
     # invalid number
     with pytest.raises(ValueError):
@@ -512,7 +511,6 @@ def test_round_core():
     #assert guess_record_last.cows == 0
     #assert round_core.steps == 3
     #assert round_core.finished
-    #assert not round_core.score_fit_in
 
     # finished
     #with pytest.raises(RuntimeError):

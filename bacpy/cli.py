@@ -35,14 +35,16 @@ from .core import (
     available_ranking_difficulties,
     DEFAULT_DIFFICULTIES,
     Difficulty,
+    is_score_fit_into_ranking,
     load_ranking,
-    QuitGame,
     PLAYER_NAME_LIMS,
-    RANKING_SIZE,
+    QuitGame,
     RANKINGS_DIR,
+    RANKING_SIZE,
     RestartGame,
     RoundCore,
     StopPlaying,
+    update_ranking,
 )
 
 if sys.version_info >= (3, 8):
@@ -138,10 +140,11 @@ def play(round_core: RoundCore) -> None:
 
     print(f"\n *** You guessed in {round_core.steps} steps ***\n")
 
-    if round_core.score_fit_in:
+    score_data = round_core.get_score_data()
+    if is_score_fit_into_ranking(score_data):
         player = _get_player_name()
         if player:
-            ranking = round_core.update_ranking(player)
+            ranking = update_ranking(score_data, player)
             pager(ranking_table(ranking))
 
 

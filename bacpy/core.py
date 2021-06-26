@@ -47,7 +47,7 @@ class RoundCore:
         self._history: List["GuessingRecord"] = []
         self._number = draw_number(difficulty)
         self._finished = False
-        self._score_fit_in = False
+        self._score_data_generated = False
 
         if sys.flags.dev_mode:
             print(self._number)
@@ -71,7 +71,7 @@ class RoundCore:
     def parse_guess(self, guess: str) -> "GuessingRecord":
 
         if self._finished:
-            raise RuntimeError("Can't parse guess when round is finished")
+            raise RuntimeError("Round has been finished")
         if not is_number_valid(self._difficulty, guess):
             raise ValueError("Parsed number is invalid")
 
@@ -81,36 +81,22 @@ class RoundCore:
 
         if bulls == self.difficulty.num_size:
             self._finished = True
-            self._finish_datetime = datetime.now()
-            self._ranking = ranking = load_ranking(self._difficulty)
-            self._score_fit_in = (
-                len(ranking) < RANKING_SIZE
-                or ranking.score.iat[-1] > self.steps
-            )
 
         return hist_record
 
-    @property
-    def score_fit_in(self) -> bool:
-        return self._score_fit_in
+    def get_score_data(self) -> "_ScoreData":
 
-    def update_ranking(self, player: str) -> pd.DataFrame:
-        """If round has been finished and score fit into ranking update,
-        save and return ranking.
-        """
         if not self._finished:
-            raise RuntimeError("Round not finished yet")
-        if not self._score_fit_in:
-            raise RuntimeError("Score don't fit into ranking")
+            raise RuntimeError("Round has not been finished")
+        if self._score_data_generated:
+            raise RuntimeError("Data has been generated")
 
-        ranking = _add_ranking_position(
-            self._ranking,
-            self._finish_datetime,
-            self.steps,
-            player,
+        self._score_data_generated = True
+        return _ScoreData(
+            finish_datetime=datetime.now(),
+            difficulty=self.difficulty,
+            score=self.steps,
         )
-        _save_ranking(ranking, self._difficulty)
-        return ranking
 
 
 def draw_number(difficulty: "Difficulty") -> str:
@@ -261,6 +247,40 @@ class RestartGame(GameException):
 # =============
 # Ranking tools
 # =============
+
+
+class _ScoreData(NamedTuple):
+    """Data that can be used to save score."""
+    finish_datetime: datetime
+    difficulty: Difficulty
+    score: int
+
+
+def is_score_fit_into_ranking(
+        score_data: _ScoreData,
+        path_dir: Path = RANKINGS_DIR,
+) -> bool:
+    ranking = load_ranking(score_data.difficulty, path_dir)
+    return (
+        len(ranking) < RANKING_SIZE
+        or ranking.score.iat[-1] > score_data.score
+    )
+
+
+def update_ranking(
+        score_data: _ScoreData,
+        player: str,
+        path_dir: Path = RANKINGS_DIR,
+) -> pd.DataFrame:
+    ranking = load_ranking(score_data.difficulty, path_dir)
+    updated_ranking = _add_ranking_position(
+        ranking,
+        score_data.finish_datetime,
+        score_data.score,
+        player,
+    )
+    _save_ranking(updated_ranking, score_data.difficulty, path_dir)
+    return updated_ranking
 
 
 def available_ranking_difficulties(
