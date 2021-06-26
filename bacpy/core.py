@@ -265,12 +265,13 @@ class RestartGame(GameException):
 
 def available_ranking_difficulties(
         difficulties: Iterable[Difficulty],
+        path_dir: Path = RANKINGS_DIR,
 ) -> Iterator[Difficulty]:
     """Filter difficulties by the fact that corresponding ranking is
     available.
     """
     for difficulty in difficulties:
-        if _get_ranking_path(difficulty).exists():
+        if _get_ranking_path(difficulty, path_dir).exists():
             yield difficulty
 
 
@@ -291,11 +292,15 @@ def _add_ranking_position(
     )
 
 
-def load_ranking(difficulty: Difficulty) -> pd.DataFrame:
+def load_ranking(
+        difficulty: Difficulty,
+        path_dir: Path = RANKINGS_DIR,
+) -> pd.DataFrame:
     """Read and return ranking by given difficulty.
 
-    If ranking is not available return empty one."""
-    path = _get_ranking_path(difficulty)
+    If ranking is not available return empty one.
+    """
+    path = _get_ranking_path(difficulty, path_dir)
     if not path.exists():
         return pd.DataFrame(
             columns=["datetime", "score", "player"]
@@ -307,16 +312,23 @@ def load_ranking(difficulty: Difficulty) -> pd.DataFrame:
     )
 
 
-def _save_ranking(ranking: pd.DataFrame, difficulty: Difficulty) -> None:
+def _save_ranking(
+        ranking: pd.DataFrame,
+        difficulty: Difficulty,
+        path_dir: Path = RANKINGS_DIR,
+) -> None:
     ranking.to_csv(
-        _get_ranking_path(difficulty),
+        _get_ranking_path(difficulty, path_dir),
         header=False,
         index=False,
     )
 
 
-def _get_ranking_path(difficulty: Difficulty) -> Path:
+def _get_ranking_path(
+        difficulty: Difficulty,
+        path_dir: Path = RANKINGS_DIR,
+) -> Path:
     return (
-        RANKINGS_DIR
+        path_dir
         / f"{difficulty.num_size}_{difficulty.digs_num}.csv"
     )

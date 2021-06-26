@@ -62,15 +62,7 @@ def test_get_ranking_path():
     assert _get_ranking_path(Difficulty(3, 5)) == RANKINGS_DIR / f"{3}_{5}.csv"
 
 
-@pytest.fixture
-def tmp_rankings_dir(tmp_path_factory):
-    tmp_rankings_dir = tmp_path_factory.mktemp("rankings")
-    bacpy.core.RANKINGS_DIR = tmp_rankings_dir
-    yield tmp_rankings_dir
-    bacpy.core.RANKINGS_DIR = RANKINGS_DIR
-
-
-def test_save_load_ranking(tmp_rankings_dir):
+def test_save_load_ranking(tmp_path):
     difficulty = Difficulty(3, 5)
     ranking = pd.DataFrame(
         [
@@ -79,20 +71,20 @@ def test_save_load_ranking(tmp_rankings_dir):
         ],
         columns=["datetime", "score", "player"],
     )
-    _save_ranking(ranking, difficulty)
+    _save_ranking(ranking, difficulty, tmp_path)
     pd.testing.assert_frame_equal(
-        load_ranking(difficulty),
+        load_ranking(difficulty, tmp_path),
         ranking,
     )
 
 
-def test_load_ranking_not_existing(tmp_rankings_dir):
+def test_load_ranking_not_existing(tmp_path):
     expected_empty_ranking = pd.DataFrame(
         columns=["datetime", "score", "player"]
     ).astype({"datetime": "datetime64", "score": int})
 
     pd.testing.assert_frame_equal(
-        load_ranking(Difficulty(3, 5)),
+        load_ranking(Difficulty(3, 5), tmp_path),
         expected_empty_ranking,
     )
 
@@ -174,7 +166,7 @@ def test_add_ranking_position_overflow():
     )
 
 
-def test_available_ranking_difficulties(tmp_rankings_dir):
+def test_available_ranking_difficulties(tmp_path):
     difficulties = [
         Difficulty(3, 5),
         Difficulty(5, 10),
@@ -182,10 +174,10 @@ def test_available_ranking_difficulties(tmp_rankings_dir):
     ]
     expected_available_difficulties = difficulties[::2]
     for difficulty in expected_available_difficulties:
-        _get_ranking_path(difficulty).touch()
+        _get_ranking_path(difficulty, tmp_path).touch()
 
     assert list(
-        available_ranking_difficulties(difficulties)
+        available_ranking_difficulties(difficulties, tmp_path)
     ) == expected_available_difficulties
 
 
