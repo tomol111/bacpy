@@ -114,11 +114,13 @@ def _run_game(game: "Game") -> None:
     except EOFError:
         return
 
+    player_name_iter = player_name_getter()
+
     while True:
         print()
         try:
             with game.set_round(RoundCore(difficulty)) as round_:
-                play(round_)
+                play(round_, player_name_iter)
         except RestartGame as rg:
             if rg.difficulty is not None:
                 difficulty = rg.difficulty
@@ -127,22 +129,24 @@ def _run_game(game: "Game") -> None:
             return
 
 
-def play(round_core: RoundCore) -> None:
+def play(
+        round_core: RoundCore,
+        player_name_iter: Iterator[Optional[str]],
+) -> None:
     number_getter = _number_getter(
         round_core.difficulty,
         lambda: round_core.steps,
     )
-
     while not round_core.finished:
         number = next(number_getter)
         _, bulls, cows = round_core.parse_guess(number)
-        print(f"bulls: {bulls:>2}, cows: {bulls:>2}")
+        print(f"bulls: {bulls:>2}, cows: {cows:>2}")
 
     print(f"\n *** You guessed in {round_core.steps} steps ***\n")
 
     score_data = round_core.get_score_data()
     if is_score_fit_into_ranking(score_data):
-        player = _get_player_name()
+        player = next(player_name_iter)
         if player:
             ranking = update_ranking(score_data, player)
             pager(ranking_table(ranking))
@@ -800,17 +804,19 @@ def _number_getter(
             print(f"No command '{cmd_name}'")
 
 
-def _get_player_name() -> Optional[str]:
-    """Ask for player name and return it."""
+def player_name_getter() -> Iterator[Optional[str]]:
+    """Yields player name or `None` if `EOFError`."""
+    prompt_session: PromptSession[str] = PromptSession(
+        "Save score as: ",
+        validator=player_validator,
+        validate_while_typing=False,
+        enable_history_search=True,
+    )
     while True:
         try:
-            player = prompt(
-                "Save score as: ",
-                validator=player_validator,
-                validate_while_typing=False,
-            ).strip()
+            player = prompt_session.prompt().strip()
         except EOFError:
-            return None
+            yield None
         except KeyboardInterrupt:
             continue
 
@@ -818,6 +824,6 @@ def _get_player_name() -> Optional[str]:
             if not ask_ok(f"Confirm player: '{player}' [Y/n] "):
                 continue
         except EOFError:
-            return None
+            yield None
 
-        return player
+        yield player
