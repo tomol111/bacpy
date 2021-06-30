@@ -1,7 +1,6 @@
 from abc import ABCMeta, abstractmethod
 from collections import Counter
 from contextlib import ContextDecorator, contextmanager
-from contextvars import ContextVar
 import inspect
 from operator import attrgetter
 from pathlib import Path
@@ -18,7 +17,6 @@ from typing import (
     List,
     NoReturn,
     Optional,
-    overload,
     Tuple,
     Type,
     TypeVar,
@@ -91,14 +89,11 @@ Special commands:
 def run_game() -> None:
     RANKINGS_DIR.mkdir(exist_ok=True)
     game = Game(RANKINGS_DIR)
-    token = _current_game.set(game)
     try:
         print(_starting_header())
         _run_game(game)
     except QuitGame:
         return
-    finally:
-        _current_game.reset(token)
 
 
 def _starting_header(title: str = PROGRAM_VERSION) -> str:
@@ -184,37 +179,6 @@ class Game:
             yield round_
         finally:
             self._round = None
-
-
-_current_game: ContextVar[Game] = ContextVar("game")
-
-
-class _MISSING_TYPE:
-    """Singleton to use as missing value."""
-
-    _instance: ClassVar[Optional["_MISSING_TYPE"]] = None
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
-
-MISSING: Final[_MISSING_TYPE] = _MISSING_TYPE()
-
-
-@overload
-def get_game(default: _MISSING_TYPE = MISSING) -> Game: ...
-
-
-@overload
-def get_game(default: Union[T, _MISSING_TYPE]) -> Union[Game, T]: ...
-
-
-def get_game(default=MISSING):
-    if default is not MISSING:
-        return _current_game.get(default)
-    return _current_game.get()
 
 
 # ============
