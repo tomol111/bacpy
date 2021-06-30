@@ -6,25 +6,19 @@ import pandas as pd
 import pytest
 
 from bacpy.core import (
-    _add_ranking_position,
-    available_ranking_difficulties,
     _comput_bullscows,
     Difficulty,
     DIGITS_RANGE,
     draw_number,
     GameException,
-    _get_ranking_path,
     GuessingRecord,
     is_number_valid,
-    load_ranking,
     MIN_NUM_SIZE,
     QuitGame,
     RankingManager,
-    RANKINGS_DIR,
     RANKING_SIZE,
     RestartGame,
     RoundCore,
-    _save_ranking,
     SequenceView,
     _ScoreData,
     StopPlaying,
@@ -310,134 +304,6 @@ def test_ranking_mamager_update_overflow(tmp_path):
         updated_ranking,
         ranking_manager.load(difficulty),
     )
-
-
-# other functions
-# ---------------
-
-
-def test_get_ranking_path():
-    assert _get_ranking_path(Difficulty(3, 5)) == RANKINGS_DIR / "3_5.csv"
-
-
-def test_save_load_ranking(tmp_path):
-    difficulty = Difficulty(3, 5)
-    ranking = pd.DataFrame(
-        [
-            (datetime(2021, 6, 5), 10, "Tomek"),
-            (datetime(2021, 6, 4), 15, "Tomasz"),
-        ],
-        columns=["datetime", "score", "player"],
-    )
-    _save_ranking(ranking, difficulty, tmp_path)
-    pd.testing.assert_frame_equal(
-        load_ranking(difficulty, tmp_path),
-        ranking,
-    )
-
-
-def test_load_ranking_not_existing(tmp_path):
-    expected_empty_ranking = pd.DataFrame(
-        columns=["datetime", "score", "player"]
-    ).astype({"datetime": "datetime64", "score": int})
-
-    pd.testing.assert_frame_equal(
-        load_ranking(Difficulty(3, 5), tmp_path),
-        expected_empty_ranking,
-    )
-
-
-def test_add_ranking_position():
-    ranking = pd.DataFrame(
-        [
-            (datetime(2021, 6, 5), 10, "Tomek"),
-            (datetime(2021, 6, 4), 15, "Tomasz"),
-        ],
-        columns=["datetime", "score", "player"],
-    )
-
-    expected_ranking = pd.DataFrame(
-        [
-            (datetime(2021, 6, 5), 10, "Tomek"),
-            (datetime(2021, 6, 6), 12, "New player"),
-            (datetime(2021, 6, 4), 15, "Tomasz"),
-        ],
-        columns=["datetime", "score", "player"],
-    )
-
-    updated_ranking = _add_ranking_position(
-        ranking,
-        datetime(2021, 6, 6),
-        12,
-        "New player",
-    )
-
-    pd.testing.assert_frame_equal(
-        updated_ranking.reset_index(drop=True),  # don't check index
-        expected_ranking,
-    )
-
-
-def test_add_ranking_position_overflow():
-    assert RANKING_SIZE == 10, "Ranking size changed"
-    ranking = pd.DataFrame(
-        [
-            (datetime(2021, 3, 17), 6, "Tomasz"),
-            (datetime(2021, 2, 18), 8, "Maciek"),
-            (datetime(2021, 6, 5), 10, "Tomek"),
-            (datetime(2021, 6, 4), 15, "Tomasz"),
-            (datetime(2021, 6, 6), 15, "Zofia"),
-            (datetime(2021, 4, 5), 17, "Piotrek"),
-            (datetime(2020, 12, 30), 20, "Tomasz"),
-            (datetime(2021, 3, 20), 21, "Tomasz"),
-            (datetime(2020, 11, 10), 30, "Darek"),
-            (datetime(2020, 8, 1), 32, "Tomasz"),
-        ],
-        columns=["datetime", "score", "player"],
-    )
-
-    expected_ranking = pd.DataFrame(
-        [
-            (datetime(2021, 3, 17), 6, "Tomasz"),
-            (datetime(2021, 2, 18), 8, "Maciek"),
-            (datetime(2021, 6, 5), 10, "Tomek"),
-            (datetime(2021, 6, 6), 12, "New player"),
-            (datetime(2021, 6, 4), 15, "Tomasz"),
-            (datetime(2021, 6, 6), 15, "Zofia"),
-            (datetime(2021, 4, 5), 17, "Piotrek"),
-            (datetime(2020, 12, 30), 20, "Tomasz"),
-            (datetime(2021, 3, 20), 21, "Tomasz"),
-            (datetime(2020, 11, 10), 30, "Darek"),
-        ],
-        columns=["datetime", "score", "player"],
-    )
-
-    updated_ranking = _add_ranking_position(
-        ranking,
-        datetime(2021, 6, 6),
-        12,
-        "New player",
-    )
-
-    pd.testing.assert_frame_equal(
-        updated_ranking.reset_index(drop=True),  # don't check index
-        expected_ranking,
-    )
-
-
-def test_available_ranking_difficulties(tmp_path):
-    difficulties = [
-        Difficulty(3, 5),
-        Difficulty(5, 10),
-        Difficulty(6, 15),
-    ]
-    expected_available_difficulties = difficulties[::2]
-    for difficulty in expected_available_difficulties:
-        _get_ranking_path(difficulty, tmp_path).touch()
-
-    assert list(
-        available_ranking_difficulties(difficulties, tmp_path)
-    ) == expected_available_difficulties
 
 
 # ============

@@ -39,6 +39,7 @@ from .core import (
     QuitGame,
     RankingManager,
     RANKING_SIZE,
+    RANKINGS_DIR,
     RestartGame,
     RoundCore,
     StopPlaying,
@@ -88,9 +89,8 @@ Special commands:
 
 
 def run_game() -> None:
-    rankings_dir = Path(".rankings")
-    rankings_dir.mkdir(exist_ok=True)
-    game = Game(rankings_dir)
+    RANKINGS_DIR.mkdir(exist_ok=True)
+    game = Game(RANKINGS_DIR)
     token = _current_game.set(game)
     try:
         print(_starting_header())
@@ -117,8 +117,18 @@ def _run_game(game: "Game") -> None:
     while True:
         print()
         try:
-            with game.set_round(RoundCore(difficulty)) as round_:
-                play(round_, player_name_iter, game.ranking_manager)
+            with game.set_round(RoundCore(difficulty)) as round_core:
+                number_getter = _number_getter(
+                    round_core.difficulty,
+                    lambda: round_core.steps,
+                    game.commands,
+                )
+                play(
+                    round_core,
+                    number_getter,
+                    player_name_iter,
+                    game.ranking_manager,
+                )
         except RestartGame as rg:
             if rg.difficulty is not None:
                 difficulty = rg.difficulty
@@ -129,13 +139,10 @@ def _run_game(game: "Game") -> None:
 
 def play(
         round_core: RoundCore,
+        number_getter: Iterator[str],
         player_name_iter: Iterator[Optional[str]],
         ranking_manager: RankingManager,
 ) -> None:
-    number_getter = _number_getter(
-        round_core.difficulty,
-        lambda: round_core.steps,
-    )
     while not round_core.finished:
         _, bulls, cows = round_core.parse_guess(next(number_getter))
         print(f"bulls: {bulls:>2}, cows: {cows:>2}")
@@ -761,6 +768,7 @@ def _get_toolbar(difficulty: Difficulty) -> str:
 def _number_getter(
         difficulty: Difficulty,
         get_steps: Callable[[], int],
+        commands: Commands,
 ) -> Iterator[str]:
     """Take number from user.
 
@@ -771,8 +779,6 @@ def _number_getter(
         validator=RoundValidator(difficulty),
         validate_while_typing=False,
     )
-    commands = get_game().commands
-
     while True:
         try:
             input_ = prompt_session.prompt(f"[{get_steps() + 1}] ").lstrip()
