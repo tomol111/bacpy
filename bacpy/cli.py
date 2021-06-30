@@ -89,19 +89,8 @@ Special commands:
 def run_game() -> None:
     RANKINGS_DIR.mkdir(exist_ok=True)
     game = Game(RANKINGS_DIR)
-    try:
-        print(_starting_header())
-        _run_game(game)
-    except QuitGame:
-        return
+    print(_starting_header())
 
-
-def _starting_header(title: str = PROGRAM_VERSION) -> str:
-    line = "=" * len(title)
-    return f"{line}\n{title}\n{line}"
-
-
-def _run_game(game: "Game") -> None:
     try:
         difficulty = difficulty_selection(game.difficulties)
     except EOFError:
@@ -128,8 +117,13 @@ def _run_game(game: "Game") -> None:
             if rg.difficulty is not None:
                 difficulty = rg.difficulty
             continue
-        except StopPlaying:
+        except (StopPlaying, QuitGame):
             return
+
+
+def _starting_header(title: str = PROGRAM_VERSION) -> str:
+    line = "=" * len(title)
+    return f"{line}\n{title}\n{line}"
 
 
 def play(
