@@ -40,10 +40,11 @@ RANKING_SIZE: Final[int] = 10
 class RoundCore:
     """Round core class."""
 
-    def __init__(self, difficulty: "Difficulty") -> None:
+    def __init__(self, number: str, difficulty: "Difficulty") -> None:
+        self._number = number
         self._difficulty = difficulty
+        assert is_number_valid(difficulty, number)
         self._history: List["GuessingRecord"] = []
-        self._number = draw_number(difficulty)
         self._finished = False
         self._score_data_generated = False
 

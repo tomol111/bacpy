@@ -595,12 +595,11 @@ def test_draw_number(difficulty):
 
 
 def test_round_core():
+    number = "123"
     difficulty = Difficulty(3, 5)
-    round_core = RoundCore(difficulty)
-    number = round_core._number
+    round_core = RoundCore(number, difficulty)
 
     # After initiation
-    assert is_number_valid(difficulty, number)
     assert round_core.difficulty == difficulty
     assert not round_core.history
     assert not round_core.steps
@@ -615,25 +614,29 @@ def test_round_core():
     assert not round_core.steps
 
     # first step
-    guess_record_0 = round_core.parse_guess(
-        get_other_number(number, difficulty)
-    )
-    assert isinstance(guess_record_0, GuessingRecord)
-    assert round_core.history[0] == guess_record_0
+    guess_record_0 = round_core.parse_guess("145")
+    assert guess_record_0.number == "145"
+    assert guess_record_0.bulls == 1
+    assert guess_record_0.cows == 0
+    assert round_core.history[:] == [guess_record_0]
     assert round_core.steps == 1
 
     # second step
-    guess_record_1 = round_core.parse_guess(
-        get_other_number(number, difficulty)
-    )
-    assert round_core.history[0] == guess_record_0
-    assert round_core.history[1] == guess_record_1
+    guess_record_1 = round_core.parse_guess("152")
+    assert guess_record_1.number == "152"
+    assert guess_record_1.bulls == 1
+    assert guess_record_1.cows == 1
+    assert round_core.history[:] == [guess_record_0, guess_record_1]
     assert round_core.steps == 2
 
     # succesive guess
     guess_record_last = round_core.parse_guess(number)
+    assert guess_record_last.number == number
     assert guess_record_last.bulls == difficulty.num_size
     assert guess_record_last.cows == 0
+    assert round_core.history[:] == [
+        guess_record_0, guess_record_1, guess_record_last
+    ]
     assert round_core.steps == 3
     assert round_core.finished
 
@@ -648,10 +651,3 @@ def test_round_core():
     # score data available once
     with pytest.raises(RuntimeError):
         round_core.get_score_data()
-
-
-def get_other_number(number: str, difficulty: Difficulty) -> str:
-    while True:
-        other = draw_number(difficulty)
-        if other != number:
-            return other

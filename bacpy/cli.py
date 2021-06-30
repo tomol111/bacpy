@@ -33,6 +33,7 @@ from tabulate import tabulate
 from .core import (
     DEFAULT_DIFFICULTIES,
     Difficulty,
+    draw_number,
     PLAYER_NAME_LIMS,
     QuitGame,
     RankingManager,
@@ -101,7 +102,9 @@ def run_game() -> None:
     while True:
         print()
         try:
-            with game.set_round(RoundCore(difficulty)) as round_core:
+            with game.set_round(
+                    RoundCore(draw_number(difficulty), difficulty)
+            ) as round_core:
                 number_getter = _number_getter(
                     round_core.difficulty,
                     lambda: round_core.steps,
