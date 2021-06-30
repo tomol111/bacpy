@@ -89,7 +89,7 @@ Special commands:
 def run_game() -> None:
     RANKINGS_DIR.mkdir(exist_ok=True)
     game = Game(RANKINGS_DIR)
-    print(_starting_header())
+    print(_starting_header(PROGRAM_VERSION))
 
     try:
         difficulty = difficulty_selection(game.difficulties)
@@ -121,7 +121,7 @@ def run_game() -> None:
             return
 
 
-def _starting_header(title: str = PROGRAM_VERSION) -> str:
+def _starting_header(title: str) -> str:
     line = "=" * len(title)
     return f"{line}\n{title}\n{line}"
 
