@@ -256,6 +256,75 @@ class _ScoreData(NamedTuple):
     score: int
 
 
+class RankingManager:
+
+    def __init__(self, rankings_dir: Path) -> None:
+        self._rankings_dir = rankings_dir
+
+    def _get_path(self, difficulty: Difficulty) -> Path:
+        return (
+            self._rankings_dir
+            / f"{difficulty.num_size}_{difficulty.digs_num}.csv"
+        )
+
+    def _save(
+            self,
+            ranking: pd.DataFrame,
+            difficulty: Difficulty,
+    ) -> None:
+        ranking.to_csv(
+            self._get_path(difficulty),
+            header=False,
+            index=False,
+        )
+
+    def load(self, difficulty: Difficulty) -> pd.DataFrame:
+        """Read and return ranking by given difficulty.
+
+        If ranking is not available return empty one.
+        """
+        path = self._get_path(difficulty)
+        path.touch()
+        return pd.read_csv(
+            path,
+            names=["datetime", "score", "player"],
+        ).astype({"datetime": "datetime64", "score": int})
+
+    def is_not_empty(self, difficulty: Difficulty) -> bool:
+        path = self._get_path(difficulty)
+        return path.exists() and bool(path.stat().st_size)
+
+    def is_score_fit_into(self, score_data: _ScoreData) -> bool:
+        ranking = self.load(score_data.difficulty)
+        return (
+            len(ranking) < RANKING_SIZE
+            or ranking.score.iat[-1] > score_data.score
+        )
+
+    def update(
+            self,
+            score_data: _ScoreData,
+            player: str,
+    ) -> pd.DataFrame:
+        ranking = self.load(score_data.difficulty)
+        updated_ranking = (
+            ranking
+            .append(
+                {
+                    "datetime": score_data.finish_datetime,
+                    "score": score_data.score,
+                    "player": player,
+                },
+                ignore_index=True,
+            )
+            .sort_values(by=["score", "datetime"])
+            .head(RANKING_SIZE)
+            .reset_index(drop=True)
+        )
+        self._save(updated_ranking, score_data.difficulty)
+        return updated_ranking
+
+
 def is_score_fit_into_ranking(
         score_data: _ScoreData,
         path_dir: Path = RANKINGS_DIR,
