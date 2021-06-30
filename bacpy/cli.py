@@ -107,7 +107,7 @@ def run_game() -> None:
                     lambda: round_core.steps,
                     game.commands,
                 )
-                play(
+                play_round(
                     round_core,
                     number_getter,
                     player_name_iter,
@@ -126,7 +126,7 @@ def _starting_header(title: str) -> str:
     return f"{line}\n{title}\n{line}"
 
 
-def play(
+def play_round(
         round_core: RoundCore,
         number_getter: Iterator[str],
         player_name_iter: Iterator[Optional[str]],
