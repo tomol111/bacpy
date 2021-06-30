@@ -4,6 +4,7 @@ from contextlib import ContextDecorator, contextmanager
 from contextvars import ContextVar
 import inspect
 from operator import attrgetter
+from pathlib import Path
 import shlex
 import subprocess
 import sys
@@ -32,19 +33,15 @@ from prompt_toolkit.validation import Validator, ValidationError
 from tabulate import tabulate
 
 from .core import (
-    available_ranking_difficulties,
     DEFAULT_DIFFICULTIES,
     Difficulty,
-    is_score_fit_into_ranking,
-    load_ranking,
     PLAYER_NAME_LIMS,
     QuitGame,
-    RANKINGS_DIR,
+    RankingManager,
     RANKING_SIZE,
     RestartGame,
     RoundCore,
     StopPlaying,
-    update_ranking,
 )
 
 if sys.version_info >= (3, 8):
@@ -91,8 +88,9 @@ Special commands:
 
 
 def run_game() -> None:
-    RANKINGS_DIR.mkdir(exist_ok=True)
-    game = Game()
+    rankings_dir = Path(".rankings")
+    rankings_dir.mkdir(exist_ok=True)
+    game = Game(rankings_dir)
     token = _current_game.set(game)
     try:
         print(_starting_header())
@@ -120,7 +118,7 @@ def _run_game(game: "Game") -> None:
         print()
         try:
             with game.set_round(RoundCore(difficulty)) as round_:
-                play(round_, player_name_iter)
+                play(round_, player_name_iter, game.ranking_manager)
         except RestartGame as rg:
             if rg.difficulty is not None:
                 difficulty = rg.difficulty
@@ -132,23 +130,23 @@ def _run_game(game: "Game") -> None:
 def play(
         round_core: RoundCore,
         player_name_iter: Iterator[Optional[str]],
+        ranking_manager: RankingManager,
 ) -> None:
     number_getter = _number_getter(
         round_core.difficulty,
         lambda: round_core.steps,
     )
     while not round_core.finished:
-        number = next(number_getter)
-        _, bulls, cows = round_core.parse_guess(number)
+        _, bulls, cows = round_core.parse_guess(next(number_getter))
         print(f"bulls: {bulls:>2}, cows: {cows:>2}")
 
     print(f"\n *** You guessed in {round_core.steps} steps ***\n")
 
     score_data = round_core.get_score_data()
-    if is_score_fit_into_ranking(score_data):
+    if ranking_manager.is_score_fit_into(score_data):
         player = next(player_name_iter)
         if player:
-            ranking = update_ranking(score_data, player)
+            ranking = ranking_manager.update(score_data, player)
             pager(ranking_table(ranking))
 
 
@@ -160,10 +158,11 @@ def play(
 class Game:
     """Game class."""
 
-    def __init__(self) -> None:
+    def __init__(self, rankings_dir: Path) -> None:
         self._round: Optional[RoundCore] = None
         self.difficulties = Difficulties(DEFAULT_DIFFICULTIES)
         self.commands = get_commands(self)
+        self.ranking_manager = RankingManager(rankings_dir)
 
     @property
     def round(self) -> RoundCore:
@@ -595,10 +594,11 @@ class RankingCmd(Command):
 
     def execute(self, arg: str = "") -> None:
 
-        difficulties = self.game.difficulties
-
         difficulties = Difficulties(
-            available_ranking_difficulties(difficulties)
+            filter(
+                self.game.ranking_manager.is_not_empty,
+                self.game.difficulties,
+            )
         )
 
         if not difficulties:
@@ -623,7 +623,9 @@ class RankingCmd(Command):
             except EOFError:
                 return
 
-        pager(ranking_table(load_ranking(difficulty)))
+        pager(ranking_table(
+            self.game.ranking_manager.load(difficulty)
+        ))
 
 
 # =====
