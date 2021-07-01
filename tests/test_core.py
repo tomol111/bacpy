@@ -15,12 +15,14 @@ from bacpy.core import (
     is_number_valid,
     MIN_NUM_SIZE,
     QuitGame,
+    Ranking,
     RankingManager,
+    _RankingRecord,
     RANKING_SIZE,
     RestartGame,
     RoundCore,
-    SequenceView,
     _ScoreData,
+    SequenceView,
     StopPlaying,
 )
 
@@ -53,6 +55,147 @@ def test_restart_game_exception():
 # =============
 # Ranking tools
 # =============
+
+
+# _RankingRecord
+# --------------
+
+
+def test_ranking_record_as_tuple():
+    score_data = _RankingRecord(
+        10,
+        datetime(2021, 6, 5),
+        "player name",
+    )
+    assert isinstance(score_data, tuple)
+
+
+def test_ranking_record_as_namespace():
+    dt = datetime(2021, 6, 5)
+    score = 10
+    player = "player name"
+    score_data = _RankingRecord(
+        dt=dt,
+        score=score,
+        player=player,
+    )
+    assert score_data.score == score
+    assert score_data.dt == dt
+    assert score_data.player == player
+
+
+# Ranking
+# -------
+
+
+def test_ranking_init():
+    data = [
+        _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
+        _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
+    ]
+    difficulty = Difficulty(3, 5)
+    ranking = Ranking(data=data, difficulty=difficulty)
+    assert ranking.data == data
+    assert ranking.difficulty == difficulty
+
+
+def test_ranking_init_sorting():
+    data = [
+        _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
+        _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
+        _RankingRecord(12, datetime(2021, 6, 6), "New player"),
+    ]
+    sorted_data = [
+        _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
+        _RankingRecord(12, datetime(2021, 6, 6), "New player"),
+        _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
+    ]
+    ranking = Ranking(data=data, difficulty=Difficulty(3, 5))
+    assert ranking.data == sorted_data
+
+
+def test_ranking_eq():
+    data = [
+        _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
+        _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
+    ]
+    difficulty = Difficulty(3, 5)
+    ranking0 = Ranking(data=data, difficulty=difficulty)
+    ranking1 = Ranking(data=data, difficulty=difficulty)
+    assert ranking0 == ranking1
+
+
+def test_ranking_ne_difrent_difficulties():
+    data = [
+        _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
+        _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
+    ]
+    ranking0 = Ranking(data=data, difficulty=Difficulty(3, 5))
+    ranking1 = Ranking(data=data, difficulty=Difficulty(4, 9))
+    assert not ranking0 == ranking1
+
+
+def test_ranking_ne_difrent_data():
+    data0 = [
+        _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
+        _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
+    ]
+    data1 = data0 + [
+        _RankingRecord(12, datetime(2021, 6, 6), "New player")
+    ]
+    difficulty = Difficulty(3, 5)
+    ranking0 = Ranking(data=data0, difficulty=difficulty)
+    ranking1 = Ranking(data=data1, difficulty=difficulty)
+    assert not ranking0 == ranking1
+
+
+def test_ranking_add():
+    data = [
+        _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
+        _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
+    ]
+    expected_data = [
+        _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
+        _RankingRecord(12, datetime(2021, 6, 6), "New player"),
+        _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
+    ]
+    ranking = Ranking(data=data, difficulty=Difficulty(3, 5))
+    ranking.add(
+        _RankingRecord(12, datetime(2021, 6, 6), "New player")
+    )
+    assert ranking.data == expected_data
+
+
+def test_ranking_add_overflow():
+    data = [
+        _RankingRecord(6, datetime(2021, 3, 17), "Tomasz"),
+        _RankingRecord(8, datetime(2021, 2, 18), "Maciek"),
+        _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
+        _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
+        _RankingRecord(15, datetime(2021, 6, 6), "Zofia"),
+        _RankingRecord(17, datetime(2021, 4, 5), "Piotrek"),
+        _RankingRecord(20, datetime(2020, 12, 30), "Tomasz"),
+        _RankingRecord(21, datetime(2021, 3, 20), "Tomasz"),
+        _RankingRecord(30, datetime(2020, 11, 10), "Darek"),
+        _RankingRecord(32, datetime(2020, 8, 1), "Tomasz"),
+    ]
+    expected_data = [
+        _RankingRecord(6, datetime(2021, 3, 17), "Tomasz"),
+        _RankingRecord(8, datetime(2021, 2, 18), "Maciek"),
+        _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
+        _RankingRecord(12, datetime(2021, 6, 6), "New player"),
+        _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
+        _RankingRecord(15, datetime(2021, 6, 6), "Zofia"),
+        _RankingRecord(17, datetime(2021, 4, 5), "Piotrek"),
+        _RankingRecord(20, datetime(2020, 12, 30), "Tomasz"),
+        _RankingRecord(21, datetime(2021, 3, 20), "Tomasz"),
+        _RankingRecord(30, datetime(2020, 11, 10), "Darek"),
+    ]
+    ranking = Ranking(data=data, difficulty=Difficulty(3, 5))
+    ranking.add(
+        _RankingRecord(12, datetime(2021, 6, 6), "New player")
+    )
+    assert ranking.data == expected_data
 
 
 # _ScoreData
@@ -192,6 +335,7 @@ def test_ranking_manager_is_score_fit_into_full(tmp_path):
 
 
 def test_ranking_mamager_update_not_full(tmp_path):
+    assert RANKING_SIZE == 10, "Ranking size changed"
     difficulty = Difficulty(3, 5)
     ranking_manager = RankingManager(tmp_path)
     ranking = pd.DataFrame(
@@ -446,6 +590,11 @@ def test_sequence_view_count():
     assert sequence.count(4) == 0
 
 
+def test_sequence_view_eq():
+    lst = [1, 2, 3, 2, 2]
+    assert SequenceView(lst.copy()) == SequenceView(lst.copy())
+
+
 # Other features
 # --------------
 
@@ -618,7 +767,7 @@ def test_round_core():
     assert guess_record_0.number == "145"
     assert guess_record_0.bulls == 1
     assert guess_record_0.cows == 0
-    assert round_core.history[:] == [guess_record_0]
+    assert round_core.history == [guess_record_0]
     assert round_core.steps == 1
 
     # second step
@@ -626,7 +775,7 @@ def test_round_core():
     assert guess_record_1.number == "152"
     assert guess_record_1.bulls == 1
     assert guess_record_1.cows == 1
-    assert round_core.history[:] == [guess_record_0, guess_record_1]
+    assert round_core.history == [guess_record_0, guess_record_1]
     assert round_core.steps == 2
 
     # succesive guess
@@ -634,7 +783,7 @@ def test_round_core():
     assert guess_record_last.number == number
     assert guess_record_last.bulls == difficulty.num_size
     assert guess_record_last.cows == 0
-    assert round_core.history[:] == [
+    assert round_core.history == [
         guess_record_0, guess_record_1, guess_record_last
     ]
     assert round_core.steps == 3

@@ -5,6 +5,7 @@ import random
 import sys
 from typing import (
     FrozenSet,
+    Iterable,
     List,
     NamedTuple,
     overload,
@@ -160,6 +161,11 @@ class SequenceView(Sequence[T_co]):
     def __len__(self) -> int:
         return len(self._data)
 
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, SequenceView):
+            return self._data == other._data
+        return self._data == other
+
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self._data!r})"
 
@@ -246,6 +252,44 @@ class RestartGame(GameException):
 # =============
 # Ranking tools
 # =============
+
+
+class _RankingRecord(NamedTuple):
+    score: int
+    dt: datetime
+    player: str
+
+
+class Ranking:
+
+    def __init__(
+            self,
+            data: Iterable[_RankingRecord],
+            difficulty: Difficulty,
+    ) -> None:
+        self._data = sorted(data)
+        self._difficulty = difficulty
+
+    @property
+    def data(self) -> SequenceView[_RankingRecord]:
+        return SequenceView(self._data)
+
+    @property
+    def difficulty(self) -> Difficulty:
+        return self._difficulty
+
+    def add(self, record: _RankingRecord) -> None:
+        self._data.append(record)
+        self._data.sort()
+        self._data = self._data[:RANKING_SIZE]
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Ranking):
+            return NotImplemented
+        return (
+            self.difficulty == other.difficulty
+            and self.data == other.data
+        )
 
 
 class _ScoreData(NamedTuple):
