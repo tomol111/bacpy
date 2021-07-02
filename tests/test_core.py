@@ -2,7 +2,6 @@ from dataclasses import FrozenInstanceError
 from datetime import datetime
 from pathlib import Path
 
-import pandas as pd
 import pytest
 
 from bacpy.core import (
@@ -239,31 +238,23 @@ def test_ranking_manager_get_path():
 def test_ranking_manager_save_load_unitarity(tmp_path):
     ranking_manager = RankingManager(tmp_path)
     difficulty = Difficulty(3, 5)
-    ranking = pd.DataFrame(
-        [
-            (datetime(2021, 6, 5), 10, "Tomek"),
-            (datetime(2021, 6, 4), 15, "Tomasz"),
+    ranking = Ranking(
+        data=[
+            _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
+            _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
         ],
-        columns=["datetime", "score", "player"],
+        difficulty=difficulty,
     )
-    ranking_manager._save(ranking, difficulty)
-    pd.testing.assert_frame_equal(
-        ranking_manager.load(difficulty),
-        ranking,
-    )
+    ranking_manager._save(ranking)
+    assert ranking_manager.load(difficulty) == ranking
 
 
 def test_ranking_manager_load_not_existing_ranking(tmp_path):
     ranking_manager = RankingManager(tmp_path)
     difficulty = Difficulty(3, 5)
-    expected_empty_ranking = pd.DataFrame(
-        columns=["datetime", "score", "player"]
-    ).astype({"datetime": "datetime64", "score": int})
+    expected_empty_ranking = Ranking([], difficulty)
 
-    pd.testing.assert_frame_equal(
-        ranking_manager.load(difficulty),
-        expected_empty_ranking,
-    )
+    assert ranking_manager.load(difficulty) == expected_empty_ranking
     assert ranking_manager._get_path(difficulty).exists()
 
 
@@ -277,11 +268,10 @@ def test_ranking_manager_is_not_empty(tmp_path):
     assert not ranking_manager.is_not_empty(difficulty)
 
     ranking_manager._save(
-        pd.DataFrame(
-            [(datetime(2021, 6, 5), 10, "Tomek")],
-            columns=["datetime", "score", "player"],
+        Ranking(
+            [_RankingRecord(10, datetime(2021, 6, 5), "Tomek")],
+            difficulty,
         ),
-        difficulty,
     )
     assert ranking_manager.is_not_empty(difficulty)
 
@@ -289,14 +279,14 @@ def test_ranking_manager_is_not_empty(tmp_path):
 def test_ranking_manager_is_score_fit_into_not_full(tmp_path):
     difficulty = Difficulty(3, 5)
     ranking_manager = RankingManager(tmp_path)
-    ranking = pd.DataFrame(
+    ranking = Ranking(
         [
-            (datetime(2021, 6, 5), 10, "Tomek"),
-            (datetime(2021, 6, 4), 15, "Tomasz"),
+            _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
+            _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
         ],
-        columns=["datetime", "score", "player"],
+        difficulty,
     )
-    ranking_manager._save(ranking, difficulty)
+    ranking_manager._save(ranking)
     assert ranking_manager.is_score_fit_into(
         _ScoreData(datetime(2021, 6, 6), difficulty, 12)
     )
@@ -309,22 +299,22 @@ def test_ranking_manager_is_score_fit_into_full(tmp_path):
     assert RANKING_SIZE == 10, "Ranking size changed"
     difficulty = Difficulty(3, 5)
     ranking_manager = RankingManager(tmp_path)
-    ranking = pd.DataFrame(
+    ranking = Ranking(
         [
-            (datetime(2021, 3, 17), 6, "Tomasz"),
-            (datetime(2021, 2, 18), 8, "Maciek"),
-            (datetime(2021, 6, 5), 10, "Tomek"),
-            (datetime(2021, 6, 4), 15, "Tomasz"),
-            (datetime(2021, 6, 6), 15, "Zofia"),
-            (datetime(2021, 4, 5), 17, "Piotrek"),
-            (datetime(2020, 12, 30), 20, "Tomasz"),
-            (datetime(2021, 3, 20), 21, "Tomasz"),
-            (datetime(2020, 11, 10), 30, "Darek"),
-            (datetime(2020, 8, 1), 32, "Tomasz"),
+            _RankingRecord(6, datetime(2021, 3, 17), "Tomasz"),
+            _RankingRecord(8, datetime(2021, 2, 18), "Maciek"),
+            _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
+            _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
+            _RankingRecord(15, datetime(2021, 6, 6), "Zofia"),
+            _RankingRecord(17, datetime(2021, 4, 5), "Piotrek"),
+            _RankingRecord(20, datetime(2020, 12, 30), "Tomasz"),
+            _RankingRecord(21, datetime(2021, 3, 20), "Tomasz"),
+            _RankingRecord(30, datetime(2020, 11, 10), "Darek"),
+            _RankingRecord(32, datetime(2020, 8, 1), "Tomasz"),
         ],
-        columns=["datetime", "score", "player"],
+        difficulty,
     )
-    ranking_manager._save(ranking, difficulty)
+    ranking_manager._save(ranking)
 
     assert ranking_manager.is_score_fit_into(
         _ScoreData(datetime(2021, 6, 6), difficulty, 12)
@@ -334,120 +324,101 @@ def test_ranking_manager_is_score_fit_into_full(tmp_path):
     )
 
 
-def test_ranking_mamager_update_not_full(tmp_path):
+def test_ranking_manager_update_not_full(tmp_path):
     assert RANKING_SIZE == 10, "Ranking size changed"
     difficulty = Difficulty(3, 5)
     ranking_manager = RankingManager(tmp_path)
-    ranking = pd.DataFrame(
+    ranking = Ranking(
         [
-            (datetime(2021, 6, 5), 10, "Tomek"),
-            (datetime(2021, 6, 4), 15, "Tomasz"),
+            (10, datetime(2021, 6, 5), "Tomek"),
+            (15, datetime(2021, 6, 4), "Tomasz"),
         ],
-        columns=["datetime", "score", "player"],
+        difficulty,
     )
-    ranking_manager._save(ranking, difficulty)
-    expected_ranking = pd.DataFrame(
+    ranking_manager._save(ranking)
+    expected_ranking = Ranking(
         [
-            (datetime(2021, 6, 5), 10, "Tomek"),
-            (datetime(2021, 6, 6), 12, "New player"),
-            (datetime(2021, 6, 4), 15, "Tomasz"),
+            (10, datetime(2021, 6, 5), "Tomek"),
+            (12, datetime(2021, 6, 6), "New player"),
+            (15, datetime(2021, 6, 4), "Tomasz"),
         ],
-        columns=["datetime", "score", "player"],
+        difficulty,
     )
     score_data = _ScoreData(datetime(2021, 6, 6), difficulty, 12)
 
-    updated_ranking = (
-        ranking_manager
-        .update(score_data, "New player")
-        .reset_index(drop=True)  # don't check index
-    )
+    updated_ranking = ranking_manager.update(score_data, "New player")
 
-    pd.testing.assert_frame_equal(updated_ranking, expected_ranking)
-    pd.testing.assert_frame_equal(
-        updated_ranking,
-        ranking_manager.load(difficulty),
-    )
+    assert updated_ranking == expected_ranking
+    assert updated_ranking == ranking_manager.load(difficulty)
 
 
 def test_ranking_mamager_update_full(tmp_path):
     difficulty = Difficulty(3, 5)
     ranking_manager = RankingManager(tmp_path)
-    ranking = pd.DataFrame(
+    ranking = Ranking(
         [
-            (datetime(2021, 3, 17), 6, "Tomasz"),
-            (datetime(2021, 2, 18), 8, "Maciek"),
-            (datetime(2021, 6, 5), 10, "Tomek"),
-            (datetime(2021, 6, 4), 15, "Tomasz"),
-            (datetime(2021, 6, 6), 15, "Zofia"),
-            (datetime(2021, 4, 5), 17, "Piotrek"),
-            (datetime(2020, 12, 30), 20, "Tomasz"),
-            (datetime(2021, 3, 20), 21, "Tomasz"),
-            (datetime(2020, 11, 10), 30, "Darek"),
-            (datetime(2020, 8, 1), 32, "Tomasz"),
+            _RankingRecord(6, datetime(2021, 3, 17), "Tomasz"),
+            _RankingRecord(8, datetime(2021, 2, 18), "Maciek"),
+            _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
+            _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
+            _RankingRecord(15, datetime(2021, 6, 6), "Zofia"),
+            _RankingRecord(17, datetime(2021, 4, 5), "Piotrek"),
+            _RankingRecord(20, datetime(2020, 12, 30), "Tomasz"),
+            _RankingRecord(21, datetime(2021, 3, 20), "Tomasz"),
+            _RankingRecord(30, datetime(2020, 11, 10), "Darek"),
+            _RankingRecord(32, datetime(2020, 8, 1), "Tomasz"),
         ],
-        columns=["datetime", "score", "player"],
+        difficulty,
     )
-    ranking_manager._save(ranking, difficulty)
-    expected_ranking = pd.DataFrame(
+    ranking_manager._save(ranking)
+    expected_ranking = Ranking(
         [
-            (datetime(2021, 3, 17), 6, "Tomasz"),
-            (datetime(2021, 2, 18), 8, "Maciek"),
-            (datetime(2021, 6, 5), 10, "Tomek"),
-            (datetime(2021, 6, 6), 12, "New player"),
-            (datetime(2021, 6, 4), 15, "Tomasz"),
-            (datetime(2021, 6, 6), 15, "Zofia"),
-            (datetime(2021, 4, 5), 17, "Piotrek"),
-            (datetime(2020, 12, 30), 20, "Tomasz"),
-            (datetime(2021, 3, 20), 21, "Tomasz"),
-            (datetime(2020, 11, 10), 30, "Darek"),
+            _RankingRecord(6, datetime(2021, 3, 17), "Tomasz"),
+            _RankingRecord(8, datetime(2021, 2, 18), "Maciek"),
+            _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
+            _RankingRecord(12, datetime(2021, 6, 6), "New player"),
+            _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
+            _RankingRecord(15, datetime(2021, 6, 6), "Zofia"),
+            _RankingRecord(17, datetime(2021, 4, 5), "Piotrek"),
+            _RankingRecord(20, datetime(2020, 12, 30), "Tomasz"),
+            _RankingRecord(21, datetime(2021, 3, 20), "Tomasz"),
+            _RankingRecord(30, datetime(2020, 11, 10), "Darek"),
         ],
-        columns=["datetime", "score", "player"],
+        difficulty,
     )
     score_data = _ScoreData(datetime(2021, 6, 6), difficulty, 12)
 
-    updated_ranking = (
-        ranking_manager
-        .update(score_data, "New player")
-    )
+    updated_ranking = ranking_manager.update(score_data, "New player")
 
-    pd.testing.assert_frame_equal(updated_ranking, expected_ranking)
-    pd.testing.assert_frame_equal(
-        updated_ranking,
-        ranking_manager.load(difficulty),
-    )
+    assert updated_ranking == expected_ranking
+    assert updated_ranking == ranking_manager.load(difficulty)
 
 
 def test_ranking_mamager_update_overflow(tmp_path):
     difficulty = Difficulty(3, 5)
     ranking_manager = RankingManager(tmp_path)
-    ranking = pd.DataFrame(
+    ranking = Ranking(
         [
-            (datetime(2021, 3, 17), 6, "Tomasz"),
-            (datetime(2021, 2, 18), 8, "Maciek"),
-            (datetime(2021, 6, 5), 10, "Tomek"),
-            (datetime(2021, 6, 4), 15, "Tomasz"),
-            (datetime(2021, 6, 6), 15, "Zofia"),
-            (datetime(2021, 4, 5), 17, "Piotrek"),
-            (datetime(2020, 12, 30), 20, "Tomasz"),
-            (datetime(2021, 3, 20), 21, "Tomasz"),
-            (datetime(2020, 11, 10), 30, "Darek"),
-            (datetime(2020, 8, 1), 32, "Tomasz"),
+            _RankingRecord(6, datetime(2021, 3, 17), "Tomasz"),
+            _RankingRecord(8, datetime(2021, 2, 18), "Maciek"),
+            _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
+            _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
+            _RankingRecord(15, datetime(2021, 6, 6), "Zofia"),
+            _RankingRecord(17, datetime(2021, 4, 5), "Piotrek"),
+            _RankingRecord(20, datetime(2020, 12, 30), "Tomasz"),
+            _RankingRecord(21, datetime(2021, 3, 20), "Tomasz"),
+            _RankingRecord(30, datetime(2020, 11, 10), "Darek"),
+            _RankingRecord(32, datetime(2020, 8, 1), "Tomasz"),
         ],
-        columns=["datetime", "score", "player"],
+        difficulty,
     )
-    ranking_manager._save(ranking, difficulty)
+    ranking_manager._save(ranking)
     score_data = _ScoreData(datetime(2021, 6, 6), difficulty, 35)
 
-    updated_ranking = (
-        ranking_manager
-        .update(score_data, "New player")
-    )
+    updated_ranking = ranking_manager.update(score_data, "New player")
 
-    pd.testing.assert_frame_equal(updated_ranking, ranking)
-    pd.testing.assert_frame_equal(
-        updated_ranking,
-        ranking_manager.load(difficulty),
-    )
+    assert updated_ranking == ranking
+    assert updated_ranking == ranking_manager.load(difficulty)
 
 
 # ============

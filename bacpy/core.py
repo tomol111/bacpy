@@ -1,3 +1,4 @@
+import csv
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -13,8 +14,6 @@ from typing import (
     Tuple,
     TypeVar,
 )
-
-import pandas as pd
 
 if sys.version_info >= (3, 8):
     from typing import Final, final
@@ -312,26 +311,32 @@ class RankingManager:
 
     def _save(
             self,
-            ranking: pd.DataFrame,
-            difficulty: Difficulty,
+            ranking: Ranking,
     ) -> None:
-        ranking.to_csv(
-            self._get_path(difficulty),
-            header=False,
-            index=False,
-        )
+        path = self._get_path(ranking.difficulty)
+        with open(path, "w") as file:
+            writer = csv.writer(file)
+            writer.writerows(ranking.data)
 
-    def load(self, difficulty: Difficulty) -> pd.DataFrame:
+    def load(self, difficulty: Difficulty) -> Ranking:
         """Read and return ranking by given difficulty.
 
         If ranking is not available return empty one.
         """
         path = self._get_path(difficulty)
         path.touch()
-        return pd.read_csv(
-            path,
-            names=["datetime", "score", "player"],
-        ).astype({"datetime": "datetime64", "score": int})
+        with open(path, "r") as file:
+            return Ranking(
+                data=(
+                    _RankingRecord(
+                        int(score),
+                        datetime.fromisoformat(dt),
+                        player,
+                    )
+                    for score, dt, player in csv.reader(file)
+                ),
+                difficulty=difficulty,
+            )
 
     def is_not_empty(self, difficulty: Difficulty) -> bool:
         path = self._get_path(difficulty)
@@ -340,29 +345,22 @@ class RankingManager:
     def is_score_fit_into(self, score_data: _ScoreData) -> bool:
         ranking = self.load(score_data.difficulty)
         return (
-            len(ranking) < RANKING_SIZE
-            or ranking.score.iat[-1] > score_data.score
+            len(ranking.data) < RANKING_SIZE
+            or ranking.data[-1].score > score_data.score
         )
 
     def update(
             self,
             score_data: _ScoreData,
             player: str,
-    ) -> pd.DataFrame:
+    ) -> Ranking:
         ranking = self.load(score_data.difficulty)
-        updated_ranking = (
-            ranking
-            .append(
-                {
-                    "datetime": score_data.finish_datetime,
-                    "score": score_data.score,
-                    "player": player,
-                },
-                ignore_index=True,
+        ranking.add(
+            _RankingRecord(
+                score_data.score,
+                score_data.finish_datetime,
+                player,
             )
-            .sort_values(by=["score", "datetime"])
-            .head(RANKING_SIZE)
-            .reset_index(drop=True)
         )
-        self._save(updated_ranking, score_data.difficulty)
-        return updated_ranking
+        self._save(ranking)
+        return ranking

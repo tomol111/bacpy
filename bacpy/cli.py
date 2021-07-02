@@ -2,6 +2,7 @@ from abc import ABCMeta, abstractmethod
 from collections import Counter
 from contextlib import ContextDecorator, contextmanager
 import inspect
+import itertools
 from operator import attrgetter
 from pathlib import Path
 import shlex
@@ -23,7 +24,6 @@ from typing import (
     Union,
 )
 
-import pandas as pd
 from prompt_toolkit import PromptSession
 from prompt_toolkit.document import Document
 from prompt_toolkit.shortcuts import prompt
@@ -36,6 +36,7 @@ from .core import (
     draw_number,
     PLAYER_NAME_LIMS,
     QuitGame,
+    Ranking,
     RankingManager,
     RANKING_SIZE,
     RANKINGS_DIR,
@@ -269,23 +270,18 @@ def pager(text: str) -> None:
     subprocess.run(["less", "-C"], input=text.encode())
 
 
-def ranking_table(ranking: pd.DataFrame) -> str:
-    ranking = (
-        ranking
-        [["score", "player"]]
-        .astype({"score": str})
-        .reset_index(drop=True)
-        .join(
-            pd.Series(range(1, RANKING_SIZE + 1), name="pos."),
-            how="outer",
+def ranking_table(ranking: Ranking) -> str:
+    data = [
+        (index, score, player)
+        for index, (score, _, player) in itertools.zip_longest(
+            range(1, RANKING_SIZE + 1),
+            ranking.data,
+            fillvalue=("-", None, "-"),
         )
-        .set_index("pos.")
-        .fillna("-")
-    )
-
+    ]
     return tabulate(
-        ranking,
-        headers="keys",
+        data,
+        headers=("Pos.", "Score", "Player"),
         colalign=("left", "center", "left"),
     )
 
