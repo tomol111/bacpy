@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import csv
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -40,7 +42,7 @@ RANKING_SIZE: Final[int] = 10
 class RoundCore:
     """Round core class."""
 
-    def __init__(self, number: str, difficulty: "Difficulty") -> None:
+    def __init__(self, number: str, difficulty: Difficulty) -> None:
         self._number = number
         self._difficulty = difficulty
         assert is_number_valid(difficulty, number)
@@ -52,7 +54,7 @@ class RoundCore:
             print(self._number)
 
     @property
-    def history(self) -> "SequenceView[GuessingRecord]":
+    def history(self) -> SequenceView[GuessingRecord]:
         return SequenceView(self._history)
 
     @property
@@ -60,14 +62,14 @@ class RoundCore:
         return len(self._history)
 
     @property
-    def difficulty(self) -> "Difficulty":
+    def difficulty(self) -> Difficulty:
         return self._difficulty
 
     @property
     def finished(self) -> bool:
         return self._finished
 
-    def parse_guess(self, guess: str) -> "GuessingRecord":
+    def parse_guess(self, guess: str) -> GuessingRecord:
 
         if self._finished:
             raise RuntimeError("Round has been finished")
@@ -83,7 +85,7 @@ class RoundCore:
 
         return hist_record
 
-    def get_score_data(self) -> "_ScoreData":
+    def get_score_data(self) -> _ScoreData:
 
         if not self._finished:
             raise RuntimeError("Round has not been finished")
@@ -98,7 +100,7 @@ class RoundCore:
         )
 
 
-def draw_number(difficulty: "Difficulty") -> str:
+def draw_number(difficulty: Difficulty) -> str:
     """Draw number valid for given difficulty.
 
     It used by `RoundCore` but can be used to generate random guesses.
@@ -108,7 +110,7 @@ def draw_number(difficulty: "Difficulty") -> str:
     )
 
 
-def is_number_valid(difficulty: "Difficulty", number: str) -> bool:
+def is_number_valid(difficulty: Difficulty, number: str) -> bool:
     """Quick check if number is valid for given difficulty."""
     return (
         not set(number) - difficulty.digs_set  # wrong characters

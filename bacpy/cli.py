@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from abc import ABCMeta, abstractmethod
 from collections import Counter
 from contextlib import ContextDecorator, contextmanager
