@@ -724,8 +724,8 @@ def test_round_core():
     assert not round_core.history
     assert not round_core.steps
     assert not round_core.finished
-    with pytest.raises(RuntimeError):
-        round_core.get_score_data()
+    with pytest.raises(AttributeError):
+        round_core.score_data
 
     # invalid number
     with pytest.raises(ValueError):
@@ -763,11 +763,7 @@ def test_round_core():
     # finished
     with pytest.raises(RuntimeError):
         round_core.parse_guess(number)
-    score_data = round_core.get_score_data()
+    score_data = round_core.score_data
     assert score_data.finish_datetime
     assert score_data.difficulty == difficulty
     assert score_data.score == 3
-
-    # score data available once
-    with pytest.raises(RuntimeError):
-        round_core.get_score_data()

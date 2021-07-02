@@ -144,7 +144,7 @@ def play_round(
 
     print(f"\n *** You guessed in {round_core.steps} steps ***\n")
 
-    score_data = round_core.get_score_data()
+    score_data = round_core.score_data
     if ranking_manager.is_score_fit_into(score_data):
         player = next(player_name_iter)
         if player:

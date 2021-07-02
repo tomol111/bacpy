@@ -11,6 +11,7 @@ from typing import (
     Iterable,
     List,
     NamedTuple,
+    Optional,
     overload,
     Sequence,
     Tuple,
@@ -48,7 +49,7 @@ class RoundCore:
         assert is_number_valid(difficulty, number)
         self._history: List["GuessingRecord"] = []
         self._finished = False
-        self._score_data_generated = False
+        self._score_data: Optional[_ScoreData] = None
 
         if sys.flags.dev_mode:
             print(self._number)
@@ -69,6 +70,12 @@ class RoundCore:
     def finished(self) -> bool:
         return self._finished
 
+    @property
+    def score_data(self) -> _ScoreData:
+        if self._score_data is None:
+            raise AttributeError("`score_data` not yet available")
+        return self._score_data
+
     def parse_guess(self, guess: str) -> GuessingRecord:
 
         if self._finished:
@@ -82,22 +89,13 @@ class RoundCore:
 
         if bulls == self.difficulty.num_size:
             self._finished = True
+            self._score_data = _ScoreData(
+                finish_datetime=datetime.now(),
+                difficulty=self.difficulty,
+                score=self.steps,
+            )
 
         return hist_record
-
-    def get_score_data(self) -> _ScoreData:
-
-        if not self._finished:
-            raise RuntimeError("Round has not been finished")
-        if self._score_data_generated:
-            raise RuntimeError("Data has been generated")
-
-        self._score_data_generated = True
-        return _ScoreData(
-            finish_datetime=datetime.now(),
-            difficulty=self.difficulty,
-            score=self.steps,
-        )
 
 
 def draw_number(difficulty: Difficulty) -> str:
