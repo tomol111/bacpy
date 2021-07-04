@@ -92,7 +92,7 @@ class RoundCore:
             self._score_data = _ScoreData(
                 score=self.steps,
                 dt=datetime.now(),
-                difficulty=self.difficulty,
+                difficulty=self.difficulty.to_simple(),
             )
 
         return hist_record
@@ -178,6 +178,25 @@ MIN_NUM_SIZE: Final[int] = 3
 DIGITS_RANGE: Final[str] = "123456789abcdefghijklmnopqrstuvwxyz"
 
 
+@dataclass(order=True, frozen=True)
+class SimpleDifficulty:
+
+    num_size: int
+    digs_num: int
+
+    def __post_init__(self):
+        if self.num_size < MIN_NUM_SIZE:
+            raise ValueError(
+                f"`num_size` ({self.num_size}) smaller than `MIN_NUM_SIZE`"
+                f" ({MIN_NUM_SIZE})"
+            )
+        if self.num_size >= self.digs_num:
+            raise ValueError(
+                f"`num_size` ({self.num_size}) not less than `digs_num`"
+                f" ({self.digs_num})"
+            )
+
+
 def default_digs_set(digs_num: int) -> FrozenSet[str]:
     _validate_digs_num_for_defaults(digs_num)
     return frozenset(DIGITS_RANGE[:digs_num])
@@ -207,10 +226,8 @@ def _validate_digs_num_for_defaults(digs_num: int) -> None:
 
 
 @dataclass(order=True, frozen=True)
-class Difficulty:
+class Difficulty(SimpleDifficulty):
 
-    num_size: int
-    digs_num: int
     digs_set: FrozenSet[str] = field(compare=False)
     digs_range: str = field(compare=False)
     name: str = field(default="", compare=False)
@@ -227,21 +244,15 @@ class Difficulty:
         return cls(num_size, digs_num, digs_set, digs_range, name)
 
     def __post_init__(self):
-        if self.num_size < MIN_NUM_SIZE:
-            raise ValueError(
-                f"`num_size` ({self.num_size}) smaller than `MIN_NUM_SIZE`"
-                f" ({MIN_NUM_SIZE})"
-            )
-        if self.num_size >= self.digs_num:
-            raise ValueError(
-                f"`num_size` ({self.num_size}) not less than `digs_num`"
-                f" ({self.digs_num})"
-            )
+        super().__post_init__()
         if self.digs_num != len(self.digs_set):
             raise ValueError(
                 f"`digs_num` ({self.digs_num}) is diffrent from length of"
                 f" `digs_set` ({self.digs_num})"
             )
+
+    def to_simple(self) -> SimpleDifficulty:
+        return SimpleDifficulty(self.num_size, self.digs_num)
 
 
 DEFAULT_DIFFICULTIES: Final[Tuple[Difficulty, ...]] = tuple(
@@ -293,7 +304,7 @@ class Ranking:
     def __init__(
             self,
             data: Iterable[_RankingRecord],
-            difficulty: Difficulty,
+            difficulty: SimpleDifficulty,
     ) -> None:
         self._data = sorted(data)
         self._difficulty = difficulty
@@ -303,7 +314,7 @@ class Ranking:
         return SequenceView(self._data)
 
     @property
-    def difficulty(self) -> Difficulty:
+    def difficulty(self) -> SimpleDifficulty:
         return self._difficulty
 
     def add(self, record: _RankingRecord) -> None:
@@ -324,7 +335,7 @@ class _ScoreData(NamedTuple):
     """Data that can be used to save score."""
     score: int
     dt: datetime
-    difficulty: Difficulty
+    difficulty: SimpleDifficulty
 
 
 class RankingManager:
@@ -332,7 +343,7 @@ class RankingManager:
     def __init__(self, rankings_dir: Path) -> None:
         self._rankings_dir = rankings_dir
 
-    def _get_path(self, difficulty: Difficulty) -> Path:
+    def _get_path(self, difficulty: SimpleDifficulty) -> Path:
         return (
             self._rankings_dir
             / f"{difficulty.num_size}_{difficulty.digs_num}.csv"
@@ -347,7 +358,7 @@ class RankingManager:
             writer = csv.writer(file)
             writer.writerows(ranking.data)
 
-    def load(self, difficulty: Difficulty) -> Ranking:
+    def load(self, difficulty: SimpleDifficulty) -> Ranking:
         """Read and return ranking by given difficulty.
 
         If ranking is not available return empty one.
@@ -367,7 +378,7 @@ class RankingManager:
                 difficulty=difficulty,
             )
 
-    def is_not_empty(self, difficulty: Difficulty) -> bool:
+    def is_not_empty(self, difficulty: SimpleDifficulty) -> bool:
         path = self._get_path(difficulty)
         return path.exists() and bool(path.stat().st_size)
 

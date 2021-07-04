@@ -24,6 +24,7 @@ from bacpy.core import (
     RoundCore,
     _ScoreData,
     SequenceView,
+    SimpleDifficulty,
     StopPlaying,
     _validate_digs_num_for_defaults,
 )
@@ -95,7 +96,7 @@ def test_ranking_init():
         _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
         _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
     ]
-    difficulty = Difficulty.new_default(3, 5)
+    difficulty = SimpleDifficulty(3, 6)
     ranking = Ranking(data, difficulty)
     assert ranking.data == data
     assert ranking.difficulty == difficulty
@@ -112,7 +113,7 @@ def test_ranking_init_sorting():
         _RankingRecord(12, datetime(2021, 6, 6), "New player"),
         _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
     ]
-    ranking = Ranking(data, Difficulty.new_default(3, 5))
+    ranking = Ranking(data, SimpleDifficulty(3, 6))
     assert ranking.data == sorted_data
 
 
@@ -121,7 +122,7 @@ def test_ranking_eq():
         _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
         _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
     ]
-    difficulty = Difficulty.new_default(3, 5)
+    difficulty = SimpleDifficulty(3, 6)
     ranking0 = Ranking(data, difficulty)
     ranking1 = Ranking(data, difficulty)
     assert ranking0 == ranking1
@@ -132,8 +133,8 @@ def test_ranking_ne_difrent_difficulties():
         _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
         _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
     ]
-    ranking0 = Ranking(data, Difficulty.new_default(3, 5))
-    ranking1 = Ranking(data, Difficulty.new_default(4, 9))
+    ranking0 = Ranking(data, SimpleDifficulty(3, 6))
+    ranking1 = Ranking(data, SimpleDifficulty(4, 9))
     assert not ranking0 == ranking1
 
 
@@ -145,7 +146,7 @@ def test_ranking_ne_difrent_data():
     data1 = data0 + [
         _RankingRecord(12, datetime(2021, 6, 6), "New player")
     ]
-    difficulty = Difficulty.new_default(3, 5)
+    difficulty = SimpleDifficulty(3, 6)
     ranking0 = Ranking(data0, difficulty)
     ranking1 = Ranking(data1, difficulty)
     assert not ranking0 == ranking1
@@ -161,7 +162,7 @@ def test_ranking_add():
         _RankingRecord(12, datetime(2021, 6, 6), "New player"),
         _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
     ]
-    ranking = Ranking(data, Difficulty.new_default(3, 5))
+    ranking = Ranking(data, SimpleDifficulty(3, 6))
     ranking.add(
         _RankingRecord(12, datetime(2021, 6, 6), "New player")
     )
@@ -193,7 +194,7 @@ def test_ranking_add_overflow():
         _RankingRecord(21, datetime(2021, 3, 20), "Tomasz"),
         _RankingRecord(30, datetime(2020, 11, 10), "Darek"),
     ]
-    ranking = Ranking(data, Difficulty.new_default(3, 5))
+    ranking = Ranking(data, SimpleDifficulty(3, 6))
     ranking.add(
         _RankingRecord(12, datetime(2021, 6, 6), "New player")
     )
@@ -208,7 +209,7 @@ def test_score_data_as_tuple():
     score_data = _ScoreData(
         10,
         datetime(2021, 6, 5),
-        Difficulty.new_default(3, 5),
+        SimpleDifficulty(3, 6),
     )
     assert isinstance(score_data, tuple)
 
@@ -216,7 +217,7 @@ def test_score_data_as_tuple():
 def test_score_data_as_namespace():
     score = 10
     dt = datetime(2021, 6, 5)
-    difficulty = Difficulty.new_default(3, 5)
+    difficulty = SimpleDifficulty(3, 6)
     score_data = _ScoreData(
         score=score,
         dt=dt,
@@ -234,13 +235,13 @@ def test_score_data_as_namespace():
 def test_ranking_manager_get_path():
     path = Path("some_dir")
     assert RankingManager(path)._get_path(
-        Difficulty.new_default(3, 5)
-    ) == path / "3_5.csv"
+        SimpleDifficulty(3, 6)
+    ) == path / "3_6.csv"
 
 
 def test_ranking_manager_save_load_unitarity(tmp_path):
     ranking_manager = RankingManager(tmp_path)
-    difficulty = Difficulty.new_default(3, 5)
+    difficulty = SimpleDifficulty(3, 6)
     ranking = Ranking(
         [
             _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
@@ -254,7 +255,7 @@ def test_ranking_manager_save_load_unitarity(tmp_path):
 
 def test_ranking_manager_load_not_existing_ranking(tmp_path):
     ranking_manager = RankingManager(tmp_path)
-    difficulty = Difficulty.new_default(3, 5)
+    difficulty = SimpleDifficulty(3, 6)
     expected_empty_ranking = Ranking([], difficulty)
 
     assert ranking_manager.load(difficulty) == expected_empty_ranking
@@ -262,7 +263,7 @@ def test_ranking_manager_load_not_existing_ranking(tmp_path):
 
 
 def test_ranking_manager_is_not_empty(tmp_path):
-    difficulty = Difficulty.new_default(3, 5)
+    difficulty = SimpleDifficulty(3, 6)
     ranking_manager = RankingManager(tmp_path)
 
     assert not ranking_manager.is_not_empty(difficulty)
@@ -280,7 +281,7 @@ def test_ranking_manager_is_not_empty(tmp_path):
 
 
 def test_ranking_manager_is_score_fit_into_not_full(tmp_path):
-    difficulty = Difficulty.new_default(3, 5)
+    difficulty = SimpleDifficulty(3, 6)
     ranking_manager = RankingManager(tmp_path)
     ranking = Ranking(
         [
@@ -300,7 +301,7 @@ def test_ranking_manager_is_score_fit_into_not_full(tmp_path):
 
 def test_ranking_manager_is_score_fit_into_full(tmp_path):
     assert RANKING_SIZE == 10, "Ranking size changed"
-    difficulty = Difficulty.new_default(3, 5)
+    difficulty = SimpleDifficulty(3, 6)
     ranking_manager = RankingManager(tmp_path)
     ranking = Ranking(
         [
@@ -329,7 +330,7 @@ def test_ranking_manager_is_score_fit_into_full(tmp_path):
 
 def test_ranking_manager_update_not_full(tmp_path):
     assert RANKING_SIZE == 10, "Ranking size changed"
-    difficulty = Difficulty.new_default(3, 5)
+    difficulty = SimpleDifficulty(3, 6)
     ranking_manager = RankingManager(tmp_path)
     ranking = Ranking(
         [
@@ -355,7 +356,7 @@ def test_ranking_manager_update_not_full(tmp_path):
 
 
 def test_ranking_mamager_update_full(tmp_path):
-    difficulty = Difficulty.new_default(3, 5)
+    difficulty = SimpleDifficulty(3, 6)
     ranking_manager = RankingManager(tmp_path)
     ranking = Ranking(
         [
@@ -397,7 +398,7 @@ def test_ranking_mamager_update_full(tmp_path):
 
 
 def test_ranking_manager_update_overflow(tmp_path):
-    difficulty = Difficulty.new_default(3, 5)
+    difficulty = SimpleDifficulty(3, 6)
     ranking_manager = RankingManager(tmp_path)
     ranking = Ranking(
         [
@@ -426,6 +427,60 @@ def test_ranking_manager_update_overflow(tmp_path):
 # ============
 # Difficulties
 # ============
+
+
+def test_simple_difficulty_init():
+    num_size = 3
+    digs_num = 6
+    difficulty = SimpleDifficulty(num_size, digs_num)
+    assert difficulty.num_size == num_size
+    assert difficulty.digs_num == digs_num
+
+
+@pytest.mark.parametrize(
+    ("num_size", "digs_num"),
+    (
+        (6, 6),  # num_size == digs_num
+        (7, 5),  # num_size > digs_num
+        (MIN_NUM_SIZE - 1, 5),
+    ),
+)
+def test_simple_difficulty_not_valid(num_size, digs_num):
+    with pytest.raises(ValueError):
+        SimpleDifficulty(num_size, digs_num)
+
+
+def test_simple_difficulty_eq():
+    assert (
+        SimpleDifficulty(3, 6)
+        == SimpleDifficulty(3, 6)
+    )
+
+
+def test_simple_difficulty_ne():
+    assert (
+        SimpleDifficulty(3, 6)
+        != SimpleDifficulty(3, 7)
+    )
+
+
+def test_simple_difficulty_ordering():
+    difficulties = [
+        SimpleDifficulty(5, 10),
+        SimpleDifficulty(6, 10),
+        SimpleDifficulty(3, 6),
+    ]
+    assert sorted(difficulties) == [
+        SimpleDifficulty(3, 6),
+        SimpleDifficulty(5, 10),
+        SimpleDifficulty(6, 10),
+    ]
+
+
+def test_simple_difficulty_frozen():
+    difficulty = SimpleDifficulty(3, 6)
+    with pytest.raises(FrozenInstanceError):
+        del difficulty.num_size
 
 
 @pytest.mark.parametrize(
@@ -495,6 +550,10 @@ def test_default_validation(digs_num):
         default_digs_set(digs_num)
     with pytest.raises(ValueError):
         default_digs_range(digs_num)
+
+
+def test_difficulty_inheritance():
+    assert issubclass(Difficulty, SimpleDifficulty)
 
 
 def test_difficulty_init():
@@ -787,7 +846,7 @@ def test_draw_number(difficulty):
 
 def test_round_core():
     number = "123"
-    difficulty = Difficulty.new_default(3, 5)
+    difficulty = Difficulty.new_default(3, 6)
     round_core = RoundCore(number, difficulty)
 
     # After initiation
@@ -836,5 +895,5 @@ def test_round_core():
         round_core.parse_guess(number)
     score_data = round_core.score_data
     assert score_data.dt
-    assert score_data.difficulty == difficulty
+    assert score_data.difficulty == difficulty.to_simple()
     assert score_data.score == 3
