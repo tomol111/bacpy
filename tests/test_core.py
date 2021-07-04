@@ -206,25 +206,25 @@ def test_ranking_add_overflow():
 
 def test_score_data_as_tuple():
     score_data = _ScoreData(
+        10,
         datetime(2021, 6, 5),
         Difficulty.new_default(3, 5),
-        10,
     )
     assert isinstance(score_data, tuple)
 
 
 def test_score_data_as_namespace():
-    finish_datetime = datetime(2021, 6, 5)
-    difficulty = Difficulty.new_default(3, 5)
     score = 10
+    dt = datetime(2021, 6, 5)
+    difficulty = Difficulty.new_default(3, 5)
     score_data = _ScoreData(
-        finish_datetime=finish_datetime,
-        difficulty=difficulty,
         score=score,
+        dt=dt,
+        difficulty=difficulty,
     )
-    assert score_data.finish_datetime == finish_datetime
-    assert score_data.difficulty == difficulty
     assert score_data.score == score
+    assert score_data.dt == dt
+    assert score_data.difficulty == difficulty
 
 
 # RankingManager
@@ -291,10 +291,10 @@ def test_ranking_manager_is_score_fit_into_not_full(tmp_path):
     )
     ranking_manager._save(ranking)
     assert ranking_manager.is_score_fit_into(
-        _ScoreData(datetime(2021, 6, 6), difficulty, 12)
+        _ScoreData(12, datetime(2021, 6, 6), difficulty)
     )
     assert ranking_manager.is_score_fit_into(
-        _ScoreData(datetime(2021, 6, 7), difficulty, 16)
+        _ScoreData(16, datetime(2021, 6, 7), difficulty)
     )
 
 
@@ -320,10 +320,10 @@ def test_ranking_manager_is_score_fit_into_full(tmp_path):
     ranking_manager._save(ranking)
 
     assert ranking_manager.is_score_fit_into(
-        _ScoreData(datetime(2021, 6, 6), difficulty, 12)
+        _ScoreData(12, datetime(2021, 6, 6), difficulty)
     )
     assert not ranking_manager.is_score_fit_into(
-        _ScoreData(datetime(2021, 6, 6), difficulty, 33)
+        _ScoreData(33, datetime(2021, 6, 6), difficulty)
     )
 
 
@@ -347,7 +347,7 @@ def test_ranking_manager_update_not_full(tmp_path):
         ],
         difficulty,
     )
-    score_data = _ScoreData(datetime(2021, 6, 6), difficulty, 12)
+    score_data = _ScoreData(12, datetime(2021, 6, 6), difficulty)
 
     updated_ranking = ranking_manager.update(score_data, "New player")
 
@@ -388,7 +388,7 @@ def test_ranking_mamager_update_full(tmp_path):
         ],
         difficulty,
     )
-    score_data = _ScoreData(datetime(2021, 6, 6), difficulty, 12)
+    score_data = _ScoreData(12, datetime(2021, 6, 6), difficulty)
 
     updated_ranking = ranking_manager.update(score_data, "New player")
 
@@ -415,7 +415,7 @@ def test_ranking_manager_update_overflow(tmp_path):
         difficulty,
     )
     ranking_manager._save(ranking)
-    score_data = _ScoreData(datetime(2021, 6, 6), difficulty, 35)
+    score_data = _ScoreData(35, datetime(2021, 6, 6), difficulty)
 
     updated_ranking = ranking_manager.update(score_data, "New player")
 
@@ -835,6 +835,6 @@ def test_round_core():
     with pytest.raises(RuntimeError):
         round_core.parse_guess(number)
     score_data = round_core.score_data
-    assert score_data.finish_datetime
+    assert score_data.dt
     assert score_data.difficulty == difficulty
     assert score_data.score == 3

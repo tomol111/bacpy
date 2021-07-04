@@ -90,9 +90,9 @@ class RoundCore:
         if bulls == self.difficulty.num_size:
             self._finished = True
             self._score_data = _ScoreData(
-                finish_datetime=datetime.now(),
-                difficulty=self.difficulty,
                 score=self.steps,
+                dt=datetime.now(),
+                difficulty=self.difficulty,
             )
 
         return hist_record
@@ -322,9 +322,9 @@ class Ranking:
 
 class _ScoreData(NamedTuple):
     """Data that can be used to save score."""
-    finish_datetime: datetime
-    difficulty: Difficulty
     score: int
+    dt: datetime
+    difficulty: Difficulty
 
 
 class RankingManager:
@@ -387,7 +387,7 @@ class RankingManager:
         ranking.add(
             _RankingRecord(
                 score_data.score,
-                score_data.finish_datetime,
+                score_data.dt,
                 player,
             )
         )
