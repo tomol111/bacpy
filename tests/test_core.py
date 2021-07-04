@@ -6,6 +6,8 @@ import pytest
 
 from bacpy.core import (
     _comput_bullscows,
+    default_digs_range,
+    default_digs_set,
     Difficulty,
     DIGITS_RANGE,
     draw_number,
@@ -23,6 +25,7 @@ from bacpy.core import (
     _ScoreData,
     SequenceView,
     StopPlaying,
+    _validate_digs_num_for_defaults,
 )
 
 
@@ -46,7 +49,7 @@ def test_game_exceptions(exception_cls):
 
 
 def test_restart_game_exception():
-    difficulty = Difficulty(3, 5)
+    difficulty = Difficulty.new_default(3, 5)
     exception = RestartGame(difficulty)
     assert exception.difficulty == difficulty
 
@@ -92,8 +95,8 @@ def test_ranking_init():
         _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
         _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
     ]
-    difficulty = Difficulty(3, 5)
-    ranking = Ranking(data=data, difficulty=difficulty)
+    difficulty = Difficulty.new_default(3, 5)
+    ranking = Ranking(data, difficulty)
     assert ranking.data == data
     assert ranking.difficulty == difficulty
 
@@ -109,7 +112,7 @@ def test_ranking_init_sorting():
         _RankingRecord(12, datetime(2021, 6, 6), "New player"),
         _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
     ]
-    ranking = Ranking(data=data, difficulty=Difficulty(3, 5))
+    ranking = Ranking(data, Difficulty.new_default(3, 5))
     assert ranking.data == sorted_data
 
 
@@ -118,9 +121,9 @@ def test_ranking_eq():
         _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
         _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
     ]
-    difficulty = Difficulty(3, 5)
-    ranking0 = Ranking(data=data, difficulty=difficulty)
-    ranking1 = Ranking(data=data, difficulty=difficulty)
+    difficulty = Difficulty.new_default(3, 5)
+    ranking0 = Ranking(data, difficulty)
+    ranking1 = Ranking(data, difficulty)
     assert ranking0 == ranking1
 
 
@@ -129,8 +132,8 @@ def test_ranking_ne_difrent_difficulties():
         _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
         _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
     ]
-    ranking0 = Ranking(data=data, difficulty=Difficulty(3, 5))
-    ranking1 = Ranking(data=data, difficulty=Difficulty(4, 9))
+    ranking0 = Ranking(data, Difficulty.new_default(3, 5))
+    ranking1 = Ranking(data, Difficulty.new_default(4, 9))
     assert not ranking0 == ranking1
 
 
@@ -142,9 +145,9 @@ def test_ranking_ne_difrent_data():
     data1 = data0 + [
         _RankingRecord(12, datetime(2021, 6, 6), "New player")
     ]
-    difficulty = Difficulty(3, 5)
-    ranking0 = Ranking(data=data0, difficulty=difficulty)
-    ranking1 = Ranking(data=data1, difficulty=difficulty)
+    difficulty = Difficulty.new_default(3, 5)
+    ranking0 = Ranking(data0, difficulty)
+    ranking1 = Ranking(data1, difficulty)
     assert not ranking0 == ranking1
 
 
@@ -158,7 +161,7 @@ def test_ranking_add():
         _RankingRecord(12, datetime(2021, 6, 6), "New player"),
         _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
     ]
-    ranking = Ranking(data=data, difficulty=Difficulty(3, 5))
+    ranking = Ranking(data, Difficulty.new_default(3, 5))
     ranking.add(
         _RankingRecord(12, datetime(2021, 6, 6), "New player")
     )
@@ -190,7 +193,7 @@ def test_ranking_add_overflow():
         _RankingRecord(21, datetime(2021, 3, 20), "Tomasz"),
         _RankingRecord(30, datetime(2020, 11, 10), "Darek"),
     ]
-    ranking = Ranking(data=data, difficulty=Difficulty(3, 5))
+    ranking = Ranking(data, Difficulty.new_default(3, 5))
     ranking.add(
         _RankingRecord(12, datetime(2021, 6, 6), "New player")
     )
@@ -204,7 +207,7 @@ def test_ranking_add_overflow():
 def test_score_data_as_tuple():
     score_data = _ScoreData(
         datetime(2021, 6, 5),
-        Difficulty(3, 5),
+        Difficulty.new_default(3, 5),
         10,
     )
     assert isinstance(score_data, tuple)
@@ -212,7 +215,7 @@ def test_score_data_as_tuple():
 
 def test_score_data_as_namespace():
     finish_datetime = datetime(2021, 6, 5)
-    difficulty = Difficulty(3, 5)
+    difficulty = Difficulty.new_default(3, 5)
     score = 10
     score_data = _ScoreData(
         finish_datetime=finish_datetime,
@@ -231,19 +234,19 @@ def test_score_data_as_namespace():
 def test_ranking_manager_get_path():
     path = Path("some_dir")
     assert RankingManager(path)._get_path(
-        Difficulty(3, 5)
+        Difficulty.new_default(3, 5)
     ) == path / "3_5.csv"
 
 
 def test_ranking_manager_save_load_unitarity(tmp_path):
     ranking_manager = RankingManager(tmp_path)
-    difficulty = Difficulty(3, 5)
+    difficulty = Difficulty.new_default(3, 5)
     ranking = Ranking(
-        data=[
+        [
             _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
             _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
         ],
-        difficulty=difficulty,
+        difficulty,
     )
     ranking_manager._save(ranking)
     assert ranking_manager.load(difficulty) == ranking
@@ -251,7 +254,7 @@ def test_ranking_manager_save_load_unitarity(tmp_path):
 
 def test_ranking_manager_load_not_existing_ranking(tmp_path):
     ranking_manager = RankingManager(tmp_path)
-    difficulty = Difficulty(3, 5)
+    difficulty = Difficulty.new_default(3, 5)
     expected_empty_ranking = Ranking([], difficulty)
 
     assert ranking_manager.load(difficulty) == expected_empty_ranking
@@ -259,7 +262,7 @@ def test_ranking_manager_load_not_existing_ranking(tmp_path):
 
 
 def test_ranking_manager_is_not_empty(tmp_path):
-    difficulty = Difficulty(3, 5)
+    difficulty = Difficulty.new_default(3, 5)
     ranking_manager = RankingManager(tmp_path)
 
     assert not ranking_manager.is_not_empty(difficulty)
@@ -277,7 +280,7 @@ def test_ranking_manager_is_not_empty(tmp_path):
 
 
 def test_ranking_manager_is_score_fit_into_not_full(tmp_path):
-    difficulty = Difficulty(3, 5)
+    difficulty = Difficulty.new_default(3, 5)
     ranking_manager = RankingManager(tmp_path)
     ranking = Ranking(
         [
@@ -297,7 +300,7 @@ def test_ranking_manager_is_score_fit_into_not_full(tmp_path):
 
 def test_ranking_manager_is_score_fit_into_full(tmp_path):
     assert RANKING_SIZE == 10, "Ranking size changed"
-    difficulty = Difficulty(3, 5)
+    difficulty = Difficulty.new_default(3, 5)
     ranking_manager = RankingManager(tmp_path)
     ranking = Ranking(
         [
@@ -326,7 +329,7 @@ def test_ranking_manager_is_score_fit_into_full(tmp_path):
 
 def test_ranking_manager_update_not_full(tmp_path):
     assert RANKING_SIZE == 10, "Ranking size changed"
-    difficulty = Difficulty(3, 5)
+    difficulty = Difficulty.new_default(3, 5)
     ranking_manager = RankingManager(tmp_path)
     ranking = Ranking(
         [
@@ -349,11 +352,10 @@ def test_ranking_manager_update_not_full(tmp_path):
     updated_ranking = ranking_manager.update(score_data, "New player")
 
     assert updated_ranking == expected_ranking
-    assert updated_ranking == ranking_manager.load(difficulty)
 
 
 def test_ranking_mamager_update_full(tmp_path):
-    difficulty = Difficulty(3, 5)
+    difficulty = Difficulty.new_default(3, 5)
     ranking_manager = RankingManager(tmp_path)
     ranking = Ranking(
         [
@@ -394,8 +396,8 @@ def test_ranking_mamager_update_full(tmp_path):
     assert updated_ranking == ranking_manager.load(difficulty)
 
 
-def test_ranking_mamager_update_overflow(tmp_path):
-    difficulty = Difficulty(3, 5)
+def test_ranking_manager_update_overflow(tmp_path):
+    difficulty = Difficulty.new_default(3, 5)
     ranking_manager = RankingManager(tmp_path)
     ranking = Ranking(
         [
@@ -426,67 +428,136 @@ def test_ranking_mamager_update_overflow(tmp_path):
 # ============
 
 
-def test_difficulty_init():
-    difficulty = Difficulty(3, 6, "name_str")
-    assert difficulty.num_size == 3
-    assert difficulty.digs_num == 6
-    assert difficulty.name == "name_str"
-    assert difficulty.digs_set == set("123456")
-    assert difficulty.digs_range == "1-6"
-
-
-def test_difficulty_repr():
-    assert repr(Difficulty(3, 6, "name_str")) == (
-        "Difficulty(num_size=3, digs_num=6, name='name_str')"
-    )
-
-
-def test_difficulty_frozen():
-    with pytest.raises(FrozenInstanceError):
-        Difficulty(3, 5).num_size = 12
+@pytest.mark.parametrize(
+    "digs_num",
+    (
+        MIN_NUM_SIZE,
+        MIN_NUM_SIZE + 3,
+        len(DIGITS_RANGE),
+        len(DIGITS_RANGE) - 3,
+    ),
+)
+def test_validate_digs_num_for_defaults_valid(digs_num):
+    _validate_digs_num_for_defaults(digs_num)
 
 
 @pytest.mark.parametrize(
-    ("num_size", "digs_num"),
+    "digs_num",
     (
-        (6, 6),  # num_size == digs_num
-        (7, 5),  # num_size > digs_num
-        (MIN_NUM_SIZE - 1, 5),
-        (3, len(DIGITS_RANGE) + 1),
+        MIN_NUM_SIZE - 1,
+        MIN_NUM_SIZE - 2,
+        len(DIGITS_RANGE) + 1,
+        len(DIGITS_RANGE) + 3,
     ),
 )
-def test_difficulty_not_valid(num_size, digs_num):
+def test_validate_digs_num_for_defaults_not_valid(digs_num):
     with pytest.raises(ValueError):
-        Difficulty(num_size, digs_num)
+        _validate_digs_num_for_defaults(digs_num)
+
+
+@pytest.mark.parametrize(
+    ("digs_num", "digits"),
+    (
+        (4, "1234"),
+        (8, "12345678"),
+        (10, "123456789a"),
+        (13, "123456789abcd"),
+        (35, "123456789abcdefghijklmnopqrstuvwxyz"),
+    ),
+)
+def test_default_digs_set(digs_num, digits):
+    assert default_digs_set(digs_num) == frozenset(digits)
 
 
 @pytest.mark.parametrize(
     ("digs_num", "expected"),
     (
+        (4, "1-4"),
         (8, "1-8"),
         (10, "1-9,a"),
         (13, "1-9,a-d"),
+        (35, "1-9,a-z"),
     ),
 )
-def test_difficulty_digs_range(digs_num, expected):
-    assert Difficulty(3, digs_num).digs_range == expected
+def test_default_digs_range(digs_num, expected):
+    assert default_digs_range(digs_num) == expected
 
 
-def test_difficulty_comparing():
-    assert Difficulty(3, 5, "a") == Difficulty(3, 5, "b")
+@pytest.mark.parametrize(
+    "digs_num",
+    (
+        MIN_NUM_SIZE - 1,
+        len(DIGITS_RANGE) + 1,
+    ),
+)
+def test_default_validation(digs_num):
+    with pytest.raises(ValueError):
+        default_digs_set(digs_num)
+    with pytest.raises(ValueError):
+        default_digs_range(digs_num)
 
 
-def test_difficulty_sorting():
+def test_difficulty_init():
+    num_size = 3
+    digs_num = 6
+    digs_set = frozenset("123456")
+    digs_range = "1-6"
+    name = "name_str"
+    difficulty = Difficulty(num_size, digs_num, digs_set, digs_range, name)
+    assert difficulty.num_size == num_size
+    assert difficulty.digs_num == digs_num
+    assert difficulty.digs_set == digs_set
+    assert difficulty.digs_range == digs_range
+    assert difficulty.name == name
+
+
+def test_difficulty_new_default():
+    difficulty = Difficulty.new_default(3, 6, "some name")
+    assert difficulty.num_size == 3
+    assert difficulty.digs_num == 6
+    assert difficulty.digs_set == frozenset("123456")
+    assert difficulty.digs_range == "1-6"
+    assert difficulty.name == "some name"
+
+
+@pytest.mark.parametrize(
+    ("num_size", "digs_num", "digs", "digs_range"),
+    (
+        (6, 6, "123456", "1-6"),  # num_size == digs_num
+        (7, 5, "12345", "1-5"),  # num_size > digs_num
+        (MIN_NUM_SIZE - 1, 5, "12345", "1-5"),
+        (3, 6, "12345", "1-6"),  # digs_num != len(digs_set)
+    ),
+)
+def test_difficulty_not_valid(num_size, digs_num, digs, digs_range):
+    with pytest.raises(ValueError):
+        Difficulty(num_size, digs_num, frozenset(digs), digs_range)
+
+
+def test_difficulty_eq():
+    assert (
+        Difficulty(3, 6, frozenset("123456"), "1-6", "a")
+        == Difficulty(3, 6, frozenset("abcdef"), "a-f", "b")
+    )
+
+
+def test_difficulty_ordering():
     difficulties = [
-        Difficulty(5, 10, "abcd"),
-        Difficulty(6, 10),
-        Difficulty(3, 5),
+        Difficulty.new_default(5, 10, "abcd"),
+        Difficulty.new_default(6, 10),
+        Difficulty.new_default(3, 5),
     ]
     assert sorted(difficulties) == [
-        Difficulty(3, 5),
-        Difficulty(5, 10, "abcd"),
-        Difficulty(6, 10),
+        Difficulty.new_default(3, 5),
+        Difficulty.new_default(5, 10, "abcd"),
+        Difficulty.new_default(6, 10),
     ]
+
+
+def test_difficulty_frozen():
+    difficulty = Difficulty.new_default(3, 6)
+    with pytest.raises(FrozenInstanceError):
+        difficulty.num_size = 10
 
 
 # ============
@@ -645,9 +716,9 @@ def test_compute_bullscows(guess, number, bulls, cows):
 @pytest.mark.parametrize(
     ("difficulty", "number"),
     (
-        (Difficulty(3, 6), "163"),
-        (Difficulty(4, 9), "1593"),
-        (Difficulty(5, 15), "2f5a9"),
+        (Difficulty.new_default(3, 6), "163"),
+        (Difficulty.new_default(4, 9), "1593"),
+        (Difficulty.new_default(5, 15), "2f5a9"),
     )
 )
 def test_is_number_valid(difficulty, number):
@@ -657,9 +728,9 @@ def test_is_number_valid(difficulty, number):
 @pytest.mark.parametrize(
     ("difficulty", "number"),
     (
-        (Difficulty(3, 6), "301"),
-        (Difficulty(4, 9), "51a9"),
-        (Difficulty(5, 15), "1g4a8"),
+        (Difficulty.new_default(3, 6), "301"),
+        (Difficulty.new_default(4, 9), "51a9"),
+        (Difficulty.new_default(5, 15), "1g4a8"),
     )
 )
 def test_is_number_valid_wrong_characters(difficulty, number):
@@ -669,12 +740,12 @@ def test_is_number_valid_wrong_characters(difficulty, number):
 @pytest.mark.parametrize(
     ("difficulty", "number"),
     (
-        (Difficulty(3, 5), "1234"),
-        (Difficulty(3, 5), "34"),
-        (Difficulty(4, 9), "12349"),
-        (Difficulty(4, 9), "31"),
-        (Difficulty(5, 15), "12f3a49b"),
-        (Difficulty(5, 15), "31d"),
+        (Difficulty.new_default(3, 5), "1234"),
+        (Difficulty.new_default(3, 5), "34"),
+        (Difficulty.new_default(4, 9), "12349"),
+        (Difficulty.new_default(4, 9), "31"),
+        (Difficulty.new_default(5, 15), "12f3a49b"),
+        (Difficulty.new_default(5, 15), "31d"),
     )
 )
 def test_is_number_valid_wrong_length(difficulty, number):
@@ -684,9 +755,9 @@ def test_is_number_valid_wrong_length(difficulty, number):
 @pytest.mark.parametrize(
     ("difficulty", "number"),
     (
-        (Difficulty(3, 5), "232"),
-        (Difficulty(4, 9), "3727"),
-        (Difficulty(5, 15), "3b5b8"),
+        (Difficulty.new_default(3, 5), "232"),
+        (Difficulty.new_default(4, 9), "3727"),
+        (Difficulty.new_default(5, 15), "3b5b8"),
     )
 )
 def test_is_number_valid_not_unique_characters(difficulty, number):
@@ -700,9 +771,9 @@ def test_is_number_valid_not_unique_characters(difficulty, number):
 @pytest.mark.parametrize(
     "difficulty",
     (
-        Difficulty(3, 5),
-        Difficulty(4, 9),
-        Difficulty(5, 15),
+        Difficulty.new_default(3, 6),
+        Difficulty.new_default(4, 9),
+        Difficulty.new_default(5, 15),
     )
 )
 def test_draw_number(difficulty):
@@ -716,7 +787,7 @@ def test_draw_number(difficulty):
 
 def test_round_core():
     number = "123"
-    difficulty = Difficulty(3, 5)
+    difficulty = Difficulty.new_default(3, 5)
     round_core = RoundCore(number, difficulty)
 
     # After initiation

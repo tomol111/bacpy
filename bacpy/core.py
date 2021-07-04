@@ -175,7 +175,35 @@ class SequenceView(Sequence[T_co]):
 
 
 MIN_NUM_SIZE: Final[int] = 3
-DIGITS_RANGE: Final[str] = "123456789abcdef"
+DIGITS_RANGE: Final[str] = "123456789abcdefghijklmnopqrstuvwxyz"
+
+
+def default_digs_set(digs_num: int) -> FrozenSet[str]:
+    _validate_digs_num_for_defaults(digs_num)
+    return frozenset(DIGITS_RANGE[:digs_num])
+
+
+def default_digs_range(digs_num: int) -> str:
+    _validate_digs_num_for_defaults(digs_num)
+    if digs_num <= 9:
+        return f"1-{digs_num}"
+    elif digs_num == 10:
+        return "1-9,a"
+    else:
+        return f"1-9,a-{DIGITS_RANGE[digs_num - 1]}"
+
+
+def _validate_digs_num_for_defaults(digs_num: int) -> None:
+    if digs_num < MIN_NUM_SIZE:
+        raise ValueError(
+            f"`digs_num` ({digs_num}) less than `MIN_NUM_SIZE`"
+            f" ({MIN_NUM_SIZE})"
+        )
+    if digs_num > len(DIGITS_RANGE):
+        raise ValueError(
+            f"`digs_num` ({digs_num}) over length of `DIGITS_RANGE`"
+            f" ({len(DIGITS_RANGE)})"
+        )
 
 
 @dataclass(order=True, frozen=True)
@@ -183,41 +211,42 @@ class Difficulty:
 
     num_size: int
     digs_num: int
+    digs_set: FrozenSet[str] = field(compare=False)
+    digs_range: str = field(compare=False)
     name: str = field(default="", compare=False)
+
+    @classmethod
+    def new_default(
+            cls,
+            num_size: int,
+            digs_num: int,
+            name: str = "",
+    ) -> Difficulty:
+        digs_set = default_digs_set(digs_num)
+        digs_range = default_digs_range(digs_num)
+        return cls(num_size, digs_num, digs_set, digs_range, name)
 
     def __post_init__(self):
         if self.num_size < MIN_NUM_SIZE:
             raise ValueError(
-                f"`num_size` ({self.num_size}) smaller than {MIN_NUM_SIZE}"
+                f"`num_size` ({self.num_size}) smaller than `MIN_NUM_SIZE`"
+                f" ({MIN_NUM_SIZE})"
             )
         if self.num_size >= self.digs_num:
             raise ValueError(
-                f"`num_size` ({self.num_size}) not less "
-                f"than `digs_num` ({self.digs_num})"
+                f"`num_size` ({self.num_size}) not less than `digs_num`"
+                f" ({self.digs_num})"
             )
-        if self.digs_num > len(DIGITS_RANGE):
+        if self.digs_num != len(self.digs_set):
             raise ValueError(
-                f"`digs_num` ({self.digs_num}) over {len(DIGITS_RANGE)}"
+                f"`digs_num` ({self.digs_num}) is diffrent from length of"
+                f" `digs_set` ({self.digs_num})"
             )
-
-    @property
-    def digs_set(self) -> FrozenSet[str]:
-        return frozenset(DIGITS_RANGE[:self.digs_num])
-
-    @property
-    def digs_range(self) -> str:
-        if MIN_NUM_SIZE <= self.digs_num <= 9:
-            return f"1-{self.digs_num}"
-        if self.digs_num == 10:
-            return "1-9,a"
-        if 11 <= self.digs_num <= len(DIGITS_RANGE):
-            return f"1-9,a-{DIGITS_RANGE[self.digs_num-1]}"
-        raise AttributeError
 
 
 DEFAULT_DIFFICULTIES: Final[Tuple[Difficulty, ...]] = tuple(
-    Difficulty(*args)
-    for args in (
+    Difficulty.new_default(num_size, digs_num, name)
+    for num_size, digs_num, name in (
         (3, 6, "easy"),
         (4, 9, "normal"),
         (5, 15, "hard"),
