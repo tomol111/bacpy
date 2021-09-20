@@ -88,7 +88,7 @@ class RoundCore:
         hist_record = GuessingRecord(guess, bulls, cows)
         self._history.append(hist_record)
 
-        if bulls == self.difficulty.num_size:
+        if guess == self._number:
             self._finished = True
             self._score_data = _ScoreData(
                 score=self.steps,
