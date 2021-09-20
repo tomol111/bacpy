@@ -332,7 +332,7 @@ def simple_difficulties_table(difficulties: SimpleDifficulties) -> str:
 
 def difficulties_table(difficulties: Difficulties) -> str:
     table = tabulate(
-        map(attrgetter("name", "num_size", "digs_range"), difficulties),
+        map(attrgetter("name", "num_size", "digs_label"), difficulties),
         headers=("Key", "Difficulty", "Size", "Digits"),
         colalign=("right", "left", "center", "center"),
         showindex=difficulties.indexes,
@@ -778,7 +778,7 @@ def _get_toolbar(difficulty: Difficulty) -> str:
         [
             f"  Difficulty: {difficulty.name}",
             f"Size: {difficulty.num_size}",
-            f"Digits: {difficulty.digs_range}",
+            f"Digits: {difficulty.digs_label}",
         ]
     )
 

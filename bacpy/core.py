@@ -208,7 +208,7 @@ def default_digs_set(digs_num: int) -> FrozenSet[str]:
     return frozenset(DIGITS_RANGE[:digs_num])
 
 
-def default_digs_range(digs_num: int) -> str:
+def default_digs_label(digs_num: int) -> str:
     _validate_digs_num_for_defaults(digs_num)
     if digs_num <= 9:
         return f"1-{digs_num}"
@@ -235,7 +235,7 @@ def _validate_digs_num_for_defaults(digs_num: int) -> None:
 class Difficulty(SimpleDifficulty):
 
     digs_set: FrozenSet[str] = field(compare=False)
-    digs_range: str = field(compare=False)
+    digs_label: str = field(compare=False)
     name: str = field(default="", compare=False)
 
     @classmethod
@@ -246,8 +246,8 @@ class Difficulty(SimpleDifficulty):
             name: str = "",
     ) -> Difficulty:
         digs_set = default_digs_set(digs_num)
-        digs_range = default_digs_range(digs_num)
-        return cls(num_size, digs_num, digs_set, digs_range, name)
+        digs_label = default_digs_label(digs_num)
+        return cls(num_size, digs_num, digs_set, digs_label, name)
 
     def __post_init__(self):
         super().__post_init__()

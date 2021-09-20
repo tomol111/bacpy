@@ -6,7 +6,7 @@ import pytest
 
 from bacpy.core import (
     _comput_bullscows,
-    default_digs_range,
+    default_digs_label,
     default_digs_set,
     Difficulty,
     DIGITS_RANGE,
@@ -534,8 +534,8 @@ def test_default_digs_set(digs_num, digits):
         (35, "1-9,a-z"),
     ),
 )
-def test_default_digs_range(digs_num, expected):
-    assert default_digs_range(digs_num) == expected
+def test_default_digs_label(digs_num, expected):
+    assert default_digs_label(digs_num) == expected
 
 
 @pytest.mark.parametrize(
@@ -549,7 +549,7 @@ def test_default_validation(digs_num):
     with pytest.raises(ValueError):
         default_digs_set(digs_num)
     with pytest.raises(ValueError):
-        default_digs_range(digs_num)
+        default_digs_label(digs_num)
 
 
 def test_difficulty_inheritance():
@@ -560,13 +560,13 @@ def test_difficulty_init():
     num_size = 3
     digs_num = 6
     digs_set = frozenset("123456")
-    digs_range = "1-6"
+    digs_label = "1-6"
     name = "name_str"
-    difficulty = Difficulty(num_size, digs_num, digs_set, digs_range, name)
+    difficulty = Difficulty(num_size, digs_num, digs_set, digs_label, name)
     assert difficulty.num_size == num_size
     assert difficulty.digs_num == digs_num
     assert difficulty.digs_set == digs_set
-    assert difficulty.digs_range == digs_range
+    assert difficulty.digs_label == digs_label
     assert difficulty.name == name
 
 
@@ -575,12 +575,12 @@ def test_difficulty_new_default():
     assert difficulty.num_size == 3
     assert difficulty.digs_num == 6
     assert difficulty.digs_set == frozenset("123456")
-    assert difficulty.digs_range == "1-6"
+    assert difficulty.digs_label == "1-6"
     assert difficulty.name == "some name"
 
 
 @pytest.mark.parametrize(
-    ("num_size", "digs_num", "digs", "digs_range"),
+    ("num_size", "digs_num", "digs", "digs_label"),
     (
         (6, 6, "123456", "1-6"),  # num_size == digs_num
         (7, 5, "12345", "1-5"),  # num_size > digs_num
@@ -588,9 +588,9 @@ def test_difficulty_new_default():
         (3, 6, "12345", "1-6"),  # digs_num != len(digs_set)
     ),
 )
-def test_difficulty_not_valid(num_size, digs_num, digs, digs_range):
+def test_difficulty_not_valid(num_size, digs_num, digs, digs_label):
     with pytest.raises(ValueError):
-        Difficulty(num_size, digs_num, frozenset(digs), digs_range)
+        Difficulty(num_size, digs_num, frozenset(digs), digs_label)
 
 
 def test_difficulty_eq():
