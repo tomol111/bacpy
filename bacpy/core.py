@@ -10,6 +10,7 @@ from typing import (
     FrozenSet,
     Iterable,
     List,
+    Iterator,
     NamedTuple,
     Optional,
     overload,
@@ -381,6 +382,11 @@ class RankingManager:
     def is_not_empty(self, difficulty: SimpleDifficulty) -> bool:
         path = self._get_path(difficulty)
         return path.exists() and bool(path.stat().st_size)
+
+    def available_difficulties(self) -> Iterator[SimpleDifficulty]:
+        for path in self._rankings_dir.iterdir():
+            num_size, digs_num = map(int, path.stem.split("_"))
+            yield SimpleDifficulty(num_size, digs_num)
 
     def is_score_fit_into(self, score_data: _ScoreData) -> bool:
         ranking = self.load(score_data.difficulty)

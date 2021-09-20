@@ -44,6 +44,7 @@ from .core import (
     RANKINGS_DIR,
     RestartGame,
     RoundCore,
+    SimpleDifficulty,
     StopPlaying,
 )
 
@@ -186,6 +187,39 @@ class Game:
 # ============
 
 
+class SimpleDifficulties:
+
+    def __init__(self, data: Iterable[SimpleDifficulty]) -> None:
+        self.data = tuple(data)
+        self.by_attrs = {
+            (dif.num_size, dif.digs_num): dif
+            for dif in self.data
+        }
+        self.indexes = range(IDX_START, len(self.data) + IDX_START)
+
+    def __iter__(self) -> Iterator[SimpleDifficulty]:
+        return iter(self.data)
+
+    def __len__(self) -> int:
+        return len(self.data)
+
+    def __getitem__(self, key: Union[Tuple[int, int], int]) -> SimpleDifficulty:
+        """Return Difficulty by given attributes (`num_size`, `digs_num`)
+        or index.
+        """
+        if isinstance(key, int):
+            try:
+                index = self.indexes.index(key)
+            except ValueError:
+                raise IndexError(key) from None
+            return self.data[index]
+        return self.by_attrs[key]
+
+    @property
+    def attrs(self) -> KeysView[Tuple[int, int]]:
+        return self.by_attrs.keys()
+
+
 class Difficulties:
     """Keeps available difficulties."""
 
@@ -286,6 +320,16 @@ def ranking_table(ranking: Ranking) -> str:
         headers=("Pos.", "Score", "Player"),
         colalign=("left", "center", "left"),
     )
+
+
+def simple_difficulties_table(difficulties: SimpleDifficulties) -> str:
+    table = tabulate(
+        map(attrgetter("num_size", "digs_num"), difficulties),
+        headers=("Key", "Size", "Digits"),
+        colalign=("right", "center", "center"),
+        showindex=difficulties.indexes,
+    )
+    return f"\n{table}\n"
 
 
 def difficulties_table(difficulties: Difficulties) -> str:
@@ -560,11 +604,8 @@ class RankingCmd(Command):
 
     def execute(self, arg: str = "") -> None:
 
-        difficulties = Difficulties(
-            filter(
-                self.game.ranking_manager.is_not_empty,
-                self.game.difficulties,
-            )
+        difficulties = SimpleDifficulties(
+            self.game.ranking_manager.available_difficulties()
         )
 
         if not difficulties:
@@ -572,20 +613,17 @@ class RankingCmd(Command):
             return
 
         if arg == "-l":
-            print(difficulties_table(difficulties))
+            print(simple_difficulties_table(difficulties))
             return
         elif arg:
             try:
-                difficulty = difficulties[int(arg) if arg.isdigit() else arg]
-            except KeyError:
-                print(f"No '{arg}' difficulty available")
-                return
+                difficulty = difficulties[int(arg)]
             except IndexError:
                 print(f"Invalid index '{arg}'")
                 return
         else:
             try:
-                difficulty = difficulty_selection(difficulties)
+                difficulty = simple_difficulty_selection(difficulties)
             except EOFError:
                 return
 
@@ -597,6 +635,29 @@ class RankingCmd(Command):
 # =====
 # Menus
 # =====
+
+
+@cli_window("Difficulty Selection")
+def simple_difficulty_selection(
+        difficulties: SimpleDifficulties
+) -> SimpleDifficulty:
+    """SimpleDifficulty selection.
+
+    Can raise EOFError."""
+
+    print(simple_difficulties_table(difficulties))
+
+    while True:
+        try:
+            input_ = prompt(
+                "Enter key: ",
+                validator=MenuValidator(difficulties.indexes),
+                validate_while_typing=False,
+            ).strip()
+        except KeyboardInterrupt:
+            continue
+
+        return difficulties[int(input_)]
 
 
 @cli_window("Difficulty Selection")
