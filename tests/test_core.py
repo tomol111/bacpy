@@ -12,7 +12,7 @@ from bacpy.core import (
     DIGITS_RANGE,
     draw_number,
     GameException,
-    GuessingRecord,
+    GuessRecord,
     is_number_valid,
     MIN_NUM_SIZE,
     QuitGame,
@@ -728,24 +728,24 @@ def test_sequence_view_dynamic_view():
 # =====
 
 
-# GuessingRecord
+# GuessRecord
 # --------------
 
 
 def test_guessing_record_as_tuple():
     tple = ("1234", 2, 1)
-    record = GuessingRecord(*tple)
+    record = GuessRecord(*tple)
     assert record == tple
 
 
 def test_guessing_record_unpacking():
     tple = ("1234", 2, 1)
-    number, bulls, cows = GuessingRecord(*tple)
+    number, bulls, cows = GuessRecord(*tple)
     assert (number, bulls, cows) == tple
 
 
 def test_guessint_record_as_namespace():
-    record = GuessingRecord(number="1234", bulls=2, cows=1)
+    record = GuessRecord(number="1234", bulls=2, cows=1)
     assert record.number == "1234"
     assert record.bulls == 2
     assert record.cows == 1

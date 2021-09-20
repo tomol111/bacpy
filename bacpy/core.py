@@ -48,7 +48,7 @@ class RoundCore(Generator[Tuple[int, int], str, None]):
         self._number = number
         self._difficulty = difficulty
         assert is_number_valid(difficulty, number)
-        self._history: List[GuessingRecord] = []
+        self._history: List[GuessRecord] = []
         self._closed = False
         self._score_data: Optional[_ScoreData] = None
 
@@ -56,7 +56,7 @@ class RoundCore(Generator[Tuple[int, int], str, None]):
             print(self._number)
 
     @property
-    def history(self) -> SequenceView[GuessingRecord]:
+    def history(self) -> SequenceView[GuessRecord]:
         return SequenceView(self._history)
 
     @property
@@ -86,7 +86,7 @@ class RoundCore(Generator[Tuple[int, int], str, None]):
             raise ValueError("Parsed number is invalid")
 
         bulls, cows = _bullscows(guess, self._number)
-        self._history.append(GuessingRecord(guess, bulls, cows))
+        self._history.append(GuessRecord(guess, bulls, cows))
 
         if guess == self._number:
             self._score_data = _ScoreData(
@@ -131,9 +131,7 @@ def _bullscows(guess: str, number: str) -> Tuple[int, int]:
     return bulls, cows
 
 
-class GuessingRecord(NamedTuple):
-    """History record of passed guess and the corresponding bulls and cows.
-    """
+class GuessRecord(NamedTuple):
     number: str
     bulls: int
     cows: int
