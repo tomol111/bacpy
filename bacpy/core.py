@@ -115,10 +115,11 @@ def draw_number(difficulty: Difficulty) -> str:
 
 def is_number_valid(difficulty: Difficulty, number: str) -> bool:
     """Quick check if number is valid for given difficulty."""
+    chars = set(number)
     return (
-        not set(number) - difficulty.digs_set  # wrong characters
-        and len(number) == difficulty.num_size  # correct length
-        and len(set(number)) == len(number)  # unique characters
+        chars <= difficulty.digs_set
+        and len(number) == difficulty.num_size
+        and len(chars) == len(number)
     )
 
 
