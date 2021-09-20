@@ -853,18 +853,18 @@ def test_round_core():
     assert round_core.difficulty == difficulty
     assert not round_core.history
     assert not round_core.steps
-    assert not round_core.finished
+    assert not round_core.closed
     with pytest.raises(AttributeError):
         round_core.score_data
 
     # invalid number
     with pytest.raises(ValueError):
-        round_core.parse_guess("")
+        round_core.send("")
     assert not round_core.history
     assert not round_core.steps
 
     # first step
-    guess_record_0 = round_core.parse_guess("145")
+    guess_record_0 = round_core.send("145")
     assert guess_record_0.number == "145"
     assert guess_record_0.bulls == 1
     assert guess_record_0.cows == 0
@@ -872,7 +872,7 @@ def test_round_core():
     assert round_core.steps == 1
 
     # second step
-    guess_record_1 = round_core.parse_guess("152")
+    guess_record_1 = round_core.send("152")
     assert guess_record_1.number == "152"
     assert guess_record_1.bulls == 1
     assert guess_record_1.cows == 1
@@ -880,7 +880,7 @@ def test_round_core():
     assert round_core.steps == 2
 
     # succesive guess
-    guess_record_last = round_core.parse_guess(number)
+    guess_record_last = round_core.send(number)
     assert guess_record_last.number == number
     assert guess_record_last.bulls == difficulty.num_size
     assert guess_record_last.cows == 0
@@ -888,11 +888,11 @@ def test_round_core():
         guess_record_0, guess_record_1, guess_record_last
     ]
     assert round_core.steps == 3
-    assert round_core.finished
+    assert round_core.closed
 
-    # finished
-    with pytest.raises(RuntimeError):
-        round_core.parse_guess(number)
+    # closed
+    with pytest.raises(StopIteration):
+        round_core.send(number)
     score_data = round_core.score_data
     assert score_data.dt
     assert score_data.difficulty == difficulty.to_simple()

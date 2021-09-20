@@ -8,6 +8,7 @@ import random
 import sys
 from typing import (
     FrozenSet,
+    Generator,
     Iterable,
     List,
     Iterator,
@@ -40,16 +41,23 @@ RANKING_SIZE: Final[int] = 10
 # =====
 
 
+class GuessingRecord(NamedTuple):
+    """History record of passed guess and the corresponding bulls and cows.
+    """
+    number: str
+    bulls: int
+    cows: int
+
+
 @final
-class RoundCore:
-    """Round core class."""
+class RoundCore(Generator[GuessingRecord, str, None]):
 
     def __init__(self, number: str, difficulty: Difficulty) -> None:
         self._number = number
         self._difficulty = difficulty
         assert is_number_valid(difficulty, number)
-        self._history: List["GuessingRecord"] = []
-        self._finished = False
+        self._history: List[GuessingRecord] = []
+        self._closed = False
         self._score_data: Optional[_ScoreData] = None
 
         if sys.flags.dev_mode:
@@ -68,19 +76,20 @@ class RoundCore:
         return self._difficulty
 
     @property
-    def finished(self) -> bool:
-        return self._finished
+    def closed(self) -> bool:
+        return self._closed
 
     @property
     def score_data(self) -> _ScoreData:
         if self._score_data is None:
-            raise AttributeError("`score_data` not yet available")
+            raise AttributeError("`score_data` not available")
         return self._score_data
 
-    def parse_guess(self, guess: str) -> GuessingRecord:
+    def send(self, guess: str) -> GuessingRecord:
 
-        if self._finished:
-            raise RuntimeError("Round has been finished")
+        if self._closed:
+            raise StopIteration
+
         if not is_number_valid(self._difficulty, guess):
             raise ValueError("Parsed number is invalid")
 
@@ -89,14 +98,18 @@ class RoundCore:
         self._history.append(hist_record)
 
         if guess == self._number:
-            self._finished = True
             self._score_data = _ScoreData(
                 score=self.steps,
                 dt=datetime.now(),
                 difficulty=self.difficulty.to_simple(),
             )
+            self.close()
 
         return hist_record
+
+    def throw(self, typ, val=None, tb=None):
+        self._closed = True
+        super().throw(typ, val, tb)
 
 
 def draw_number(difficulty: Difficulty) -> str:
@@ -129,14 +142,6 @@ def _comput_bullscows(guess: str, number: str) -> Tuple[int, int]:
             cows += 1
 
     return bulls, cows
-
-
-class GuessingRecord(NamedTuple):
-    """History record of passed guess and the corresponding bulls and cows.
-    """
-    number: str
-    bulls: int
-    cows: int
 
 
 # ============

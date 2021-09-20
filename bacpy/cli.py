@@ -139,17 +139,15 @@ def play_round(
         player_name_iter: Iterator[Optional[str]],
         ranking_manager: RankingManager,
 ) -> None:
-    while not round_core.finished:
-        _, bulls, cows = round_core.parse_guess(next(number_getter))
+    for _, bulls, cows in map(round_core.send, number_getter):
         print(f"bulls: {bulls:>2}, cows: {cows:>2}")
 
     print(f"\n *** You guessed in {round_core.steps} steps ***\n")
 
-    score_data = round_core.score_data
-    if ranking_manager.is_score_fit_into(score_data):
+    if ranking_manager.is_score_fit_into(round_core.score_data):
         player = next(player_name_iter)
         if player:
-            ranking = ranking_manager.update(score_data, player)
+            ranking = ranking_manager.update(round_core.score_data, player)
             pager(ranking_table(ranking))
 
 
