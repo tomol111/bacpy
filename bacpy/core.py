@@ -104,10 +104,6 @@ class RoundCore(Generator[Tuple[int, int], str, None]):
 
 
 def draw_number(difficulty: Difficulty) -> str:
-    """Draw number valid for given difficulty.
-
-    It used by `RoundCore` but can be used to generate random guesses.
-    """
     return "".join(
         random.sample(difficulty.digs_set, difficulty.num_size)
     )
