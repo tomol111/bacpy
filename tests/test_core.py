@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from bacpy.core import (
-    _comput_bullscows,
+    _bullscows,
     default_digs_label,
     default_digs_set,
     Difficulty,
@@ -751,7 +751,7 @@ def test_guessint_record_as_namespace():
     assert record.cows == 1
 
 
-# _comput_bullscows
+# _bullscows
 # -----------------
 
 
@@ -764,8 +764,8 @@ def test_guessint_record_as_namespace():
         ("5678", "1234", 0, 0),
     )
 )
-def test_compute_bullscows(guess, number, bulls, cows):
-    assert _comput_bullscows(guess, number) == (bulls, cows)
+def test_bullscows(guess, number, bulls, cows):
+    assert _bullscows(guess, number) == (bulls, cows)
 
 
 # is_number_valid
@@ -865,7 +865,7 @@ def test_round_core():
 
     # first step
     guess1 = "145"
-    bullscows1 = _comput_bullscows(guess1, number)
+    bullscows1 = _bullscows(guess1, number)
     assert round_core.send(guess1) == bullscows1
     assert round_core.history == [(guess1, *bullscows1)]
     assert round_core.steps == 1
@@ -873,7 +873,7 @@ def test_round_core():
     # second step
 
     guess2 = "152"
-    bullscows2 = _comput_bullscows(guess2, number)
+    bullscows2 = _bullscows(guess2, number)
     assert round_core.send(guess2) == bullscows2
     assert round_core.history == [(guess1, *bullscows1), (guess2, *bullscows2)]
     assert round_core.steps == 2

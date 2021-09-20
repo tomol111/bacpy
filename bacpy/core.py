@@ -85,7 +85,7 @@ class RoundCore(Generator[Tuple[int, int], str, None]):
         if not is_number_valid(self._difficulty, guess):
             raise ValueError("Parsed number is invalid")
 
-        bulls, cows = _comput_bullscows(guess, self._number)
+        bulls, cows = _bullscows(guess, self._number)
         self._history.append(GuessingRecord(guess, bulls, cows))
 
         if guess == self._number:
@@ -123,8 +123,7 @@ def is_number_valid(difficulty: Difficulty, number: str) -> bool:
     )
 
 
-def _comput_bullscows(guess: str, number: str) -> Tuple[int, int]:
-    """Return bulls and cows for given input."""
+def _bullscows(guess: str, number: str) -> Tuple[int, int]:
     bulls, cows = 0, 0
 
     for guess_char, number_char in zip(guess, number):
