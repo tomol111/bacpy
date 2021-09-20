@@ -139,7 +139,7 @@ def play_round(
         player_name_iter: Iterator[Optional[str]],
         ranking_manager: RankingManager,
 ) -> None:
-    for _, bulls, cows in map(round_core.send, number_getter):
+    for bulls, cows in map(round_core.send, number_getter):
         print(f"bulls: {bulls:>2}, cows: {cows:>2}")
 
     print(f"\n *** You guessed in {round_core.steps} steps ***\n")

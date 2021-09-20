@@ -864,28 +864,26 @@ def test_round_core():
     assert not round_core.steps
 
     # first step
-    guess_record_0 = round_core.send("145")
-    assert guess_record_0.number == "145"
-    assert guess_record_0.bulls == 1
-    assert guess_record_0.cows == 0
-    assert round_core.history == [guess_record_0]
+    guess1 = "145"
+    bullscows1 = _comput_bullscows(guess1, number)
+    assert round_core.send(guess1) == bullscows1
+    assert round_core.history == [(guess1, *bullscows1)]
     assert round_core.steps == 1
 
     # second step
-    guess_record_1 = round_core.send("152")
-    assert guess_record_1.number == "152"
-    assert guess_record_1.bulls == 1
-    assert guess_record_1.cows == 1
-    assert round_core.history == [guess_record_0, guess_record_1]
+
+    guess2 = "152"
+    bullscows2 = _comput_bullscows(guess2, number)
+    assert round_core.send(guess2) == bullscows2
+    assert round_core.history == [(guess1, *bullscows1), (guess2, *bullscows2)]
     assert round_core.steps == 2
 
     # succesive guess
-    guess_record_last = round_core.send(number)
-    assert guess_record_last.number == number
-    assert guess_record_last.bulls == difficulty.num_size
-    assert guess_record_last.cows == 0
+    assert round_core.send(number) == (difficulty.num_size, 0)
     assert round_core.history == [
-        guess_record_0, guess_record_1, guess_record_last
+        (guess1, *bullscows1),
+        (guess2, *bullscows2),
+        (number, difficulty.num_size, 0)
     ]
     assert round_core.steps == 3
     assert round_core.closed

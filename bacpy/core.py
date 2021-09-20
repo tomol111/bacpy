@@ -41,16 +41,8 @@ RANKING_SIZE: Final[int] = 10
 # =====
 
 
-class GuessingRecord(NamedTuple):
-    """History record of passed guess and the corresponding bulls and cows.
-    """
-    number: str
-    bulls: int
-    cows: int
-
-
 @final
-class RoundCore(Generator[GuessingRecord, str, None]):
+class RoundCore(Generator[Tuple[int, int], str, None]):
 
     def __init__(self, number: str, difficulty: Difficulty) -> None:
         self._number = number
@@ -85,7 +77,7 @@ class RoundCore(Generator[GuessingRecord, str, None]):
             raise AttributeError("`score_data` not available")
         return self._score_data
 
-    def send(self, guess: str) -> GuessingRecord:
+    def send(self, guess: str) -> Tuple[int, int]:
 
         if self._closed:
             raise StopIteration
@@ -94,8 +86,7 @@ class RoundCore(Generator[GuessingRecord, str, None]):
             raise ValueError("Parsed number is invalid")
 
         bulls, cows = _comput_bullscows(guess, self._number)
-        hist_record = GuessingRecord(guess, bulls, cows)
-        self._history.append(hist_record)
+        self._history.append(GuessingRecord(guess, bulls, cows))
 
         if guess == self._number:
             self._score_data = _ScoreData(
@@ -105,7 +96,7 @@ class RoundCore(Generator[GuessingRecord, str, None]):
             )
             self.close()
 
-        return hist_record
+        return bulls, cows
 
     def throw(self, typ, val=None, tb=None):
         self._closed = True
@@ -142,6 +133,14 @@ def _comput_bullscows(guess: str, number: str) -> Tuple[int, int]:
             cows += 1
 
     return bulls, cows
+
+
+class GuessingRecord(NamedTuple):
+    """History record of passed guess and the corresponding bulls and cows.
+    """
+    number: str
+    bulls: int
+    cows: int
 
 
 # ============
