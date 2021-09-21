@@ -86,7 +86,7 @@ class RoundCore(Generator[Tuple[int, int], str, None]):
                 dt=datetime.now(),
                 difficulty=self.difficulty.to_simple(),
             )
-            self.close()
+            self.throw(StopIteration)
 
         return bulls, cows
 

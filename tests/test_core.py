@@ -775,7 +775,8 @@ def test_round_core():
     assert round_core.steps == 2
 
     # succesive guess
-    assert round_core.send(number) == (difficulty.num_size, 0)
+    with pytest.raises(StopIteration):
+        round_core.send(number)
     assert round_core.history == [
         (guess1, *bullscows1),
         (guess2, *bullscows2),
