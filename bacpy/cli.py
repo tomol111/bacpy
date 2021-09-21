@@ -106,9 +106,8 @@ def run_game() -> None:
     while True:
         print()
         try:
-            with game.set_round(
-                    RoundCore(draw_number(difficulty), difficulty)
-            ) as round_core:
+            round_core = RoundCore(draw_number(difficulty), difficulty)
+            with game.set_round(round_core):
                 number_getter = _number_getter(
                     round_core.difficulty,
                     lambda: round_core.steps,
@@ -172,10 +171,10 @@ class Game:
         raise AttributeError("Round not set now")
 
     @contextmanager
-    def set_round(self, round_: RoundCore) -> Iterator[RoundCore]:
+    def set_round(self, round_: RoundCore) -> Iterator[None]:
+        self._round = round_
         try:
-            self._round = round_
-            yield round_
+            yield
         finally:
             self._round = None
 
