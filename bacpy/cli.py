@@ -106,7 +106,12 @@ def run_game() -> None:
     while True:
         print()
         try:
-            round_core = RoundCore(draw_number(difficulty), difficulty)
+            secret_number = draw_number(difficulty)
+
+            if sys.flags.dev_mode:  # logging on console
+                print(f"secret number: {secret_number}")
+
+            round_core = RoundCore(secret_number, difficulty)
             with game.set_round(round_core):
                 number_getter = _number_getter(
                     round_core.difficulty,

@@ -47,9 +47,6 @@ class RoundCore(Generator[Tuple[int, int], str, None]):
         self._closed = False
         self._score_data: Optional[_ScoreData] = None
 
-        if sys.flags.dev_mode:
-            print(self._number)
-
     @property
     def history(self) -> SequenceView[GuessRecord]:
         return SequenceView(self._history)
