@@ -94,7 +94,7 @@ Special commands:
 def run_game() -> None:
     RANKINGS_DIR.mkdir(exist_ok=True)
     game = Game(RANKINGS_DIR)
-    print(_starting_header(PROGRAM_VERSION))
+    print(starting_header(PROGRAM_VERSION))
 
     try:
         difficulty = difficulty_selection(game.difficulties)
@@ -113,7 +113,7 @@ def run_game() -> None:
 
             round_core = RoundCore(secret_number, difficulty)
             with game.set_round(round_core):
-                number_iter = _number_getter(
+                number_iter = number_getter(
                     difficulty,
                     lambda: round_core.steps,
                     game.commands,
@@ -132,7 +132,7 @@ def run_game() -> None:
             return
 
 
-def _starting_header(title: str) -> str:
+def starting_header(title: str) -> str:
     line = "=" * len(title)
     return f"{line}\n{title}\n{line}"
 
@@ -359,7 +359,7 @@ class Command(metaclass=ABCMeta):
 
     def __init__(self, game: Game) -> None:
         self.game = game
-        self.args_range = _get_args_lims(self.execute)
+        self.args_range = get_args_lims(self.execute)
 
     def parse_args(self, args: List[str]) -> None:
         """Execute command if valid number of arguments passed.
@@ -391,7 +391,7 @@ class Command(metaclass=ABCMeta):
         """Execute command by parsing `str` type arguments."""
 
 
-def _get_args_lims(func: Callable) -> Tuple[int, float]:
+def get_args_lims(func: Callable) -> Tuple[int, float]:
     params = inspect.signature(func).parameters.values()
     min_, max_ = 0, 0
     for param in params:
@@ -777,7 +777,7 @@ class PlayerValidator(Validator):
 player_validator = PlayerValidator()
 
 
-def _get_toolbar(difficulty: Difficulty) -> str:
+def get_toolbar(difficulty: Difficulty) -> str:
     return "  |  ".join(
         [
             f"  Difficulty: {difficulty.name}",
@@ -787,7 +787,7 @@ def _get_toolbar(difficulty: Difficulty) -> str:
     )
 
 
-def _number_getter(
+def number_getter(
         difficulty: Difficulty,
         get_steps: Callable[[], int],
         commands: Commands,
@@ -797,7 +797,7 @@ def _number_getter(
     Supports special input. Can raise `StopPlaying`.
     """
     prompt_session: PromptSession[str] = PromptSession(
-        bottom_toolbar=_get_toolbar(difficulty),
+        bottom_toolbar=get_toolbar(difficulty),
         validator=RoundValidator(difficulty),
         validate_while_typing=False,
     )
