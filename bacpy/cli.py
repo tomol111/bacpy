@@ -113,14 +113,14 @@ def run_game() -> None:
 
             round_core = RoundCore(secret_number, difficulty)
             with game.set_round(round_core):
-                number_getter = _number_getter(
-                    round_core.difficulty,
+                number_iter = _number_getter(
+                    difficulty,
                     lambda: round_core.steps,
                     game.commands,
                 )
                 play_round(
                     round_core,
-                    number_getter,
+                    number_iter,
                     player_name_iter,
                     game.ranking_manager,
                 )
@@ -139,11 +139,11 @@ def _starting_header(title: str) -> str:
 
 def play_round(
         round_core: RoundCore,
-        number_getter: Iterator[str],
+        number_iter: Iterator[str],
         player_name_iter: Iterator[Optional[str]],
         ranking_manager: RankingManager,
 ) -> None:
-    for bulls, cows in map(round_core.send, number_getter):
+    for bulls, cows in map(round_core.send, number_iter):
         print(f"bulls: {bulls:>2}, cows: {cows:>2}")
 
     print(f"\n *** You guessed in {round_core.steps} steps ***\n")
