@@ -308,6 +308,243 @@ def pager(text: str) -> None:
     subprocess.run(["less", "-C"], input=text.encode())
 
 
+# ===========
+# Main prompt
+# ===========
+
+
+def number_getter(
+        difficulty: Difficulty,
+        get_steps: Callable[[], int],
+        commands: Commands,
+) -> Iterator[str]:
+    """Take number from user.
+
+    Supports special input. Can raise `StopPlaying`.
+    """
+    prompt_session: PromptSession[str] = PromptSession(
+        bottom_toolbar=get_toolbar(difficulty),
+        validator=RoundValidator(difficulty),
+        validate_while_typing=False,
+    )
+    while True:
+        try:
+            input_ = prompt_session.prompt(f"[{get_steps() + 1}] ").lstrip()
+        except EOFError:
+            try:
+                if ask_ok("Do you really want to quit? [Y/n]: "):
+                    raise StopPlaying
+                continue
+            except EOFError:
+                raise StopPlaying
+        except KeyboardInterrupt:
+            continue
+
+        if not input_.startswith(COMMAND_PREFIX):
+            yield input_.rstrip()
+            continue
+
+        cmd_line = input_[len(COMMAND_PREFIX):].lstrip()
+
+        if not cmd_line:
+            print(
+                f"Type '{COMMAND_PREFIX}help commands' to get "
+                "available commands"
+            )
+            continue
+
+        cmd_name, *args = shlex.split(cmd_line)
+        try:
+            commands[cmd_name].parse_args(args)
+        except KeyError:
+            print(f"No command '{cmd_name}'")
+
+
+class RoundValidator(Validator):
+
+    def __init__(self, difficulty: Difficulty) -> None:
+        self.difficulty = difficulty
+
+    def validate(self, document: Document) -> None:
+        input_: str = document.text.strip()
+
+        digs_set = self.difficulty.digs_set
+        num_size = self.difficulty.num_size
+
+        if input_.startswith(COMMAND_PREFIX):
+            return
+
+        # Check if number have wrong characters
+        wrong_chars = set(input_) - digs_set
+        if wrong_chars:
+            raise ValidationError(
+                message=(
+                    "Wrong characters: %s"
+                    % ", ".join(map(lambda x: f"'{x}'", wrong_chars))
+                ),
+                cursor_position=max(
+                    input_.rfind(dig) for dig in wrong_chars
+                ) + 1,
+            )
+
+        # Check length
+        if len(input_) != num_size:
+            raise ValidationError(
+                message=f"Digit must have {num_size} digits",
+                cursor_position=len(input_),
+            )
+
+        # Check that digits don't repeat
+        digits = Counter(input_)
+        rep_digs = {i for i, n in digits.items() if n > 1}
+        if rep_digs:
+            raise ValidationError(
+                message=(
+                    "Number can't have repeated digits. %s repeated."
+                    % ", ".join(map(lambda x: f"'{x}'", rep_digs))
+                ),
+                cursor_position=max(
+                    input_.rfind(dig) for dig in rep_digs
+                ) + 1,
+            )
+
+
+def get_toolbar(difficulty: Difficulty) -> str:
+    return " | ".join(
+        [
+            f"Difficulty: {difficulty.name}",
+            f"Size: {difficulty.num_size}",
+            f"Digits: {difficulty.digs_label}",
+        ]
+    )
+
+
+# ===================
+# Getting player name
+# ===================
+
+
+def player_name_getter() -> Iterator[Optional[str]]:
+    """Yields player name or `None` if `EOFError`."""
+    prompt_session: PromptSession[str] = PromptSession(
+        "Save score as: ",
+        validator=PlayerValidator(),
+        validate_while_typing=False,
+        enable_history_search=True,
+    )
+    while True:
+        try:
+            player = prompt_session.prompt().strip()
+        except EOFError:
+            yield None
+        except KeyboardInterrupt:
+            continue
+
+        try:
+            if not ask_ok(f"Confirm player: '{player}' [Y/n] "):
+                continue
+        except EOFError:
+            yield None
+
+        yield player
+
+
+class PlayerValidator(Validator):
+
+    def validate(self, document: Document) -> None:
+        text = document.text.strip()
+        min_len, max_len = PLAYER_NAME_LIMS
+
+        if len(text) < min_len:
+            raise ValidationError(
+                message=(
+                    "Too short name. "
+                    f"At least {min_len} characters needed."
+                ),
+                cursor_position=document.cursor_position,
+            )
+
+        if len(text) > max_len:
+            raise ValidationError(
+                message=(
+                    "Too long name. "
+                    f"Maximum {max_len} characters allowed."
+                ),
+                cursor_position=document.cursor_position,
+            )
+
+
+# =====
+# Menus
+# =====
+
+
+@cli_window("Difficulty Selection")
+def simple_difficulty_selection(
+        difficulties: SimpleDifficulties
+) -> SimpleDifficulty:
+    """SimpleDifficulty selection.
+
+    Can raise EOFError.
+    """
+    print(simple_difficulties_table(difficulties))
+
+    while True:
+        try:
+            input_ = prompt(
+                "Enter key: ",
+                validator=MenuValidator(difficulties.indexes),
+                validate_while_typing=False,
+            ).strip()
+        except KeyboardInterrupt:
+            continue
+
+        return difficulties[int(input_)]
+
+
+@cli_window("Difficulty Selection")
+def difficulty_selection(difficulties: Difficulties) -> Difficulty:
+    """Difficulty selection.
+
+    Can raise EOFError.
+    """
+    print(difficulties_table(difficulties))
+
+    while True:
+        try:
+            input_ = prompt(
+                "Enter key: ",
+                validator=MenuValidator(difficulties.indexes),
+                validate_while_typing=False,
+            ).strip()
+        except KeyboardInterrupt:
+            continue
+
+        return difficulties[int(input_)]
+
+
+class MenuValidator(Validator):
+
+    def __init__(self, index: Container[int]) -> None:
+        self.index = index
+
+    def validate(self, document: Document) -> None:
+        text: str = document.text.strip()
+
+        if text.isdigit() and int(text) in self.index:
+            return
+
+        raise ValidationError(
+            message="Invalid key",
+            cursor_position=document.cursor_position,
+        )
+
+
+# ======
+# Tables
+# ======
+
+
 def ranking_table(ranking: Ranking) -> str:
     data = [
         (index, score, player)
@@ -634,226 +871,3 @@ class RankingCmd(Command):
         ))
 
 
-# =====
-# Menus
-# =====
-
-
-@cli_window("Difficulty Selection")
-def simple_difficulty_selection(
-        difficulties: SimpleDifficulties
-) -> SimpleDifficulty:
-    """SimpleDifficulty selection.
-
-    Can raise EOFError."""
-
-    print(simple_difficulties_table(difficulties))
-
-    while True:
-        try:
-            input_ = prompt(
-                "Enter key: ",
-                validator=MenuValidator(difficulties.indexes),
-                validate_while_typing=False,
-            ).strip()
-        except KeyboardInterrupt:
-            continue
-
-        return difficulties[int(input_)]
-
-
-@cli_window("Difficulty Selection")
-def difficulty_selection(difficulties: Difficulties) -> Difficulty:
-    """Difficulty selection.
-
-    Can raise EOFError."""
-
-    print(difficulties_table(difficulties))
-
-    while True:
-        try:
-            input_ = prompt(
-                "Enter key: ",
-                validator=MenuValidator(difficulties.indexes),
-                validate_while_typing=False,
-            ).strip()
-        except KeyboardInterrupt:
-            continue
-
-        return difficulties[int(input_)]
-
-
-class MenuValidator(Validator):
-
-    def __init__(self, index: Container[int]) -> None:
-        self.index = index
-
-    def validate(self, document: Document) -> None:
-        text: str = document.text.strip()
-
-        if text.isdigit() and int(text) in self.index:
-            return
-
-        raise ValidationError(
-            message="Invalid key",
-            cursor_position=document.cursor_position,
-        )
-
-
-class RoundValidator(Validator):
-
-    def __init__(self, difficulty: Difficulty) -> None:
-        self.difficulty = difficulty
-
-    def validate(self, document: Document) -> None:
-        input_: str = document.text.strip()
-
-        digs_set = self.difficulty.digs_set
-        num_size = self.difficulty.num_size
-
-        if input_.startswith(COMMAND_PREFIX):
-            return
-
-        # Check if number have wrong characters
-        wrong_chars = set(input_) - digs_set
-        if wrong_chars:
-            raise ValidationError(
-                message=(
-                    "Wrong characters: %s"
-                    % ", ".join(map(lambda x: f"'{x}'", wrong_chars))
-                ),
-                cursor_position=max(
-                    input_.rfind(dig) for dig in wrong_chars
-                ) + 1,
-            )
-
-        # Check length
-        if len(input_) != num_size:
-            raise ValidationError(
-                message=f"Digit must have {num_size} digits",
-                cursor_position=len(input_),
-            )
-
-        # Check that digits don't repeat
-        digits = Counter(input_)
-        rep_digs = {i for i, n in digits.items() if n > 1}
-        if rep_digs:
-            raise ValidationError(
-                message=(
-                    "Number can't have repeated digits. %s repeated."
-                    % ", ".join(map(lambda x: f"'{x}'", rep_digs))
-                ),
-                cursor_position=max(
-                    input_.rfind(dig) for dig in rep_digs
-                ) + 1,
-            )
-
-
-class PlayerValidator(Validator):
-
-    def validate(self, document: Document) -> None:
-        text = document.text.strip()
-        min_len, max_len = PLAYER_NAME_LIMS
-
-        if len(text) < min_len:
-            raise ValidationError(
-                message=(
-                    "Too short name. "
-                    f"At least {min_len} characters needed."
-                ),
-                cursor_position=document.cursor_position,
-            )
-
-        if len(text) > max_len:
-            raise ValidationError(
-                message=(
-                    "Too long name. "
-                    f"Maximum {max_len} characters allowed."
-                ),
-                cursor_position=document.cursor_position,
-            )
-
-
-player_validator = PlayerValidator()
-
-
-def get_toolbar(difficulty: Difficulty) -> str:
-    return "  |  ".join(
-        [
-            f"  Difficulty: {difficulty.name}",
-            f"Size: {difficulty.num_size}",
-            f"Digits: {difficulty.digs_label}",
-        ]
-    )
-
-
-def number_getter(
-        difficulty: Difficulty,
-        get_steps: Callable[[], int],
-        commands: Commands,
-) -> Iterator[str]:
-    """Take number from user.
-
-    Supports special input. Can raise `StopPlaying`.
-    """
-    prompt_session: PromptSession[str] = PromptSession(
-        bottom_toolbar=get_toolbar(difficulty),
-        validator=RoundValidator(difficulty),
-        validate_while_typing=False,
-    )
-    while True:
-        try:
-            input_ = prompt_session.prompt(f"[{get_steps() + 1}] ").lstrip()
-        except EOFError:
-            try:
-                if ask_ok("Do you really want to quit? [Y/n]: "):
-                    raise StopPlaying
-                continue
-            except EOFError:
-                raise StopPlaying
-        except KeyboardInterrupt:
-            continue
-
-        if not input_.startswith(COMMAND_PREFIX):
-            yield input_.rstrip()
-            continue
-
-        cmd_line = input_[len(COMMAND_PREFIX):].lstrip()
-
-        if not cmd_line:
-            print(
-                f"Type '{COMMAND_PREFIX}help commands' to get "
-                "available commands"
-            )
-            continue
-
-        cmd_name, *args = shlex.split(cmd_line)
-        try:
-            commands[cmd_name].parse_args(args)
-        except KeyError:
-            print(f"No command '{cmd_name}'")
-
-
-def player_name_getter() -> Iterator[Optional[str]]:
-    """Yields player name or `None` if `EOFError`."""
-    prompt_session: PromptSession[str] = PromptSession(
-        "Save score as: ",
-        validator=player_validator,
-        validate_while_typing=False,
-        enable_history_search=True,
-    )
-    while True:
-        try:
-            player = prompt_session.prompt().strip()
-        except EOFError:
-            yield None
-        except KeyboardInterrupt:
-            continue
-
-        try:
-            if not ask_ok(f"Confirm player: '{player}' [Y/n] "):
-                continue
-        except EOFError:
-            yield None
-
-        yield player
