@@ -264,7 +264,8 @@ class Difficulties:
 class cli_window(ContextDecorator):
 
     def __init__(
-            self, header: str,
+            self,
+            header: str,
             fillchar: str = "=",
             wing_size: int = 5,
     ) -> None:
@@ -275,7 +276,7 @@ class cli_window(ContextDecorator):
 
     def __enter__(self):
         wing = self.fillchar * self.wing_size
-        print(f"\n{wing} {self.header} {wing}")
+        print(f"{wing} {self.header} {wing}")
         return self
 
     def __exit__(self, *exc):
