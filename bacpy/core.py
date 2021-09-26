@@ -359,6 +359,7 @@ class RankingManager:
             score_data: _ScoreData,
             player: str,
     ) -> Ranking:
+        validate_player_name(player)
         ranking = self.load(score_data.difficulty)
         ranking.add(
             _RankingRecord(
