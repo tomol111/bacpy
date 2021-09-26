@@ -26,7 +26,7 @@ else:
 
 
 # Constants
-PLAYER_NAME_LIMS: Tuple[int, int] = (3, 20)
+PLAYER_NAME_LEN_LIMS: Final[Tuple[int, int]] = (3, 20)
 RANKINGS_DIR: Final[Path] = Path(".rankings")
 RANKING_SIZE: Final[int] = 10
 
@@ -369,3 +369,15 @@ class RankingManager:
         )
         self._save(ranking)
         return ranking
+
+
+def validate_player_name(name: str) -> None:
+    min_len, max_len = PLAYER_NAME_LEN_LIMS
+    if len(name) < min_len:
+        raise ValueError(
+            f"Too short name. At least {min_len} characters needed."
+        )
+    if len(name) > max_len:
+        raise ValueError(
+            f"Too long name. Maximum {max_len} characters allowed."
+        )

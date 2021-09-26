@@ -26,6 +26,7 @@ from bacpy.core import (
     SimpleDifficulty,
     StopPlaying,
     _validate_digs_num_for_defaults,
+    validate_player_name,
 )
 
 
@@ -421,6 +422,26 @@ def test_ranking_manager_update_overflow(tmp_path):
 
     assert updated_ranking == ranking
     assert updated_ranking == ranking_manager.load(difficulty)
+
+
+# validate_player_name
+# --------------------
+
+@pytest.mark.parametrize(
+    "name",
+    ("abc", "abcdefghijk", "abcdefghijklmnopqrst")
+)
+def test_validate_player_name_pass(name):
+    validate_player_name(name)
+
+
+@pytest.mark.parametrize(
+    "name",
+    ("", "ab", "abcdefghijklmnopqrstu", "abcdefghijklmnopqrstuvwxyz")
+)
+def test_validate_player_name_exception(name):
+    with pytest.raises(ValueError):
+        validate_player_name(name)
 
 
 # ============

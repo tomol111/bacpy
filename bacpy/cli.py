@@ -36,16 +36,16 @@ from .core import (
     DEFAULT_DIFFICULTIES,
     Difficulty,
     draw_number,
-    PLAYER_NAME_LIMS,
     QuitGame,
     Ranking,
     RankingManager,
-    RANKING_SIZE,
     RANKINGS_DIR,
+    RANKING_SIZE,
     RestartGame,
     RoundCore,
     SimpleDifficulty,
     StopPlaying,
+    validate_player_name,
 )
 
 if sys.version_info >= (3, 8):
@@ -437,7 +437,7 @@ def player_name_getter() -> Iterator[Optional[str]]:
     """Yields player name or `None` if `EOFError`."""
     prompt_session: PromptSession[str] = PromptSession(
         "Save score as: ",
-        validator=PlayerValidator(),
+        validator=PlayerNameValidator(),
         validate_while_typing=False,
         enable_history_search=True,
     )
@@ -458,27 +458,15 @@ def player_name_getter() -> Iterator[Optional[str]]:
         yield player
 
 
-class PlayerValidator(Validator):
+class PlayerNameValidator(Validator):
 
     def validate(self, document: Document) -> None:
         text = document.text.strip()
-        min_len, max_len = PLAYER_NAME_LIMS
-
-        if len(text) < min_len:
+        try:
+            validate_player_name(text)
+        except ValueError as err:
             raise ValidationError(
-                message=(
-                    "Too short name. "
-                    f"At least {min_len} characters needed."
-                ),
-                cursor_position=document.cursor_position,
-            )
-
-        if len(text) > max_len:
-            raise ValidationError(
-                message=(
-                    "Too long name. "
-                    f"Maximum {max_len} characters allowed."
-                ),
+                message=str(err),
                 cursor_position=document.cursor_position,
             )
 

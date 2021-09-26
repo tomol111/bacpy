@@ -1,14 +1,17 @@
 import inspect
 
 from prompt_toolkit.application import create_app_session
+from prompt_toolkit.document import Document
 from prompt_toolkit.input import create_pipe_input
 from prompt_toolkit.output import DummyOutput
 from prompt_toolkit.shortcuts import prompt as pt_prompt
+from prompt_toolkit.validation import ValidationError
 import pytest
 
 from bacpy.cli import (
     ask_ok,
     cli_window,
+    PlayerNameValidator,
 )
 
 
@@ -131,3 +134,27 @@ def test_ask_ok_default_prompt(mock_input):
     prompt_message = "some prompt"
     mock_input.send_text("y\n")
     ask_ok(prompt_message)
+
+
+# ===================
+# Getting player name
+# ===================
+
+# PlayerNameValidator
+# -------------------
+
+@pytest.mark.parametrize(
+    "name",
+    ("abc", "abcdefghijk", "abcdefghijklmnopqrst")
+)
+def test_PlayerNameValidator_invalid(name):
+    PlayerNameValidator().validate(Document(name))
+
+
+@pytest.mark.parametrize(
+    "name",
+    ("", "ab", "abcdefghijklmnopqrstu", "abcdefghijklmnopqrstuvwxyz")
+)
+def test_PlayerNameValidator_valid(name):
+    with pytest.raises(ValidationError):
+        PlayerNameValidator().validate(Document(name))
