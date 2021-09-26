@@ -23,7 +23,6 @@ from bacpy.core import (
     RestartGame,
     RoundCore,
     _ScoreData,
-    SequenceView,
     SimpleDifficulty,
     StopPlaying,
     _validate_digs_num_for_defaults,
