@@ -284,19 +284,27 @@ class cli_window(ContextDecorator):
         return False
 
 
-def ask_ok(prompt_message: str, default: Optional[bool] = True) -> bool:
+def ask_ok(
+        prompt_message: str,
+        *,
+        prompt_func: Callable[[str], str] = prompt,
+        default: Optional[bool] = True,
+) -> bool:
     """Yes/No input.
 
     Can raise EOFError
     """
     while True:
         try:
-            input_ = prompt(prompt_message).strip().lower()
+            input_ = prompt_func(prompt_message).strip().lower()
         except KeyboardInterrupt:
             continue
 
-        if not input_ and default is not None:
-            return default
+        if not input_:
+            if default is not None:
+                return default
+            else:
+                continue
         if "yes".startswith(input_):
             return True
         if "no".startswith(input_):
@@ -870,5 +878,3 @@ class RankingCmd(Command):
         pager(ranking_table(
             self.game.ranking_manager.load(difficulty)
         ))
-
-
