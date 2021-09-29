@@ -11,8 +11,12 @@ import pytest
 from bacpy.cli import (
     ask_ok,
     cli_window,
+    player_name_getter,
     PlayerNameValidator,
 )
+
+
+ARROW_UP = "\u001b[A"
 
 
 # ========
@@ -158,3 +162,65 @@ def test_PlayerNameValidator_invalid(name):
 def test_PlayerNameValidator_valid(name):
     with pytest.raises(ValidationError):
         PlayerNameValidator().validate(Document(name))
+
+
+# player_name_getter
+# ------------------
+
+
+def test_player_name_getter(mock_input):
+    player_name_iter = player_name_getter()
+
+    # parse name and confirm
+    mock_input.send_text(
+        "Tomek\n"
+        "y\n"
+    )
+    assert next(player_name_iter) == "Tomek"
+
+    # reuse
+    mock_input.send_text(
+        "Maciek\n"
+        "y\n"
+    )
+    assert next(player_name_iter) == "Maciek"
+
+    # don't parse invalid input
+    mock_input.send_text(
+        "D\n"
+        "arek\n"
+        "y\n"
+    )
+    assert next(player_name_iter) == "Darek"
+
+    # not confirm and correct
+    mock_input.send_text(
+        "Tomek\n"
+        "n\n"
+        "Zosia\n"
+        "y\n"
+    )
+    assert next(player_name_iter) == "Zosia"
+
+    # return `None` on `EOFError`
+    mock_input.send_text(
+        "\n"
+    )
+    assert next(player_name_iter) is None
+
+    # return `None` on `EOFError` while asking for confirmation
+    mock_input.send_text(
+        "Tomek\n"
+        "\n"
+    )
+    assert next(player_name_iter) is None
+
+    # history search
+    mock_input.send_text(
+        f"{ARROW_UP}\n"
+        "y\n"
+    )
+    assert next(player_name_iter) == "Tomek"
+
+
+# TODO: test `KeyboardInterrupt` handling

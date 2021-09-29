@@ -444,18 +444,14 @@ def player_name_getter() -> Iterator[Optional[str]]:
     while True:
         try:
             player = prompt_session.prompt().strip()
-        except EOFError:
-            yield None
-        except KeyboardInterrupt:
-            continue
-
-        try:
             if not ask_ok(f"Confirm player: '{player}' [Y/n] "):
                 continue
+        except KeyboardInterrupt:
+            continue
         except EOFError:
             yield None
-
-        yield player
+        else:
+            yield player
 
 
 class PlayerNameValidator(Validator):
