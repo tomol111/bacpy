@@ -380,7 +380,7 @@ class RankingManager:
             score_data: _ScoreData,
             player: str,
     ) -> Ranking:
-        validate_player_name(player)
+        assert is_player_name_valid(player)
         ranking = self.load(score_data.difficulty)
         ranking.add(
             _RankingRecord(
@@ -393,13 +393,23 @@ class RankingManager:
         return ranking
 
 
+def is_player_name_valid(name: str) -> bool:
+    """Wraps `validate_player_name()` for assertion and testing purposes."""
+    try:
+        validate_player_name(name)
+    except ValueError:
+        return False
+    else:
+        return True
+
+
 def validate_player_name(name: str) -> None:
     min_len, max_len = PLAYER_NAME_LEN_LIMS
     if len(name) < min_len:
         raise ValueError(
-            f"Too short name. At least {min_len} characters needed."
+            f"Too short name ({len(name)}). At least {min_len} characters needed."
         )
     if len(name) > max_len:
         raise ValueError(
-            f"Too long name. Maximum {max_len} characters allowed."
+            f"Too long name ({len(name)}). Maximum {max_len} characters allowed."
         )

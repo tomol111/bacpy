@@ -13,6 +13,7 @@ from bacpy.core import (
     draw_number,
     GameException,
     is_number_valid,
+    is_player_name_valid,
     MIN_NUM_SIZE,
     QuitGame,
     Ranking,
@@ -25,7 +26,6 @@ from bacpy.core import (
     SimpleDifficulty,
     StopPlaying,
     _validate_digs_num_for_defaults,
-    validate_player_name,
 )
 
 
@@ -369,7 +369,7 @@ def test_ranking_manager_update_overflow(tmp_path):
     assert updated_ranking == ranking_manager.load(difficulty)
 
 
-# validate_player_name
+# is_player_name_valid
 # --------------------
 
 @pytest.mark.parametrize(
@@ -377,7 +377,7 @@ def test_ranking_manager_update_overflow(tmp_path):
     ("abc", "abcdefghijk", "abcdefghijklmnopqrst")
 )
 def test_validate_player_name_pass(name):
-    validate_player_name(name)
+    assert is_player_name_valid(name)
 
 
 @pytest.mark.parametrize(
@@ -385,8 +385,7 @@ def test_validate_player_name_pass(name):
     ("", "ab", "abcdefghijklmnopqrstu", "abcdefghijklmnopqrstuvwxyz")
 )
 def test_validate_player_name_exception(name):
-    with pytest.raises(ValueError):
-        validate_player_name(name)
+    assert not is_player_name_valid(name)
 
 
 # ============
