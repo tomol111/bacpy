@@ -11,10 +11,12 @@ import pytest
 from bacpy.cli import (
     ask_ok,
     cli_window,
+    get_toolbar,
     MenuValidator,
     player_name_getter,
     PlayerNameValidator,
 )
+from bacpy.core import Difficulty
 
 
 ARROW_UP = "\u001b[A"
@@ -261,3 +263,19 @@ def test_MenuValidator__pass(index, input_):
 def test_MenuValidator__raise_ValidationError(index, input_):
     with pytest.raises(ValidationError):
         MenuValidator(index).validate(Document(input_))
+
+
+# ===========
+# Main prompt
+# ===========
+
+
+# get_toolbar
+# -----------
+
+
+def test_get_toolbar():
+    difficulty = Difficulty(4, 9, set(range(1, 10)), "1-9", "standard")
+    assert get_toolbar(difficulty) == (
+        "Difficulty: standard | Size: 4 | Digits: 1-9"
+    )
