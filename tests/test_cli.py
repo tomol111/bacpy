@@ -12,6 +12,7 @@ from bacpy.cli import (
     ask_ok,
     cli_window,
     get_toolbar,
+    MainPromptValidator,
     MenuValidator,
     player_name_getter,
     PlayerNameValidator,
@@ -279,3 +280,56 @@ def test_get_toolbar():
     assert get_toolbar(difficulty) == (
         "Difficulty: standard | Size: 4 | Digits: 1-9"
     )
+
+
+# MainPromptValidator
+# -------------------
+
+
+@pytest.mark.parametrize(
+    ("input_", "difficulty"),
+    (
+        ("3621", Difficulty.new_default(4, 8)),
+        (" 1482 ", Difficulty.new_default(4, 8)),
+    )
+)
+def test_MainPromptValidator__pass_on_valid_number(input_, difficulty):
+    MainPromptValidator(difficulty).validate(Document(input_))
+
+
+@pytest.mark.parametrize(
+    "input_",
+    ("3622", "14823", "1492")
+)
+def test_MainPromptValidator__raise_ValidationError_on_invalid_number(input_):
+    difficulty = Difficulty.new_default(4, 8)
+    with pytest.raises(ValidationError):
+        MainPromptValidator(difficulty).validate(Document(input_))
+
+
+@pytest.mark.parametrize(
+    "input_",
+    (
+        "!help",
+        " ! help ",
+        "!help commands",
+        "!restart -l",
+        "!ra 'some difficulty'",
+    )
+)
+def test_MainPromptValidator__pass_on_valid_command(input_):
+    difficulty = Difficulty.new_default(5, 10)
+    MainPromptValidator(difficulty).validate(Document(input_))
+
+
+@pytest.mark.parametrize(
+    "input_",
+    (
+        "!help\\",  # No escaped character
+        "!ra 'some difficulty",  # No clossing quotation
+    )
+)
+def test_MainPromptValidator__raise_ValidationError_on_invalid_command(input_):
+    difficulty = Difficulty.new_default(3, 4)
+    with pytest.raises(ValidationError):
+        MainPromptValidator(difficulty).validate(Document(input_))

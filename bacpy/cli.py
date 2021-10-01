@@ -333,7 +333,7 @@ def number_getter(
     """
     prompt_session: PromptSession[str] = PromptSession(
         bottom_toolbar=get_toolbar(difficulty),
-        validator=RoundValidator(difficulty),
+        validator=MainPromptValidator(difficulty),
         validate_while_typing=False,
     )
     while True:
@@ -369,7 +369,7 @@ def number_getter(
             print(f"No command '{cmd_name}'")
 
 
-class RoundValidator(Validator):
+class MainPromptValidator(Validator):
 
     def __init__(self, difficulty: Difficulty) -> None:
         self.difficulty = difficulty
@@ -377,11 +377,11 @@ class RoundValidator(Validator):
     def validate(self, document: Document) -> None:
         input_: str = document.text.strip()
 
-        if input_.startswith(COMMAND_PREFIX):
-            return
-
         try:
-            validate_number(input_, self.difficulty)
+            if input_.startswith(COMMAND_PREFIX):
+                validate_command(input_[len(COMMAND_PREFIX):].lstrip())
+            else:
+                validate_number(input_, self.difficulty)
         except ValueError as err:
             raise ValidationError(
                 message=str(err),
@@ -551,6 +551,11 @@ def difficulties_table(difficulties: Difficulties) -> str:
 
 
 COMMAND_PREFIX: Final[str] = "!"
+
+
+def validate_command(cmd_line: str) -> None:
+    """Validate command line string. `COMMAND_PREFIX` have to be removed."""
+    shlex.split(cmd_line)
 
 
 class Command(metaclass=ABCMeta):
