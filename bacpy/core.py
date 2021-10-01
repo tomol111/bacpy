@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 import csv
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -42,7 +43,7 @@ class RoundCore(Generator[Tuple[int, int], str, None]):
     def __init__(self, number: str, difficulty: Difficulty) -> None:
         self._number = number
         self._difficulty = difficulty
-        assert is_number_valid(difficulty, number)
+        assert is_number_valid(number, difficulty)
         self._history: List[GuessRecord] = []
         self._closed = False
         self._score_data: Optional[_ScoreData] = None
@@ -74,8 +75,7 @@ class RoundCore(Generator[Tuple[int, int], str, None]):
         if self._closed:
             raise StopIteration
 
-        if not is_number_valid(self._difficulty, guess):
-            raise ValueError("Parsed number is invalid")
+        assert is_number_valid(guess, self._difficulty)
 
         bulls, cows = _bullscows(guess, self._number)
         self._history.append(GuessRecord(guess, bulls, cows))
@@ -101,14 +101,35 @@ def draw_number(difficulty: Difficulty) -> str:
     )
 
 
-def is_number_valid(difficulty: Difficulty, number: str) -> bool:
-    """Quick check if number is valid for given difficulty."""
-    chars = set(number)
-    return (
-        chars <= difficulty.digs_set
-        and len(number) == difficulty.num_size
-        and len(chars) == len(number)
-    )
+def is_number_valid(number: str, difficulty: Difficulty) -> bool:
+    try:
+        validate_number(number, difficulty)
+    except ValueError:
+        return False
+    else:
+        return True
+
+
+def validate_number(number: str, difficulty: Difficulty) -> None:
+
+    wrong_chars = set(number) - difficulty.digs_set
+    if wrong_chars:
+        raise ValueError(
+            "Wrong characters: "
+            + ", ".join(f"'{char}'" for char in wrong_chars)
+        )
+
+    if len(number) != difficulty.num_size:
+        raise ValueError(
+            f"Number have {len(number)} digits. {difficulty.num_size} needed",
+        )
+
+    rep_digits = {digit for digit, count in Counter(number).items() if count > 1}
+    if rep_digits:
+        raise ValueError(
+            "Repeated digits: "
+            + ", ".join(f"'{digit}'" for digit in rep_digits)
+        )
 
 
 def _bullscows(guess: str, number: str) -> Tuple[int, int]:

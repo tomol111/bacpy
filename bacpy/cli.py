@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
-from collections import Counter
 from contextlib import ContextDecorator, contextmanager
 import inspect
 import itertools
@@ -45,6 +44,7 @@ from .core import (
     RoundCore,
     SimpleDifficulty,
     StopPlaying,
+    validate_number,
     validate_player_name,
 )
 
@@ -377,45 +377,16 @@ class RoundValidator(Validator):
     def validate(self, document: Document) -> None:
         input_: str = document.text.strip()
 
-        digs_set = self.difficulty.digs_set
-        num_size = self.difficulty.num_size
-
         if input_.startswith(COMMAND_PREFIX):
             return
 
-        # Check if number have wrong characters
-        wrong_chars = set(input_) - digs_set
-        if wrong_chars:
+        try:
+            validate_number(input_, self.difficulty)
+        except ValueError as err:
             raise ValidationError(
-                message=(
-                    "Wrong characters: %s"
-                    % ", ".join(map(lambda x: f"'{x}'", wrong_chars))
-                ),
-                cursor_position=max(
-                    input_.rfind(dig) for dig in wrong_chars
-                ) + 1,
-            )
-
-        # Check length
-        if len(input_) != num_size:
-            raise ValidationError(
-                message=f"Digit must have {num_size} digits",
-                cursor_position=len(input_),
-            )
-
-        # Check that digits don't repeat
-        digits = Counter(input_)
-        rep_digs = {i for i, n in digits.items() if n > 1}
-        if rep_digs:
-            raise ValidationError(
-                message=(
-                    "Number can't have repeated digits. %s repeated."
-                    % ", ".join(map(lambda x: f"'{x}'", rep_digs))
-                ),
-                cursor_position=max(
-                    input_.rfind(dig) for dig in rep_digs
-                ) + 1,
-            )
+                message=str(err),
+                cursor_position=document.cursor_position,
+            ) from err
 
 
 def get_toolbar(difficulty: Difficulty) -> str:

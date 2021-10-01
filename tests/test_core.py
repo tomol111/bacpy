@@ -689,54 +689,54 @@ def test_bullscows(guess, number, bulls, cows):
 
 
 @pytest.mark.parametrize(
-    ("difficulty", "number"),
+    ("number", "difficulty"),
     (
-        (Difficulty.new_default(3, 6), "163"),
-        (Difficulty.new_default(4, 9), "1593"),
-        (Difficulty.new_default(5, 15), "2f5a9"),
+        ("163", Difficulty.new_default(3, 6)),
+        ("1593", Difficulty.new_default(4, 9)),
+        ("2f5a9", Difficulty.new_default(5, 15)),
     )
 )
-def test_is_number_valid(difficulty, number):
-    assert is_number_valid(difficulty, number)
+def test_is_number_valid(number, difficulty):
+    assert is_number_valid(number, difficulty)
 
 
 @pytest.mark.parametrize(
-    ("difficulty", "number"),
+    ("number", "difficulty"),
     (
-        (Difficulty.new_default(3, 6), "301"),
-        (Difficulty.new_default(4, 9), "51a9"),
-        (Difficulty.new_default(5, 15), "1g4a8"),
+        ("301", Difficulty.new_default(3, 6)),
+        ("51a9", Difficulty.new_default(4, 9)),
+        ("1g4a8", Difficulty.new_default(5, 15)),
     )
 )
-def test_is_number_valid_wrong_characters(difficulty, number):
-    assert not is_number_valid(difficulty, number)
+def test_is_number_valid_wrong_characters(number, difficulty):
+    assert not is_number_valid(number, difficulty)
 
 
 @pytest.mark.parametrize(
-    ("difficulty", "number"),
+    ("number", "difficulty"),
     (
-        (Difficulty.new_default(3, 5), "1234"),
-        (Difficulty.new_default(3, 5), "34"),
-        (Difficulty.new_default(4, 9), "12349"),
-        (Difficulty.new_default(4, 9), "31"),
-        (Difficulty.new_default(5, 15), "12f3a49b"),
-        (Difficulty.new_default(5, 15), "31d"),
+        ("1234", Difficulty.new_default(3, 5)),
+        ("34", Difficulty.new_default(3, 5)),
+        ("12349", Difficulty.new_default(4, 9)),
+        ("31", Difficulty.new_default(4, 9)),
+        ("12f3a49b", Difficulty.new_default(5, 15)),
+        ("31d", Difficulty.new_default(5, 15)),
     )
 )
-def test_is_number_valid_wrong_length(difficulty, number):
-    assert not is_number_valid(difficulty, number)
+def test_is_number_valid_wrong_length(number, difficulty):
+    assert not is_number_valid(number, difficulty)
 
 
 @pytest.mark.parametrize(
-    ("difficulty", "number"),
+    ("number", "difficulty"),
     (
-        (Difficulty.new_default(3, 5), "232"),
-        (Difficulty.new_default(4, 9), "3727"),
-        (Difficulty.new_default(5, 15), "3b5b8"),
+        ("232", Difficulty.new_default(3, 5)),
+        ("3727", Difficulty.new_default(4, 9)),
+        ("3b5b8", Difficulty.new_default(5, 15)),
     )
 )
-def test_is_number_valid_not_unique_characters(difficulty, number):
-    assert not is_number_valid(difficulty, number)
+def test_is_number_valid_not_unique_characters(number, difficulty):
+    assert not is_number_valid(number, difficulty)
 
 
 # draw_number
@@ -753,7 +753,7 @@ def test_is_number_valid_not_unique_characters(difficulty, number):
 )
 def test_draw_number(difficulty):
     number = draw_number(difficulty)
-    assert is_number_valid(difficulty, number)
+    assert is_number_valid(number, difficulty)
 
 
 # RoundCore
@@ -772,12 +772,6 @@ def test_round_core():
     assert not round_core.closed
     with pytest.raises(AttributeError):
         round_core.score_data
-
-    # invalid number
-    with pytest.raises(ValueError):
-        round_core.send("")
-    assert not round_core.history
-    assert not round_core.steps
 
     # first step
     guess1 = "145"
