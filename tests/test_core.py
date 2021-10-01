@@ -12,7 +12,6 @@ from bacpy.core import (
     DIGITS_RANGE,
     draw_number,
     GameException,
-    GuessRecord,
     is_number_valid,
     MIN_NUM_SIZE,
     QuitGame,
@@ -58,33 +57,6 @@ def test_restart_game_exception():
 # =============
 # Ranking tools
 # =============
-
-
-# _RankingRecord
-# --------------
-
-
-def test_ranking_record_as_tuple():
-    score_data = _RankingRecord(
-        10,
-        datetime(2021, 6, 5),
-        "player name",
-    )
-    assert isinstance(score_data, tuple)
-
-
-def test_ranking_record_as_namespace():
-    dt = datetime(2021, 6, 5)
-    score = 10
-    player = "player name"
-    score_data = _RankingRecord(
-        dt=dt,
-        score=score,
-        player=player,
-    )
-    assert score_data.score == score
-    assert score_data.dt == dt
-    assert score_data.player == player
 
 
 # Ranking
@@ -199,33 +171,6 @@ def test_ranking_add_overflow():
         _RankingRecord(12, datetime(2021, 6, 6), "New player")
     )
     assert ranking.data == expected_data
-
-
-# _ScoreData
-# ----------
-
-
-def test_score_data_as_tuple():
-    score_data = _ScoreData(
-        10,
-        datetime(2021, 6, 5),
-        SimpleDifficulty(3, 6),
-    )
-    assert isinstance(score_data, tuple)
-
-
-def test_score_data_as_namespace():
-    score = 10
-    dt = datetime(2021, 6, 5)
-    difficulty = SimpleDifficulty(3, 6)
-    score_data = _ScoreData(
-        score=score,
-        dt=dt,
-        difficulty=difficulty,
-    )
-    assert score_data.score == score
-    assert score_data.dt == dt
-    assert score_data.difficulty == difficulty
 
 
 # RankingManager
@@ -642,30 +587,6 @@ def test_difficulty_frozen():
 # =====
 # Round
 # =====
-
-
-# GuessRecord
-# --------------
-
-
-def test_guessing_record_as_tuple():
-    tple = ("1234", 2, 1)
-    record = GuessRecord(*tple)
-    assert record == tple
-
-
-def test_guessing_record_unpacking():
-    tple = ("1234", 2, 1)
-    number, bulls, cows = GuessRecord(*tple)
-    assert (number, bulls, cows) == tple
-
-
-def test_guessint_record_as_namespace():
-    record = GuessRecord(number="1234", bulls=2, cows=1)
-    assert record.number == "1234"
-    assert record.bulls == 2
-    assert record.cows == 1
-
 
 # _bullscows
 # -----------------
