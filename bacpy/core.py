@@ -229,7 +229,7 @@ class Difficulty(SimpleDifficulty):
         if self.digs_num != len(self.digs_set):
             raise ValueError(
                 f"`digs_num` ({self.digs_num}) is diffrent from length of"
-                f" `digs_set` ({self.digs_num})"
+                f" `digs_set` ({len(self.digs_set)})"
             )
 
     def to_simple(self) -> SimpleDifficulty:
