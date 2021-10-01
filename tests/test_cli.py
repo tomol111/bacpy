@@ -11,6 +11,7 @@ import pytest
 from bacpy.cli import (
     ask_ok,
     cli_window,
+    MenuValidator,
     player_name_getter,
     PlayerNameValidator,
 )
@@ -224,3 +225,39 @@ def test_player_name_getter(mock_input):
 
 
 # TODO: test `KeyboardInterrupt` handling
+
+
+# =====
+# Menus
+# =====
+
+
+# MenuValidator
+# -------------
+
+
+@pytest.mark.parametrize(
+    ("index", "input_"),
+    (
+        (range(4), "2"),
+        ({1, 2, 3}, "1 "),
+        ([1, 2, 3, 4], " 4"),
+    )
+)
+def test_MenuValidator__pass(index, input_):
+    MenuValidator(index).validate(Document(input_))
+
+
+@pytest.mark.parametrize(
+    ("index", "input_"),
+    (
+        (range(4), "4"),
+        ({1, 2, 3}, "0"),
+        ([1, 2, 3, 4], "-1"),
+        ((1, 2, 3, 4), ""),
+        ({1: "a", 2: "b", 3: "c", 4: "d"}, "a"),
+    )
+)
+def test_MenuValidator__raise_ValidationError(index, input_):
+    with pytest.raises(ValidationError):
+        MenuValidator(index).validate(Document(input_))
