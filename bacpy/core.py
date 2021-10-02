@@ -10,11 +10,11 @@ import sys
 from typing import (
     FrozenSet,
     Generator,
-    Iterable,
-    List,
     Iterator,
+    List,
     NamedTuple,
     Optional,
+    Sequence,
     Tuple,
 )
 
@@ -280,36 +280,10 @@ class _RankingRecord(NamedTuple):
     player: str
 
 
+@dataclass(frozen=True)
 class Ranking:
-
-    def __init__(
-            self,
-            data: Iterable[_RankingRecord],
-            difficulty: SimpleDifficulty,
-    ) -> None:
-        self._data = sorted(data)
-        self._difficulty = difficulty
-
-    @property
-    def data(self) -> SequenceView[_RankingRecord]:
-        return SequenceView(self._data)
-
-    @property
-    def difficulty(self) -> SimpleDifficulty:
-        return self._difficulty
-
-    def add(self, record: _RankingRecord) -> None:
-        self._data.append(record)
-        self._data.sort()
-        self._data = self._data[:RANKING_SIZE]
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, Ranking):
-            return NotImplemented
-        return (
-            self.difficulty == other.difficulty
-            and self.data == other.data
-        )
+    data: Sequence[_RankingRecord]
+    difficulty: SimpleDifficulty
 
 
 class _ScoreData(NamedTuple):
@@ -348,7 +322,7 @@ class RankingManager:
         path.touch()
         with open(path, "r") as file:
             return Ranking(
-                data=(
+                data=tuple(
                     _RankingRecord(
                         int(score),
                         datetime.fromisoformat(dt),
@@ -382,15 +356,26 @@ class RankingManager:
     ) -> Ranking:
         assert is_player_name_valid(player)
         ranking = self.load(score_data.difficulty)
-        ranking.add(
+        new_ranking = self._new_ranking(
+            ranking,
             _RankingRecord(
                 score_data.score,
                 score_data.dt,
                 player,
-            )
+            ),
         )
-        self._save(ranking)
-        return ranking
+        self._save(new_ranking)
+        return new_ranking
+
+    def _new_ranking(
+            self,
+            ranking: Ranking,
+            new_record: _RankingRecord,
+    ) -> Ranking:
+        new_data = list(ranking.data)
+        new_data.append(new_record)
+        new_data.sort()
+        return Ranking(tuple(new_data[:RANKING_SIZE]), ranking.difficulty)
 
 
 def is_player_name_valid(name: str) -> bool:

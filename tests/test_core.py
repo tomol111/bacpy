@@ -59,120 +59,6 @@ def test_restart_game_exception():
 # =============
 
 
-# Ranking
-# -------
-
-
-def test_ranking_init():
-    data = [
-        _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
-        _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
-    ]
-    difficulty = SimpleDifficulty(3, 6)
-    ranking = Ranking(data, difficulty)
-    assert ranking.data == data
-    assert ranking.difficulty == difficulty
-
-
-def test_ranking_init_sorting():
-    data = [
-        _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
-        _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
-        _RankingRecord(12, datetime(2021, 6, 6), "New player"),
-    ]
-    sorted_data = [
-        _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
-        _RankingRecord(12, datetime(2021, 6, 6), "New player"),
-        _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
-    ]
-    ranking = Ranking(data, SimpleDifficulty(3, 6))
-    assert ranking.data == sorted_data
-
-
-def test_ranking_eq():
-    data = [
-        _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
-        _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
-    ]
-    difficulty = SimpleDifficulty(3, 6)
-    ranking0 = Ranking(data, difficulty)
-    ranking1 = Ranking(data, difficulty)
-    assert ranking0 == ranking1
-
-
-def test_ranking_ne_difrent_difficulties():
-    data = [
-        _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
-        _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
-    ]
-    ranking0 = Ranking(data, SimpleDifficulty(3, 6))
-    ranking1 = Ranking(data, SimpleDifficulty(4, 9))
-    assert not ranking0 == ranking1
-
-
-def test_ranking_ne_difrent_data():
-    data0 = [
-        _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
-        _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
-    ]
-    data1 = data0 + [
-        _RankingRecord(12, datetime(2021, 6, 6), "New player")
-    ]
-    difficulty = SimpleDifficulty(3, 6)
-    ranking0 = Ranking(data0, difficulty)
-    ranking1 = Ranking(data1, difficulty)
-    assert not ranking0 == ranking1
-
-
-def test_ranking_add():
-    data = [
-        _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
-        _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
-    ]
-    expected_data = [
-        _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
-        _RankingRecord(12, datetime(2021, 6, 6), "New player"),
-        _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
-    ]
-    ranking = Ranking(data, SimpleDifficulty(3, 6))
-    ranking.add(
-        _RankingRecord(12, datetime(2021, 6, 6), "New player")
-    )
-    assert ranking.data == expected_data
-
-
-def test_ranking_add_overflow():
-    data = [
-        _RankingRecord(6, datetime(2021, 3, 17), "Tomasz"),
-        _RankingRecord(8, datetime(2021, 2, 18), "Maciek"),
-        _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
-        _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
-        _RankingRecord(15, datetime(2021, 6, 6), "Zofia"),
-        _RankingRecord(17, datetime(2021, 4, 5), "Piotrek"),
-        _RankingRecord(20, datetime(2020, 12, 30), "Tomasz"),
-        _RankingRecord(21, datetime(2021, 3, 20), "Tomasz"),
-        _RankingRecord(30, datetime(2020, 11, 10), "Darek"),
-        _RankingRecord(32, datetime(2020, 8, 1), "Tomasz"),
-    ]
-    expected_data = [
-        _RankingRecord(6, datetime(2021, 3, 17), "Tomasz"),
-        _RankingRecord(8, datetime(2021, 2, 18), "Maciek"),
-        _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
-        _RankingRecord(12, datetime(2021, 6, 6), "New player"),
-        _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
-        _RankingRecord(15, datetime(2021, 6, 6), "Zofia"),
-        _RankingRecord(17, datetime(2021, 4, 5), "Piotrek"),
-        _RankingRecord(20, datetime(2020, 12, 30), "Tomasz"),
-        _RankingRecord(21, datetime(2021, 3, 20), "Tomasz"),
-        _RankingRecord(30, datetime(2020, 11, 10), "Darek"),
-    ]
-    ranking = Ranking(data, SimpleDifficulty(3, 6))
-    ranking.add(
-        _RankingRecord(12, datetime(2021, 6, 6), "New player")
-    )
-    assert ranking.data == expected_data
-
-
 # RankingManager
 # --------------
 
@@ -188,10 +74,10 @@ def test_ranking_manager_save_load_unitarity(tmp_path):
     ranking_manager = RankingManager(tmp_path)
     difficulty = SimpleDifficulty(3, 6)
     ranking = Ranking(
-        [
+        (
             _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
             _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
-        ],
+        ),
         difficulty,
     )
     ranking_manager._save(ranking)
@@ -201,7 +87,7 @@ def test_ranking_manager_save_load_unitarity(tmp_path):
 def test_ranking_manager_load_not_existing_ranking(tmp_path):
     ranking_manager = RankingManager(tmp_path)
     difficulty = SimpleDifficulty(3, 6)
-    expected_empty_ranking = Ranking([], difficulty)
+    expected_empty_ranking = Ranking((), difficulty)
 
     assert ranking_manager.load(difficulty) == expected_empty_ranking
     assert ranking_manager._get_path(difficulty).exists()
@@ -229,10 +115,10 @@ def test_ranking_manager_is_score_fit_into_not_full(tmp_path):
     difficulty = SimpleDifficulty(3, 6)
     ranking_manager = RankingManager(tmp_path)
     ranking = Ranking(
-        [
+        (
             _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
             _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
-        ],
+        ),
         difficulty,
     )
     ranking_manager._save(ranking)
@@ -249,7 +135,7 @@ def test_ranking_manager_is_score_fit_into_full(tmp_path):
     difficulty = SimpleDifficulty(3, 6)
     ranking_manager = RankingManager(tmp_path)
     ranking = Ranking(
-        [
+        (
             _RankingRecord(6, datetime(2021, 3, 17), "Tomasz"),
             _RankingRecord(8, datetime(2021, 2, 18), "Maciek"),
             _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
@@ -260,7 +146,7 @@ def test_ranking_manager_is_score_fit_into_full(tmp_path):
             _RankingRecord(21, datetime(2021, 3, 20), "Tomasz"),
             _RankingRecord(30, datetime(2020, 11, 10), "Darek"),
             _RankingRecord(32, datetime(2020, 8, 1), "Tomasz"),
-        ],
+        ),
         difficulty,
     )
     ranking_manager._save(ranking)
@@ -278,19 +164,19 @@ def test_ranking_manager_update_not_full(tmp_path):
     difficulty = SimpleDifficulty(3, 6)
     ranking_manager = RankingManager(tmp_path)
     ranking = Ranking(
-        [
+        (
             (10, datetime(2021, 6, 5), "Tomek"),
             (15, datetime(2021, 6, 4), "Tomasz"),
-        ],
+        ),
         difficulty,
     )
     ranking_manager._save(ranking)
     expected_ranking = Ranking(
-        [
+        (
             (10, datetime(2021, 6, 5), "Tomek"),
             (12, datetime(2021, 6, 6), "New player"),
             (15, datetime(2021, 6, 4), "Tomasz"),
-        ],
+        ),
         difficulty,
     )
     score_data = _ScoreData(12, datetime(2021, 6, 6), difficulty)
@@ -304,7 +190,7 @@ def test_ranking_mamager_update_full(tmp_path):
     difficulty = SimpleDifficulty(3, 6)
     ranking_manager = RankingManager(tmp_path)
     ranking = Ranking(
-        [
+        (
             _RankingRecord(6, datetime(2021, 3, 17), "Tomasz"),
             _RankingRecord(8, datetime(2021, 2, 18), "Maciek"),
             _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
@@ -315,12 +201,12 @@ def test_ranking_mamager_update_full(tmp_path):
             _RankingRecord(21, datetime(2021, 3, 20), "Tomasz"),
             _RankingRecord(30, datetime(2020, 11, 10), "Darek"),
             _RankingRecord(32, datetime(2020, 8, 1), "Tomasz"),
-        ],
+        ),
         difficulty,
     )
     ranking_manager._save(ranking)
     expected_ranking = Ranking(
-        [
+        (
             _RankingRecord(6, datetime(2021, 3, 17), "Tomasz"),
             _RankingRecord(8, datetime(2021, 2, 18), "Maciek"),
             _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
@@ -331,7 +217,7 @@ def test_ranking_mamager_update_full(tmp_path):
             _RankingRecord(20, datetime(2020, 12, 30), "Tomasz"),
             _RankingRecord(21, datetime(2021, 3, 20), "Tomasz"),
             _RankingRecord(30, datetime(2020, 11, 10), "Darek"),
-        ],
+        ),
         difficulty,
     )
     score_data = _ScoreData(12, datetime(2021, 6, 6), difficulty)
@@ -346,7 +232,7 @@ def test_ranking_manager_update_overflow(tmp_path):
     difficulty = SimpleDifficulty(3, 6)
     ranking_manager = RankingManager(tmp_path)
     ranking = Ranking(
-        [
+        (
             _RankingRecord(6, datetime(2021, 3, 17), "Tomasz"),
             _RankingRecord(8, datetime(2021, 2, 18), "Maciek"),
             _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
@@ -357,7 +243,7 @@ def test_ranking_manager_update_overflow(tmp_path):
             _RankingRecord(21, datetime(2021, 3, 20), "Tomasz"),
             _RankingRecord(30, datetime(2020, 11, 10), "Darek"),
             _RankingRecord(32, datetime(2020, 8, 1), "Tomasz"),
-        ],
+        ),
         difficulty,
     )
     ranking_manager._save(ranking)
