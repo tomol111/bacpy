@@ -1,6 +1,5 @@
 from dataclasses import FrozenInstanceError
 from datetime import datetime
-from pathlib import Path
 
 import pytest
 
@@ -62,47 +61,25 @@ def test_restart_game_exception():
 # --------------
 
 
-def test_FileRankingManager_get_path():
-    path = Path("some_dir")
-    assert FileRankingManager(path)._get_path(
-        SimpleDifficulty(3, 6)
-    ) == path / "3_6.csv"
-
-
-def test_FileRankingManager_save_load_unitarity(tmp_path):
-    ranking_manager = FileRankingManager(tmp_path)
-    difficulty = SimpleDifficulty(3, 6)
-    ranking = Ranking(
-        (
-            _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
-            _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
-        ),
-        difficulty,
-    )
-    ranking_manager._save(ranking)
-    assert ranking_manager.load(difficulty) == ranking
+# TODO: test backward compatibility by snapshotting file
 
 
 def test_FileRankingManager_load__not_existing_ranking(tmp_path):
     ranking_manager = FileRankingManager(tmp_path)
-    difficulty = SimpleDifficulty(3, 6)
-    expected_empty_ranking = Ranking((), difficulty)
-
-    assert ranking_manager.load(difficulty) == expected_empty_ranking
-    assert ranking_manager._get_path(difficulty).exists()
+    difficulty = SimpleDifficulty(4, 6)
+    assert ranking_manager.load(difficulty) == Ranking((), difficulty)
 
 
 def test_FileRankingManager_is_score_fit_into__not_full(tmp_path):
     difficulty = SimpleDifficulty(3, 6)
     ranking_manager = FileRankingManager(tmp_path)
-    ranking = Ranking(
-        (
-            _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
-            _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
-        ),
-        difficulty,
-    )
-    ranking_manager._save(ranking)
+
+    for score_data, player in (
+            (_ScoreData(10, datetime(2021, 6, 5), difficulty), "Tomek"),
+            (_ScoreData(15, datetime(2021, 6, 4), difficulty), "Tomasz"),
+    ):
+        ranking_manager.update(score_data, player)
+
     assert ranking_manager.is_score_fit_into(
         _ScoreData(12, datetime(2021, 6, 6), difficulty)
     )
@@ -114,22 +91,20 @@ def test_FileRankingManager_is_score_fit_into__not_full(tmp_path):
 def test_FileRankingManager_is_score_fit_into__full(tmp_path):
     difficulty = SimpleDifficulty(3, 6)
     ranking_manager = FileRankingManager(tmp_path)
-    ranking = Ranking(
-        (
-            _RankingRecord(6, datetime(2021, 3, 17), "Tomasz"),
-            _RankingRecord(8, datetime(2021, 2, 18), "Maciek"),
-            _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
-            _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
-            _RankingRecord(15, datetime(2021, 6, 6), "Zofia"),
-            _RankingRecord(17, datetime(2021, 4, 5), "Piotrek"),
-            _RankingRecord(20, datetime(2020, 12, 30), "Tomasz"),
-            _RankingRecord(21, datetime(2021, 3, 20), "Tomasz"),
-            _RankingRecord(30, datetime(2020, 11, 10), "Darek"),
-            _RankingRecord(32, datetime(2020, 8, 1), "Tomasz"),
-        ),
-        difficulty,
-    )
-    ranking_manager._save(ranking)
+
+    for score_data, player in (
+            (_ScoreData(6, datetime(2021, 3, 17), difficulty), "Tomasz"),
+            (_ScoreData(8, datetime(2021, 2, 18), difficulty), "Maciek"),
+            (_ScoreData(10, datetime(2021, 6, 5), difficulty), "Tomek"),
+            (_ScoreData(15, datetime(2021, 6, 4), difficulty), "Tomasz"),
+            (_ScoreData(15, datetime(2021, 6, 6), difficulty), "Zofia"),
+            (_ScoreData(17, datetime(2021, 4, 5), difficulty), "Piotrek"),
+            (_ScoreData(20, datetime(2020, 12, 30), difficulty), "Tomasz"),
+            (_ScoreData(21, datetime(2021, 3, 20), difficulty), "Tomasz"),
+            (_ScoreData(30, datetime(2020, 11, 10), difficulty), "Darek"),
+            (_ScoreData(32, datetime(2020, 8, 1), difficulty), "Tomasz"),
+    ):
+        ranking_manager.update(score_data, player)
 
     assert ranking_manager.is_score_fit_into(
         _ScoreData(12, datetime(2021, 6, 6), difficulty)
@@ -140,56 +115,54 @@ def test_FileRankingManager_is_score_fit_into__full(tmp_path):
 
 
 def test_FlieRankingManager_update__not_full(tmp_path):
-    difficulty = SimpleDifficulty(3, 6)
+    difficulty = SimpleDifficulty(5, 8)
     ranking_manager = FileRankingManager(tmp_path)
-    ranking = Ranking(
-        (
-            (10, datetime(2021, 6, 5), "Tomek"),
-            (15, datetime(2021, 6, 4), "Tomasz"),
-        ),
-        difficulty,
-    )
-    ranking_manager._save(ranking)
+
+    for score_data, player in (
+            (_ScoreData(15, datetime(2021, 6, 4), difficulty), "Tomasz"),
+            (_ScoreData(10, datetime(2021, 6, 5), difficulty), "Tomek"),
+            (_ScoreData(12, datetime(2021, 6, 6), difficulty), "Maciek"),
+    ):
+        updated_ranking = ranking_manager.update(score_data, player)
+
     expected_ranking = Ranking(
         (
             (10, datetime(2021, 6, 5), "Tomek"),
-            (12, datetime(2021, 6, 6), "New player"),
+            (12, datetime(2021, 6, 6), "Maciek"),
             (15, datetime(2021, 6, 4), "Tomasz"),
         ),
         difficulty,
     )
-    score_data = _ScoreData(12, datetime(2021, 6, 6), difficulty)
-
-    updated_ranking = ranking_manager.update(score_data, "New player")
 
     assert updated_ranking == expected_ranking
+    assert updated_ranking == ranking_manager.load(difficulty)
 
 
 def test_FileRankingMamager_update__full(tmp_path):
     difficulty = SimpleDifficulty(3, 6)
     ranking_manager = FileRankingManager(tmp_path)
-    ranking = Ranking(
-        (
-            _RankingRecord(6, datetime(2021, 3, 17), "Tomasz"),
-            _RankingRecord(8, datetime(2021, 2, 18), "Maciek"),
-            _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
-            _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
-            _RankingRecord(15, datetime(2021, 6, 6), "Zofia"),
-            _RankingRecord(17, datetime(2021, 4, 5), "Piotrek"),
-            _RankingRecord(20, datetime(2020, 12, 30), "Tomasz"),
-            _RankingRecord(21, datetime(2021, 3, 20), "Tomasz"),
-            _RankingRecord(30, datetime(2020, 11, 10), "Darek"),
-            _RankingRecord(32, datetime(2020, 8, 1), "Tomasz"),
-        ),
-        difficulty,
-    )
-    ranking_manager._save(ranking)
+
+    for score_data, player in (
+            (_ScoreData(32, datetime(2020, 8, 1), difficulty), "TO_DROP"),
+            (_ScoreData(30, datetime(2020, 11, 10), difficulty), "Darek"),
+            (_ScoreData(20, datetime(2020, 12, 30), difficulty), "Tomasz"),
+            (_ScoreData(6, datetime(2021, 3, 17), difficulty), "Tomasz"),
+            (_ScoreData(8, datetime(2021, 2, 18), difficulty), "Maciek"),
+            (_ScoreData(10, datetime(2021, 6, 5), difficulty), "Tomek"),
+            (_ScoreData(15, datetime(2021, 6, 4), difficulty), "Tomasz"),
+            (_ScoreData(15, datetime(2021, 6, 6), difficulty), "Zofia"),
+            (_ScoreData(17, datetime(2021, 4, 5), difficulty), "Piotrek"),
+            (_ScoreData(21, datetime(2021, 3, 20), difficulty), "Tomasz"),
+            (_ScoreData(12, datetime(2021, 6, 6), difficulty), "NEWEST")
+    ):
+        updated_ranking = ranking_manager.update(score_data, player)
+
     expected_ranking = Ranking(
         (
             _RankingRecord(6, datetime(2021, 3, 17), "Tomasz"),
             _RankingRecord(8, datetime(2021, 2, 18), "Maciek"),
             _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
-            _RankingRecord(12, datetime(2021, 6, 6), "New player"),
+            _RankingRecord(12, datetime(2021, 6, 6), "NEWEST"),
             _RankingRecord(15, datetime(2021, 6, 4), "Tomasz"),
             _RankingRecord(15, datetime(2021, 6, 6), "Zofia"),
             _RankingRecord(17, datetime(2021, 4, 5), "Piotrek"),
@@ -199,9 +172,6 @@ def test_FileRankingMamager_update__full(tmp_path):
         ),
         difficulty,
     )
-    score_data = _ScoreData(12, datetime(2021, 6, 6), difficulty)
-
-    updated_ranking = ranking_manager.update(score_data, "New player")
 
     assert updated_ranking == expected_ranking
     assert updated_ranking == ranking_manager.load(difficulty)
@@ -210,7 +180,23 @@ def test_FileRankingMamager_update__full(tmp_path):
 def test_FlieRankingManager_update__overflow(tmp_path):
     difficulty = SimpleDifficulty(3, 6)
     ranking_manager = FileRankingManager(tmp_path)
-    ranking = Ranking(
+
+    for score_data, player in (
+            (_ScoreData(32, datetime(2020, 8, 1), difficulty), "Tomek"),
+            (_ScoreData(30, datetime(2020, 11, 10), difficulty), "Darek"),
+            (_ScoreData(20, datetime(2020, 12, 30), difficulty), "Tomasz"),
+            (_ScoreData(6, datetime(2021, 3, 17), difficulty), "Tomasz"),
+            (_ScoreData(8, datetime(2021, 2, 18), difficulty), "Maciek"),
+            (_ScoreData(10, datetime(2021, 6, 5), difficulty), "Tomek"),
+            (_ScoreData(15, datetime(2021, 6, 4), difficulty), "Tomasz"),
+            (_ScoreData(15, datetime(2021, 6, 6), difficulty), "Zofia"),
+            (_ScoreData(17, datetime(2021, 4, 5), difficulty), "Piotrek"),
+            (_ScoreData(21, datetime(2021, 3, 20), difficulty), "Tomasz"),
+            (_ScoreData(35, datetime(2021, 6, 6), difficulty), "NEWEST")
+    ):
+        updated_ranking = ranking_manager.update(score_data, player)
+
+    expected_ranking = Ranking(
         (
             _RankingRecord(6, datetime(2021, 3, 17), "Tomasz"),
             _RankingRecord(8, datetime(2021, 2, 18), "Maciek"),
@@ -221,29 +207,33 @@ def test_FlieRankingManager_update__overflow(tmp_path):
             _RankingRecord(20, datetime(2020, 12, 30), "Tomasz"),
             _RankingRecord(21, datetime(2021, 3, 20), "Tomasz"),
             _RankingRecord(30, datetime(2020, 11, 10), "Darek"),
-            _RankingRecord(32, datetime(2020, 8, 1), "Tomasz"),
+            _RankingRecord(32, datetime(2020, 8, 1), "Tomek"),
         ),
         difficulty,
     )
-    ranking_manager._save(ranking)
-    score_data = _ScoreData(35, datetime(2021, 6, 6), difficulty)
 
-    updated_ranking = ranking_manager.update(score_data, "New player")
-
-    assert updated_ranking == ranking
+    assert updated_ranking == expected_ranking
     assert updated_ranking == ranking_manager.load(difficulty)
 
 
 def test_FlieRankingManager_available_difficulties(tmp_path):
     difficulty1 = SimpleDifficulty(4, 8)
     difficulty2 = SimpleDifficulty(4, 10)
-    score_data = _ScoreData(10, datetime(2020, 12, 30), difficulty2)
+    difficulty3 = SimpleDifficulty(3, 5)
     ranking_manager = FileRankingManager(tmp_path)
     ranking_manager.load(difficulty1)
-    ranking_manager.update(score_data, "Tomek")
+    ranking_manager.update(
+        _ScoreData(10, datetime(2020, 12, 30), difficulty2), "Tomek"
+    )
+    ranking_manager.update(
+        _ScoreData(7, datetime(2021, 4, 10), difficulty2), "Maciek"
+    )
+    ranking_manager.update(
+        _ScoreData(5, datetime(2021, 3, 2), difficulty3), "Piotrek"
+    )
     assert (
-        tuple(ranking_manager.available_difficulties())
-        == (difficulty2,)
+        set(ranking_manager.available_difficulties())
+        == {difficulty2, difficulty3}
     )
 
 
