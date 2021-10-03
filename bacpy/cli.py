@@ -5,7 +5,6 @@ from contextlib import ContextDecorator, contextmanager
 import inspect
 import itertools
 from operator import attrgetter
-from pathlib import Path
 import shlex
 import subprocess
 import sys
@@ -35,6 +34,7 @@ from .core import (
     DEFAULT_DIFFICULTIES,
     Difficulty,
     draw_number,
+    FileRankingManager,
     QuitGame,
     Ranking,
     RankingManager,
@@ -93,7 +93,7 @@ Special commands:
 
 def run_game() -> None:
     RANKINGS_DIR.mkdir(exist_ok=True)
-    game = Game(RANKINGS_DIR)
+    game = Game(FileRankingManager(RANKINGS_DIR))
     print(starting_header(PROGRAM_VERSION))
 
     try:
@@ -163,11 +163,11 @@ def play_round(
 class Game:
     """Game class."""
 
-    def __init__(self, rankings_dir: Path) -> None:
+    def __init__(self, ranking_manager: RankingManager) -> None:
         self._round: Optional[RoundCore] = None
         self.difficulties = Difficulties(DEFAULT_DIFFICULTIES)
         self.commands = get_commands(self)
-        self.ranking_manager = RankingManager(rankings_dir)
+        self.ranking_manager = ranking_manager
 
     @property
     def round(self) -> RoundCore:

@@ -11,15 +11,14 @@ from bacpy.core import (
     Difficulty,
     DIGITS_RANGE,
     draw_number,
+    FileRankingManager,
     GameException,
     is_number_valid,
     is_player_name_valid,
     MIN_NUM_SIZE,
     QuitGame,
     Ranking,
-    RankingManager,
     _RankingRecord,
-    RANKING_SIZE,
     RestartGame,
     RoundCore,
     _ScoreData,
@@ -59,19 +58,19 @@ def test_restart_game_exception():
 # =============
 
 
-# RankingManager
+# FileRankingManager
 # --------------
 
 
-def test_ranking_manager_get_path():
+def test_FileRankingManager_get_path():
     path = Path("some_dir")
-    assert RankingManager(path)._get_path(
+    assert FileRankingManager(path)._get_path(
         SimpleDifficulty(3, 6)
     ) == path / "3_6.csv"
 
 
-def test_ranking_manager_save_load_unitarity(tmp_path):
-    ranking_manager = RankingManager(tmp_path)
+def test_FileRankingManager_save_load_unitarity(tmp_path):
+    ranking_manager = FileRankingManager(tmp_path)
     difficulty = SimpleDifficulty(3, 6)
     ranking = Ranking(
         (
@@ -84,8 +83,8 @@ def test_ranking_manager_save_load_unitarity(tmp_path):
     assert ranking_manager.load(difficulty) == ranking
 
 
-def test_ranking_manager_load_not_existing_ranking(tmp_path):
-    ranking_manager = RankingManager(tmp_path)
+def test_FileRankingManager_load__not_existing_ranking(tmp_path):
+    ranking_manager = FileRankingManager(tmp_path)
     difficulty = SimpleDifficulty(3, 6)
     expected_empty_ranking = Ranking((), difficulty)
 
@@ -93,27 +92,9 @@ def test_ranking_manager_load_not_existing_ranking(tmp_path):
     assert ranking_manager._get_path(difficulty).exists()
 
 
-def test_ranking_manager_is_not_empty(tmp_path):
+def test_FileRankingManager_is_score_fit_into__not_full(tmp_path):
     difficulty = SimpleDifficulty(3, 6)
-    ranking_manager = RankingManager(tmp_path)
-
-    assert not ranking_manager.is_not_empty(difficulty)
-
-    ranking_manager._get_path(difficulty).touch()
-    assert not ranking_manager.is_not_empty(difficulty)
-
-    ranking_manager._save(
-        Ranking(
-            [_RankingRecord(10, datetime(2021, 6, 5), "Tomek")],
-            difficulty,
-        ),
-    )
-    assert ranking_manager.is_not_empty(difficulty)
-
-
-def test_ranking_manager_is_score_fit_into_not_full(tmp_path):
-    difficulty = SimpleDifficulty(3, 6)
-    ranking_manager = RankingManager(tmp_path)
+    ranking_manager = FileRankingManager(tmp_path)
     ranking = Ranking(
         (
             _RankingRecord(10, datetime(2021, 6, 5), "Tomek"),
@@ -130,10 +111,9 @@ def test_ranking_manager_is_score_fit_into_not_full(tmp_path):
     )
 
 
-def test_ranking_manager_is_score_fit_into_full(tmp_path):
-    assert RANKING_SIZE == 10, "Ranking size changed"
+def test_FileRankingManager_is_score_fit_into__full(tmp_path):
     difficulty = SimpleDifficulty(3, 6)
-    ranking_manager = RankingManager(tmp_path)
+    ranking_manager = FileRankingManager(tmp_path)
     ranking = Ranking(
         (
             _RankingRecord(6, datetime(2021, 3, 17), "Tomasz"),
@@ -159,10 +139,9 @@ def test_ranking_manager_is_score_fit_into_full(tmp_path):
     )
 
 
-def test_ranking_manager_update_not_full(tmp_path):
-    assert RANKING_SIZE == 10, "Ranking size changed"
+def test_FlieRankingManager_update__not_full(tmp_path):
     difficulty = SimpleDifficulty(3, 6)
-    ranking_manager = RankingManager(tmp_path)
+    ranking_manager = FileRankingManager(tmp_path)
     ranking = Ranking(
         (
             (10, datetime(2021, 6, 5), "Tomek"),
@@ -186,9 +165,9 @@ def test_ranking_manager_update_not_full(tmp_path):
     assert updated_ranking == expected_ranking
 
 
-def test_ranking_mamager_update_full(tmp_path):
+def test_FileRankingMamager_update__full(tmp_path):
     difficulty = SimpleDifficulty(3, 6)
-    ranking_manager = RankingManager(tmp_path)
+    ranking_manager = FileRankingManager(tmp_path)
     ranking = Ranking(
         (
             _RankingRecord(6, datetime(2021, 3, 17), "Tomasz"),
@@ -228,9 +207,9 @@ def test_ranking_mamager_update_full(tmp_path):
     assert updated_ranking == ranking_manager.load(difficulty)
 
 
-def test_ranking_manager_update_overflow(tmp_path):
+def test_FlieRankingManager_update__overflow(tmp_path):
     difficulty = SimpleDifficulty(3, 6)
-    ranking_manager = RankingManager(tmp_path)
+    ranking_manager = FileRankingManager(tmp_path)
     ranking = Ranking(
         (
             _RankingRecord(6, datetime(2021, 3, 17), "Tomasz"),
@@ -253,6 +232,19 @@ def test_ranking_manager_update_overflow(tmp_path):
 
     assert updated_ranking == ranking
     assert updated_ranking == ranking_manager.load(difficulty)
+
+
+def test_FlieRankingManager_available_difficulties(tmp_path):
+    difficulty1 = SimpleDifficulty(4, 8)
+    difficulty2 = SimpleDifficulty(4, 10)
+    score_data = _ScoreData(10, datetime(2020, 12, 30), difficulty2)
+    ranking_manager = FileRankingManager(tmp_path)
+    ranking_manager.load(difficulty1)
+    ranking_manager.update(score_data, "Tomek")
+    assert (
+        tuple(ranking_manager.available_difficulties())
+        == (difficulty2,)
+    )
 
 
 # is_player_name_valid

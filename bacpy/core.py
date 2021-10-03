@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABCMeta, abstractmethod
 from collections import Counter
 import csv
 from dataclasses import dataclass, field
@@ -282,6 +283,8 @@ class _RankingRecord(NamedTuple):
 
 @dataclass(frozen=True)
 class Ranking:
+    # Be aware that comparing different kind of sequences can return false
+    # even if they contain same elements.
     data: Sequence[_RankingRecord]
     difficulty: SimpleDifficulty
 
@@ -293,31 +296,55 @@ class _ScoreData(NamedTuple):
     difficulty: SimpleDifficulty
 
 
-class RankingManager:
+class RankingManager(metaclass=ABCMeta):
+
+    @abstractmethod
+    def load(self, difficulty: SimpleDifficulty) -> Ranking:
+        """Read and return ranking.
+        If ranking is not available return empty one.
+        """
+        return Ranking((), difficulty)
+
+    @abstractmethod
+    def update(
+            self,
+            score_data: _ScoreData,
+            player: str,
+    ) -> Ranking:
+        """Add new record to ranking. Save and return updated one."""
+        assert is_player_name_valid(player)
+        ranking = self.load(score_data.difficulty)
+        new_data = list(ranking.data)
+        new_data.append(
+            _RankingRecord(
+                score_data.score,
+                score_data.dt,
+                player,
+            ),
+        )
+        new_data.sort()
+        return Ranking(tuple(new_data[:RANKING_SIZE]), ranking.difficulty)
+
+    @abstractmethod
+    def available_difficulties(self) -> Iterator[SimpleDifficulty]:
+        """Yields `SimpleDifficulty` for each available and not empty ranking."""
+        return
+        yield
+
+    def is_score_fit_into(self, score_data: _ScoreData) -> bool:
+        ranking = self.load(score_data.difficulty)
+        return (
+            len(ranking.data) < RANKING_SIZE
+            or ranking.data[-1].score > score_data.score
+        )
+
+
+class FileRankingManager(RankingManager):
 
     def __init__(self, rankings_dir: Path) -> None:
         self._rankings_dir = rankings_dir
 
-    def _get_path(self, difficulty: SimpleDifficulty) -> Path:
-        return (
-            self._rankings_dir
-            / f"{difficulty.num_size}_{difficulty.digs_num}.csv"
-        )
-
-    def _save(
-            self,
-            ranking: Ranking,
-    ) -> None:
-        path = self._get_path(ranking.difficulty)
-        with open(path, "w") as file:
-            writer = csv.writer(file)
-            writer.writerows(ranking.data)
-
     def load(self, difficulty: SimpleDifficulty) -> Ranking:
-        """Read and return ranking by given difficulty.
-
-        If ranking is not available return empty one.
-        """
         path = self._get_path(difficulty)
         path.touch()
         with open(path, "r") as file:
@@ -333,49 +360,35 @@ class RankingManager:
                 difficulty=difficulty,
             )
 
-    def is_not_empty(self, difficulty: SimpleDifficulty) -> bool:
-        path = self._get_path(difficulty)
-        return path.exists() and bool(path.stat().st_size)
-
-    def available_difficulties(self) -> Iterator[SimpleDifficulty]:
-        for path in self._rankings_dir.iterdir():
-            num_size, digs_num = map(int, path.stem.split("_"))
-            yield SimpleDifficulty(num_size, digs_num)
-
-    def is_score_fit_into(self, score_data: _ScoreData) -> bool:
-        ranking = self.load(score_data.difficulty)
-        return (
-            len(ranking.data) < RANKING_SIZE
-            or ranking.data[-1].score > score_data.score
-        )
-
     def update(
             self,
             score_data: _ScoreData,
             player: str,
     ) -> Ranking:
-        assert is_player_name_valid(player)
-        ranking = self.load(score_data.difficulty)
-        new_ranking = self._new_ranking(
-            ranking,
-            _RankingRecord(
-                score_data.score,
-                score_data.dt,
-                player,
-            ),
-        )
-        self._save(new_ranking)
-        return new_ranking
+        updated_ranking = super().update(score_data, player)
+        self._save(updated_ranking)
+        return updated_ranking
 
-    def _new_ranking(
+    def _save(
             self,
             ranking: Ranking,
-            new_record: _RankingRecord,
-    ) -> Ranking:
-        new_data = list(ranking.data)
-        new_data.append(new_record)
-        new_data.sort()
-        return Ranking(tuple(new_data[:RANKING_SIZE]), ranking.difficulty)
+    ) -> None:
+        path = self._get_path(ranking.difficulty)
+        with open(path, "w") as file:
+            writer = csv.writer(file)
+            writer.writerows(ranking.data)
+
+    def _get_path(self, difficulty: SimpleDifficulty) -> Path:
+        return (
+            self._rankings_dir
+            / f"{difficulty.num_size}_{difficulty.digs_num}.csv"
+        )
+
+    def available_difficulties(self) -> Iterator[SimpleDifficulty]:
+        for path in self._rankings_dir.iterdir():
+            if path.stat().st_size:
+                num_size, digs_num = map(int, path.stem.split("_"))
+                yield SimpleDifficulty(num_size, digs_num)
 
 
 def is_player_name_valid(name: str) -> bool:
