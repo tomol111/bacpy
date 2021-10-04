@@ -264,10 +264,10 @@ class StopPlaying(GameException):
     """Stop playing exception."""
 
 
+@dataclass
 class RestartGame(GameException):
     """Restart game exception."""
-    def __init__(self, difficulty: Difficulty = None):
-        self.difficulty = difficulty
+    difficulty: Optional[Difficulty] = None
 
 
 # =============

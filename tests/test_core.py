@@ -11,45 +11,16 @@ from bacpy.core import (
     DIGITS_RANGE,
     draw_number,
     FileRankingManager,
-    GameException,
     is_number_valid,
     is_player_name_valid,
     MIN_NUM_SIZE,
-    QuitGame,
     Ranking,
     _RankingRecord,
-    RestartGame,
     RoundCore,
     _ScoreData,
     SimpleDifficulty,
-    StopPlaying,
     _validate_digs_num_for_defaults,
 )
-
-
-# ===============
-# Game Exceptions
-# ===============
-
-
-@pytest.mark.parametrize(
-    "exception_cls",
-    (
-        GameException,
-        QuitGame,
-        StopPlaying,
-        RestartGame,
-    )
-)
-def test_game_exceptions(exception_cls):
-    with pytest.raises(GameException):
-        raise exception_cls
-
-
-def test_restart_game_exception():
-    difficulty = Difficulty.new_default(3, 5)
-    exception = RestartGame(difficulty)
-    assert exception.difficulty == difficulty
 
 
 # =============
