@@ -41,7 +41,7 @@ from .core import (
     RANKINGS_DIR,
     RANKING_SIZE,
     RestartGame,
-    RoundCore,
+    GuessHandler,
     SimpleDifficulty,
     StopPlaying,
     validate_number,
@@ -111,15 +111,15 @@ def run_game() -> None:
             if sys.flags.dev_mode:  # logging on console
                 print(f"secret number: {secret_number}")
 
-            round_core = RoundCore(secret_number, difficulty)
-            with game.set_round(round_core):
+            guess_handler = GuessHandler(secret_number, difficulty)
+            with game.set_guess_handler(guess_handler):
                 number_iter = number_getter(
                     difficulty,
-                    lambda: round_core.steps,
+                    lambda: guess_handler.steps_done,
                     game.commands,
                 )
                 play_round(
-                    round_core,
+                    guess_handler,
                     number_iter,
                     player_name_iter,
                     game.ranking_manager,
@@ -138,20 +138,20 @@ def starting_header(title: str) -> str:
 
 
 def play_round(
-        round_core: RoundCore,
+        guess_handler: GuessHandler,
         number_iter: Iterator[str],
         player_name_iter: Iterator[Optional[str]],
         ranking_manager: RankingManager,
 ) -> None:
-    for bulls, cows in map(round_core.send, number_iter):
+    for bulls, cows in map(guess_handler.send, number_iter):
         print(f"bulls: {bulls:>2}, cows: {cows:>2}")
 
-    print(f"\n *** You guessed in {round_core.steps} steps ***\n")
+    print(f"\n*** You guessed in {guess_handler.steps_done} steps ***\n")
 
-    if ranking_manager.is_score_fit_into(round_core.score_data):
+    if ranking_manager.is_score_fit_into(guess_handler.score_data):
         player = next(player_name_iter)
         if player:
-            ranking = ranking_manager.update(round_core.score_data, player)
+            ranking = ranking_manager.update(guess_handler.score_data, player)
             pager(ranking_table(ranking))
 
 
@@ -164,24 +164,24 @@ class Game:
     """Game class."""
 
     def __init__(self, ranking_manager: RankingManager) -> None:
-        self._round: Optional[RoundCore] = None
+        self._guess_handler: Optional[GuessHandler] = None
         self.difficulties = Difficulties(DEFAULT_DIFFICULTIES)
         self.commands = get_commands(self)
         self.ranking_manager = ranking_manager
 
     @property
-    def round(self) -> RoundCore:
-        if self._round is not None:
-            return self._round
+    def guess_handler(self) -> GuessHandler:
+        if self._guess_handler is not None:
+            return self._guess_handler
         raise AttributeError("Round not set now")
 
     @contextmanager
-    def set_round(self, round_: RoundCore) -> Iterator[None]:
-        self._round = round_
+    def set_guess_handler(self, guess_handler: GuessHandler) -> Iterator[None]:
+        self._guess_handler = guess_handler
         try:
             yield
         finally:
-            self._round = None
+            self._guess_handler = None
 
 
 # ============
@@ -324,7 +324,7 @@ def pager(text: str) -> None:
 
 def number_getter(
         difficulty: Difficulty,
-        get_steps: Callable[[], int],
+        get_steps_done: Callable[[], int],
         commands: Commands,
 ) -> Iterator[str]:
     """Take number from user.
@@ -338,7 +338,7 @@ def number_getter(
     )
     while True:
         try:
-            input_ = prompt_session.prompt(f"[{get_steps() + 1}] ").lstrip()
+            input_ = prompt_session.prompt(f"[{get_steps_done() + 1}] ").lstrip()
         except EOFError:
             try:
                 if ask_ok("Do you really want to quit? [Y/n]: "):
@@ -785,12 +785,12 @@ class HistoryCmd(Command):
 
     def execute(self) -> None:
 
-        if self.game.round.steps == 0:
+        if self.game.guess_handler.steps_done == 0:
             print("History is empty")
             return
 
         print(tabulate(
-            self.game.round.history,
+            self.game.guess_handler.history,
             headers=("Number", "Bulls", "Cows"),
             colalign=("center", "center", "center"),
             tablefmt="plain",

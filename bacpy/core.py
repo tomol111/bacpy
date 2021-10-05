@@ -22,9 +22,9 @@ from typing import (
 from bacpy.utils import SequenceView
 
 if sys.version_info >= (3, 8):
-    from typing import Final, final
+    from typing import Final
 else:
-    from typing_extensions import Final, final
+    from typing_extensions import Final
 
 
 # Constants
@@ -38,13 +38,12 @@ RANKING_SIZE: Final[int] = 10
 # =====
 
 
-@final
-class RoundCore(Generator[Tuple[int, int], str, None]):
+class GuessHandler(Generator[Tuple[int, int], str, None]):
 
-    def __init__(self, number: str, difficulty: Difficulty) -> None:
-        self._number = number
+    def __init__(self, secret_number: str, difficulty: Difficulty) -> None:
+        assert is_number_valid(secret_number, difficulty)
+        self._secret_number = secret_number
         self._difficulty = difficulty
-        assert is_number_valid(number, difficulty)
         self._history: List[GuessRecord] = []
         self._closed = False
         self._score_data: Optional[_ScoreData] = None
@@ -54,7 +53,7 @@ class RoundCore(Generator[Tuple[int, int], str, None]):
         return SequenceView(self._history)
 
     @property
-    def steps(self) -> int:
+    def steps_done(self) -> int:
         return len(self._history)
 
     @property
@@ -78,17 +77,27 @@ class RoundCore(Generator[Tuple[int, int], str, None]):
 
         assert is_number_valid(guess, self._difficulty)
 
-        bulls, cows = _bullscows(guess, self._number)
+        bulls, cows = self._bullscows(guess, self._secret_number)
         self._history.append(GuessRecord(guess, bulls, cows))
 
-        if guess == self._number:
+        if guess == self._secret_number:
             self._score_data = _ScoreData(
-                score=self.steps,
+                score=self.steps_done,
                 dt=datetime.now(),
                 difficulty=self.difficulty.to_simple(),
             )
             self.throw(StopIteration)
 
+        return bulls, cows
+
+    @staticmethod
+    def _bullscows(guess: str, secret_number: str) -> Tuple[int, int]:
+        bulls, cows = 0, 0
+        for guess_char, number_char in zip(guess, secret_number):
+            if guess_char == number_char:
+                bulls += 1
+            elif guess_char in secret_number:
+                cows += 1
         return bulls, cows
 
     def throw(self, typ, val=None, tb=None):
@@ -131,18 +140,6 @@ def validate_number(number: str, difficulty: Difficulty) -> None:
             "Repeated digits: "
             + ", ".join(f"'{digit}'" for digit in rep_digits)
         )
-
-
-def _bullscows(guess: str, number: str) -> Tuple[int, int]:
-    bulls, cows = 0, 0
-
-    for guess_char, number_char in zip(guess, number):
-        if guess_char == number_char:
-            bulls += 1
-        elif guess_char in number:
-            cows += 1
-
-    return bulls, cows
 
 
 class GuessRecord(NamedTuple):

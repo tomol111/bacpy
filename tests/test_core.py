@@ -4,7 +4,6 @@ from datetime import datetime
 import pytest
 
 from bacpy.core import (
-    _bullscows,
     default_digs_label,
     default_digs_set,
     Difficulty,
@@ -16,7 +15,7 @@ from bacpy.core import (
     MIN_NUM_SIZE,
     Ranking,
     _RankingRecord,
-    RoundCore,
+    GuessHandler,
     _ScoreData,
     SimpleDifficulty,
     _validate_digs_num_for_defaults,
@@ -426,22 +425,6 @@ def test_difficulty_frozen():
 # Round
 # =====
 
-# _bullscows
-# -----------------
-
-
-@pytest.mark.parametrize(
-    ("guess", "number", "bulls", "cows"),
-    (
-        ("1234", "1234", 4, 0),
-        ("4321", "1234", 0, 4),
-        ("3214", "1234", 2, 2),
-        ("5678", "1234", 0, 0),
-    )
-)
-def test_bullscows(guess, number, bulls, cows):
-    assert _bullscows(guess, number) == (bulls, cows)
-
 
 # is_number_valid
 # ---------------
@@ -519,49 +502,51 @@ def test_draw_number(difficulty):
 # ---------
 
 
-def test_round_core():
-    number = "123"
-    difficulty = Difficulty.new_default(3, 6)
-    round_core = RoundCore(number, difficulty)
+def test_GuessHandler():
+    number = "1234"
+    difficulty = Difficulty.new_default(4, 8)
+    guess_handler = GuessHandler(number, difficulty)
 
     # After initiation
-    assert round_core.difficulty == difficulty
-    assert not round_core.history
-    assert not round_core.steps
-    assert not round_core.closed
+    assert guess_handler.difficulty == difficulty
+    assert not guess_handler.history
+    assert not guess_handler.steps_done
+    assert not guess_handler.closed
     with pytest.raises(AttributeError):
-        round_core.score_data
+        guess_handler.score_data
 
     # first step
-    guess1 = "145"
-    bullscows1 = _bullscows(guess1, number)
-    assert round_core.send(guess1) == bullscows1
-    assert round_core.history == [(guess1, *bullscows1)]
-    assert round_core.steps == 1
+    guess1 = "5678"
+    bulls1, cows1 = 0, 0
+    assert guess_handler.send(guess1) == (bulls1, cows1)
+    assert guess_handler.history == [(guess1, bulls1, cows1)]
+    assert guess_handler.steps_done == 1
 
     # second step
+    guess2 = "3214"
+    bulls2, cows2 = 2, 2
+    assert guess_handler.send(guess2) == (bulls2, cows2)
+    assert guess_handler.history == [(guess1, bulls1, cows1), (guess2, bulls2, cows2)]
+    assert guess_handler.steps_done == 2
 
-    guess2 = "152"
-    bullscows2 = _bullscows(guess2, number)
-    assert round_core.send(guess2) == bullscows2
-    assert round_core.history == [(guess1, *bullscows1), (guess2, *bullscows2)]
-    assert round_core.steps == 2
+    # third step
+    guess3 = "4321"
+    bulls3, cows3 = 0, 4
+    assert guess_handler.send(guess3) == (bulls3, cows3)
+    assert guess_handler.history[-1] == (guess3, bulls3, cows3)
+    assert guess_handler.steps_done == 3
 
     # succesive guess
     with pytest.raises(StopIteration):
-        round_core.send(number)
-    assert round_core.history == [
-        (guess1, *bullscows1),
-        (guess2, *bullscows2),
-        (number, difficulty.num_size, 0)
-    ]
-    assert round_core.steps == 3
-    assert round_core.closed
+        guess_handler.send(number)
+    assert guess_handler.history[-1] == (number, 4, 0)
+    assert guess_handler.steps_done == 4
+    assert guess_handler.closed
 
     # closed
     with pytest.raises(StopIteration):
-        round_core.send(number)
-    score_data = round_core.score_data
+        guess_handler.send(number)
+    score_data = guess_handler.score_data
     assert score_data.dt
     assert score_data.difficulty == difficulty.to_simple()
-    assert score_data.score == 3
+    assert score_data.score == 4
