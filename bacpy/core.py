@@ -154,7 +154,7 @@ class GuessRecord(NamedTuple):
 
 
 MIN_NUM_SIZE: Final[int] = 3
-DIGITS_RANGE: Final[str] = "123456789abcdefghijklmnopqrstuvwxyz"
+DIGITS_SEQUENCE: Final[str] = "123456789abcdefghijklmnopqrstuvwxyz"
 
 
 @dataclass(order=True, frozen=True)
@@ -176,31 +176,31 @@ class SimpleDifficulty:
             )
 
 
-def default_digs_set(digs_num: int) -> FrozenSet[str]:
-    _validate_digs_num_for_defaults(digs_num)
-    return frozenset(DIGITS_RANGE[:digs_num])
+def standard_digs_set(digs_num: int) -> FrozenSet[str]:
+    _validate_digs_num_for_standard_difficulty(digs_num)
+    return frozenset(DIGITS_SEQUENCE[:digs_num])
 
 
-def default_digs_label(digs_num: int) -> str:
-    _validate_digs_num_for_defaults(digs_num)
+def standard_digs_label(digs_num: int) -> str:
+    _validate_digs_num_for_standard_difficulty(digs_num)
     if digs_num <= 9:
         return f"1-{digs_num}"
     elif digs_num == 10:
         return "1-9,a"
     else:
-        return f"1-9,a-{DIGITS_RANGE[digs_num - 1]}"
+        return f"1-9,a-{DIGITS_SEQUENCE[digs_num - 1]}"
 
 
-def _validate_digs_num_for_defaults(digs_num: int) -> None:
+def _validate_digs_num_for_standard_difficulty(digs_num: int) -> None:
     if digs_num < MIN_NUM_SIZE:
         raise ValueError(
             f"`digs_num` ({digs_num}) less than `MIN_NUM_SIZE`"
             f" ({MIN_NUM_SIZE})"
         )
-    if digs_num > len(DIGITS_RANGE):
+    if digs_num > len(DIGITS_SEQUENCE):
         raise ValueError(
-            f"`digs_num` ({digs_num}) over length of `DIGITS_RANGE`"
-            f" ({len(DIGITS_RANGE)})"
+            f"`digs_num` ({digs_num}) over length of `DIGITS_SEQUENCE`"
+            f" ({len(DIGITS_SEQUENCE)})"
         )
 
 
@@ -212,14 +212,15 @@ class Difficulty(SimpleDifficulty):
     name: str = field(default="", compare=False)
 
     @classmethod
-    def new_default(
+    def standard(
             cls,
             num_size: int,
             digs_num: int,
             name: str = "",
     ) -> Difficulty:
-        digs_set = default_digs_set(digs_num)
-        digs_label = default_digs_label(digs_num)
+        """Constructor that sets `digs_set` and `digs_label` to standard ones."""
+        digs_set = standard_digs_set(digs_num)
+        digs_label = standard_digs_label(digs_num)
         return cls(num_size, digs_num, digs_set, digs_label, name)
 
     def __post_init__(self):
@@ -235,7 +236,7 @@ class Difficulty(SimpleDifficulty):
 
 
 DEFAULT_DIFFICULTIES: Final[Tuple[Difficulty, ...]] = tuple(
-    Difficulty.new_default(num_size, digs_num, name)
+    Difficulty.standard(num_size, digs_num, name)
     for num_size, digs_num, name in (
         (3, 6, "easy"),
         (4, 9, "normal"),

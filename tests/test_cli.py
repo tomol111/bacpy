@@ -289,8 +289,8 @@ def test_get_toolbar():
 @pytest.mark.parametrize(
     ("input_", "difficulty"),
     (
-        ("3621", Difficulty.new_default(4, 8)),
-        (" 1482 ", Difficulty.new_default(4, 8)),
+        ("3621", Difficulty.standard(4, 8)),
+        (" 1482 ", Difficulty.standard(4, 8)),
     )
 )
 def test_MainPromptValidator__pass_on_valid_number(input_, difficulty):
@@ -302,7 +302,7 @@ def test_MainPromptValidator__pass_on_valid_number(input_, difficulty):
     ("3622", "14823", "1492")
 )
 def test_MainPromptValidator__raise_ValidationError_on_invalid_number(input_):
-    difficulty = Difficulty.new_default(4, 8)
+    difficulty = Difficulty.standard(4, 8)
     with pytest.raises(ValidationError):
         MainPromptValidator(difficulty).validate(Document(input_))
 
@@ -318,7 +318,7 @@ def test_MainPromptValidator__raise_ValidationError_on_invalid_number(input_):
     )
 )
 def test_MainPromptValidator__pass_on_valid_command(input_):
-    difficulty = Difficulty.new_default(5, 10)
+    difficulty = Difficulty.standard(5, 10)
     MainPromptValidator(difficulty).validate(Document(input_))
 
 
@@ -330,6 +330,6 @@ def test_MainPromptValidator__pass_on_valid_command(input_):
     )
 )
 def test_MainPromptValidator__raise_ValidationError_on_invalid_command(input_):
-    difficulty = Difficulty.new_default(3, 4)
+    difficulty = Difficulty.standard(3, 4)
     with pytest.raises(ValidationError):
         MainPromptValidator(difficulty).validate(Document(input_))

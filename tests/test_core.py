@@ -4,10 +4,10 @@ from datetime import datetime
 import pytest
 
 from bacpy.core import (
-    default_digs_label,
-    default_digs_set,
+    standard_digs_label,
+    standard_digs_set,
     Difficulty,
-    DIGITS_RANGE,
+    DIGITS_SEQUENCE,
     draw_number,
     FileRankingManager,
     is_number_valid,
@@ -18,7 +18,7 @@ from bacpy.core import (
     GuessHandler,
     _ScoreData,
     SimpleDifficulty,
-    _validate_digs_num_for_defaults,
+    _validate_digs_num_for_standard_difficulty,
 )
 
 
@@ -290,12 +290,12 @@ def test_simple_difficulty_frozen():
     (
         MIN_NUM_SIZE,
         MIN_NUM_SIZE + 3,
-        len(DIGITS_RANGE),
-        len(DIGITS_RANGE) - 3,
+        len(DIGITS_SEQUENCE),
+        len(DIGITS_SEQUENCE) - 3,
     ),
 )
-def test_validate_digs_num_for_defaults_valid(digs_num):
-    _validate_digs_num_for_defaults(digs_num)
+def test_validate_digs_num_for_standard_diffilulty__valid(digs_num):
+    _validate_digs_num_for_standard_difficulty(digs_num)
 
 
 @pytest.mark.parametrize(
@@ -303,13 +303,13 @@ def test_validate_digs_num_for_defaults_valid(digs_num):
     (
         MIN_NUM_SIZE - 1,
         MIN_NUM_SIZE - 2,
-        len(DIGITS_RANGE) + 1,
-        len(DIGITS_RANGE) + 3,
+        len(DIGITS_SEQUENCE) + 1,
+        len(DIGITS_SEQUENCE) + 3,
     ),
 )
-def test_validate_digs_num_for_defaults_not_valid(digs_num):
+def test_validate_digs_num_for_standard_diffilulty__not_valid(digs_num):
     with pytest.raises(ValueError):
-        _validate_digs_num_for_defaults(digs_num)
+        _validate_digs_num_for_standard_difficulty(digs_num)
 
 
 @pytest.mark.parametrize(
@@ -322,8 +322,8 @@ def test_validate_digs_num_for_defaults_not_valid(digs_num):
         (35, "123456789abcdefghijklmnopqrstuvwxyz"),
     ),
 )
-def test_default_digs_set(digs_num, digits):
-    assert default_digs_set(digs_num) == frozenset(digits)
+def test_standard_digs_set(digs_num, digits):
+    assert standard_digs_set(digs_num) == frozenset(digits)
 
 
 @pytest.mark.parametrize(
@@ -336,22 +336,22 @@ def test_default_digs_set(digs_num, digits):
         (35, "1-9,a-z"),
     ),
 )
-def test_default_digs_label(digs_num, expected):
-    assert default_digs_label(digs_num) == expected
+def test_standard_digs_label(digs_num, expected):
+    assert standard_digs_label(digs_num) == expected
 
 
 @pytest.mark.parametrize(
     "digs_num",
     (
         MIN_NUM_SIZE - 1,
-        len(DIGITS_RANGE) + 1,
+        len(DIGITS_SEQUENCE) + 1,
     ),
 )
-def test_default_validation(digs_num):
+def test_standard_validation(digs_num):
     with pytest.raises(ValueError):
-        default_digs_set(digs_num)
+        standard_digs_set(digs_num)
     with pytest.raises(ValueError):
-        default_digs_label(digs_num)
+        standard_digs_label(digs_num)
 
 
 def test_difficulty_inheritance():
@@ -372,8 +372,8 @@ def test_difficulty_init():
     assert difficulty.name == name
 
 
-def test_difficulty_new_default():
-    difficulty = Difficulty.new_default(3, 6, "some name")
+def test_difficulty__standard():
+    difficulty = Difficulty.standard(3, 6, "some name")
     assert difficulty.num_size == 3
     assert difficulty.digs_num == 6
     assert difficulty.digs_set == frozenset("123456")
@@ -404,19 +404,19 @@ def test_difficulty_eq():
 
 def test_difficulty_ordering():
     difficulties = [
-        Difficulty.new_default(5, 10, "abcd"),
-        Difficulty.new_default(6, 10),
-        Difficulty.new_default(3, 5),
+        Difficulty.standard(5, 10, "abcd"),
+        Difficulty.standard(6, 10),
+        Difficulty.standard(3, 5),
     ]
     assert sorted(difficulties) == [
-        Difficulty.new_default(3, 5),
-        Difficulty.new_default(5, 10, "abcd"),
-        Difficulty.new_default(6, 10),
+        Difficulty.standard(3, 5),
+        Difficulty.standard(5, 10, "abcd"),
+        Difficulty.standard(6, 10),
     ]
 
 
 def test_difficulty_frozen():
-    difficulty = Difficulty.new_default(3, 6)
+    difficulty = Difficulty.standard(3, 6)
     with pytest.raises(FrozenInstanceError):
         difficulty.num_size = 10
 
@@ -433,9 +433,9 @@ def test_difficulty_frozen():
 @pytest.mark.parametrize(
     ("number", "difficulty"),
     (
-        ("163", Difficulty.new_default(3, 6)),
-        ("1593", Difficulty.new_default(4, 9)),
-        ("2f5a9", Difficulty.new_default(5, 15)),
+        ("163", Difficulty.standard(3, 6)),
+        ("1593", Difficulty.standard(4, 9)),
+        ("2f5a9", Difficulty.standard(5, 15)),
     )
 )
 def test_is_number_valid(number, difficulty):
@@ -445,9 +445,9 @@ def test_is_number_valid(number, difficulty):
 @pytest.mark.parametrize(
     ("number", "difficulty"),
     (
-        ("301", Difficulty.new_default(3, 6)),
-        ("51a9", Difficulty.new_default(4, 9)),
-        ("1g4a8", Difficulty.new_default(5, 15)),
+        ("301", Difficulty.standard(3, 6)),
+        ("51a9", Difficulty.standard(4, 9)),
+        ("1g4a8", Difficulty.standard(5, 15)),
     )
 )
 def test_is_number_valid_wrong_characters(number, difficulty):
@@ -457,12 +457,12 @@ def test_is_number_valid_wrong_characters(number, difficulty):
 @pytest.mark.parametrize(
     ("number", "difficulty"),
     (
-        ("1234", Difficulty.new_default(3, 5)),
-        ("34", Difficulty.new_default(3, 5)),
-        ("12349", Difficulty.new_default(4, 9)),
-        ("31", Difficulty.new_default(4, 9)),
-        ("12f3a49b", Difficulty.new_default(5, 15)),
-        ("31d", Difficulty.new_default(5, 15)),
+        ("1234", Difficulty.standard(3, 5)),
+        ("34", Difficulty.standard(3, 5)),
+        ("12349", Difficulty.standard(4, 9)),
+        ("31", Difficulty.standard(4, 9)),
+        ("12f3a49b", Difficulty.standard(5, 15)),
+        ("31d", Difficulty.standard(5, 15)),
     )
 )
 def test_is_number_valid_wrong_length(number, difficulty):
@@ -472,9 +472,9 @@ def test_is_number_valid_wrong_length(number, difficulty):
 @pytest.mark.parametrize(
     ("number", "difficulty"),
     (
-        ("232", Difficulty.new_default(3, 5)),
-        ("3727", Difficulty.new_default(4, 9)),
-        ("3b5b8", Difficulty.new_default(5, 15)),
+        ("232", Difficulty.standard(3, 5)),
+        ("3727", Difficulty.standard(4, 9)),
+        ("3b5b8", Difficulty.standard(5, 15)),
     )
 )
 def test_is_number_valid_not_unique_characters(number, difficulty):
@@ -488,9 +488,9 @@ def test_is_number_valid_not_unique_characters(number, difficulty):
 @pytest.mark.parametrize(
     "difficulty",
     (
-        Difficulty.new_default(3, 6),
-        Difficulty.new_default(4, 9),
-        Difficulty.new_default(5, 15),
+        Difficulty.standard(3, 6),
+        Difficulty.standard(4, 9),
+        Difficulty.standard(5, 15),
     )
 )
 def test_draw_number(difficulty):
@@ -504,7 +504,7 @@ def test_draw_number(difficulty):
 
 def test_GuessHandler():
     number = "1234"
-    difficulty = Difficulty.new_default(4, 8)
+    difficulty = Difficulty.standard(4, 8)
     guess_handler = GuessHandler(number, difficulty)
 
     # After initiation
