@@ -56,7 +56,7 @@ def test_cli_window(capfd):
     assert capfd.readouterr().out == at_exit
 
 
-def test_ask_ok_prompt_message():
+def test_ask_ok__prompt_message():
     prompt_message = "some prompt"
 
     def mock_prompt(message):
@@ -70,7 +70,7 @@ def test_ask_ok_prompt_message():
     "input_",
     ("yes", "ye", "y", " y", "y ", "YeS", "yEs"),
 )
-def test_ask_ok_yes(input_):
+def test_ask_ok__yes(input_):
     assert ask_ok("some prompt", prompt_func=lambda _: input_)
 
 
@@ -78,7 +78,7 @@ def test_ask_ok_yes(input_):
     "input_",
     ("no", "n", " n", "n ", "No", "nO"),
 )
-def test_ask_ok_no(input_):
+def test_ask_ok__no(input_):
     assert not ask_ok("some prompt", prompt_func=lambda _: input_)
 
 
@@ -86,7 +86,7 @@ def test_ask_ok_no(input_):
     "input_",
     ("yess", "nno", "1", ","),
 )
-def test_ask_ok_continue_when_invalid_input(input_):
+def test_ask_ok__continue_when_invalid_input(input_):
 
     def mock_prompt():
         yield
@@ -98,7 +98,7 @@ def test_ask_ok_continue_when_invalid_input(input_):
         ask_ok("some prompt", prompt_func=mock_prompt_iter.send)
 
 
-def test_ask_ok_continue_on_KeyboardInterrupt():
+def test_ask_ok__continue_on_KeyboardInterrupt():
 
     def mock_prompt():
         yield
@@ -114,14 +114,14 @@ def test_ask_ok_continue_on_KeyboardInterrupt():
     "default",
     (True, False),
 )
-def test_ask_ok_default_return(default):
+def test_ask_ok__default_return(default):
     assert (
         ask_ok("some prompt", prompt_func=lambda _: "", default=default)
         == default
     )
 
 
-def test_ask_ok_no_default_return():
+def test_ask_ok__no_default_return():
 
     def mock_prompt():
         yield
@@ -133,7 +133,7 @@ def test_ask_ok_no_default_return():
         ask_ok("some prompt", prompt_func=mock_prompt_iter.send, default=None)
 
 
-def test_ask_ok_default_prompt(mock_input):
+def test_ask_ok__default_prompt(mock_input):
     assert (
         inspect.signature(ask_ok).parameters["prompt_func"].default
         == pt_prompt
@@ -148,14 +148,16 @@ def test_ask_ok_default_prompt(mock_input):
 # Getting player name
 # ===================
 
+
 # PlayerNameValidator
 # -------------------
+
 
 @pytest.mark.parametrize(
     "name",
     ("abc", "abcdefghijk", "abcdefghijklmnopqrst")
 )
-def test_PlayerNameValidator_invalid(name):
+def test_PlayerNameValidator__valid(name):
     PlayerNameValidator().validate(Document(name))
 
 
@@ -163,7 +165,7 @@ def test_PlayerNameValidator_invalid(name):
     "name",
     ("", "ab", "abcdefghijklmnopqrstu", "abcdefghijklmnopqrstuvwxyz")
 )
-def test_PlayerNameValidator_valid(name):
+def test_PlayerNameValidator__invalid(name):
     with pytest.raises(ValidationError):
         PlayerNameValidator().validate(Document(name))
 

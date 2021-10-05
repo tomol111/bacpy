@@ -1,4 +1,3 @@
-from dataclasses import FrozenInstanceError
 from datetime import datetime
 
 import pytest
@@ -84,7 +83,7 @@ def test_FileRankingManager_is_score_fit_into__full(tmp_path):
     )
 
 
-def test_FlieRankingManager_update__not_full(tmp_path):
+def test_FileRankingManager_update__not_full(tmp_path):
     difficulty = SimpleDifficulty(5, 8)
     ranking_manager = FileRankingManager(tmp_path)
 
@@ -147,7 +146,7 @@ def test_FileRankingMamager_update__full(tmp_path):
     assert updated_ranking == ranking_manager.load(difficulty)
 
 
-def test_FlieRankingManager_update__overflow(tmp_path):
+def test_FileRankingManager_update__overflow(tmp_path):
     difficulty = SimpleDifficulty(3, 6)
     ranking_manager = FileRankingManager(tmp_path)
 
@@ -186,7 +185,7 @@ def test_FlieRankingManager_update__overflow(tmp_path):
     assert updated_ranking == ranking_manager.load(difficulty)
 
 
-def test_FlieRankingManager_available_difficulties(tmp_path):
+def test_FileRankingManager_available_difficulties(tmp_path):
     difficulty1 = SimpleDifficulty(4, 8)
     difficulty2 = SimpleDifficulty(4, 10)
     difficulty3 = SimpleDifficulty(3, 5)
@@ -210,11 +209,12 @@ def test_FlieRankingManager_available_difficulties(tmp_path):
 # is_player_name_valid
 # --------------------
 
+
 @pytest.mark.parametrize(
     "name",
     ("abc", "abcdefghijk", "abcdefghijklmnopqrst")
 )
-def test_validate_player_name_pass(name):
+def test_validate_player_name__valid(name):
     assert is_player_name_valid(name)
 
 
@@ -222,7 +222,7 @@ def test_validate_player_name_pass(name):
     "name",
     ("", "ab", "abcdefghijklmnopqrstu", "abcdefghijklmnopqrstuvwxyz")
 )
-def test_validate_player_name_exception(name):
+def test_validate_player_name__invalid(name):
     assert not is_player_name_valid(name)
 
 
@@ -231,7 +231,7 @@ def test_validate_player_name_exception(name):
 # ============
 
 
-def test_simple_difficulty_init():
+def test_SimpleDifficulty_init():
     num_size = 3
     digs_num = 6
     difficulty = SimpleDifficulty(num_size, digs_num)
@@ -247,26 +247,26 @@ def test_simple_difficulty_init():
         (MIN_NUM_SIZE - 1, 5),
     ),
 )
-def test_simple_difficulty_not_valid(num_size, digs_num):
+def test_SimpleDifficulty__not_valid_arguments(num_size, digs_num):
     with pytest.raises(ValueError):
         SimpleDifficulty(num_size, digs_num)
 
 
-def test_simple_difficulty_eq():
+def test_SimpleDifficulty_eq():
     assert (
         SimpleDifficulty(3, 6)
         == SimpleDifficulty(3, 6)
     )
 
 
-def test_simple_difficulty_ne():
+def test_SimpleDifficulty_ne():
     assert (
         SimpleDifficulty(3, 6)
         != SimpleDifficulty(3, 7)
     )
 
 
-def test_simple_difficulty_ordering():
+def test_SimpleDifficulty_ordering():
     difficulties = [
         SimpleDifficulty(5, 10),
         SimpleDifficulty(6, 10),
@@ -279,12 +279,6 @@ def test_simple_difficulty_ordering():
     ]
 
 
-def test_simple_difficulty_frozen():
-    difficulty = SimpleDifficulty(3, 6)
-    with pytest.raises(FrozenInstanceError):
-        del difficulty.num_size
-
-
 @pytest.mark.parametrize(
     "digs_num",
     (
@@ -294,7 +288,7 @@ def test_simple_difficulty_frozen():
         len(DIGITS_SEQUENCE) - 3,
     ),
 )
-def test_validate_digs_num_for_standard_diffilulty__valid(digs_num):
+def test_validate_digs_num_for_standard_difficulty__valid(digs_num):
     _validate_digs_num_for_standard_difficulty(digs_num)
 
 
@@ -307,7 +301,7 @@ def test_validate_digs_num_for_standard_diffilulty__valid(digs_num):
         len(DIGITS_SEQUENCE) + 3,
     ),
 )
-def test_validate_digs_num_for_standard_diffilulty__not_valid(digs_num):
+def test_validate_digs_num_for_standard_difficulty__invalid(digs_num):
     with pytest.raises(ValueError):
         _validate_digs_num_for_standard_difficulty(digs_num)
 
@@ -354,11 +348,7 @@ def test_standard_validation(digs_num):
         standard_digs_label(digs_num)
 
 
-def test_difficulty_inheritance():
-    assert issubclass(Difficulty, SimpleDifficulty)
-
-
-def test_difficulty_init():
+def test_Difficulty_init():
     num_size = 3
     digs_num = 6
     digs_set = frozenset("123456")
@@ -372,7 +362,7 @@ def test_difficulty_init():
     assert difficulty.name == name
 
 
-def test_difficulty__standard():
+def test_Difficulty_standard():
     difficulty = Difficulty.standard(3, 6, "some name")
     assert difficulty.num_size == 3
     assert difficulty.digs_num == 6
@@ -390,19 +380,19 @@ def test_difficulty__standard():
         (3, 6, "12345", "1-6"),  # digs_num != len(digs_set)
     ),
 )
-def test_difficulty_not_valid(num_size, digs_num, digs, digs_label):
+def test_Difficulty__invalid_arguments(num_size, digs_num, digs, digs_label):
     with pytest.raises(ValueError):
         Difficulty(num_size, digs_num, frozenset(digs), digs_label)
 
 
-def test_difficulty_eq():
+def test_Difficulty_eq():
     assert (
         Difficulty(3, 6, frozenset("123456"), "1-6", "a")
         == Difficulty(3, 6, frozenset("abcdef"), "a-f", "b")
     )
 
 
-def test_difficulty_ordering():
+def test_Difficulty_ordering():
     difficulties = [
         Difficulty.standard(5, 10, "abcd"),
         Difficulty.standard(6, 10),
@@ -413,12 +403,6 @@ def test_difficulty_ordering():
         Difficulty.standard(5, 10, "abcd"),
         Difficulty.standard(6, 10),
     ]
-
-
-def test_difficulty_frozen():
-    difficulty = Difficulty.standard(3, 6)
-    with pytest.raises(FrozenInstanceError):
-        difficulty.num_size = 10
 
 
 # =====
@@ -450,7 +434,7 @@ def test_is_number_valid(number, difficulty):
         ("1g4a8", Difficulty.standard(5, 15)),
     )
 )
-def test_is_number_valid_wrong_characters(number, difficulty):
+def test_is_number_valid__wrong_characters(number, difficulty):
     assert not is_number_valid(number, difficulty)
 
 
@@ -465,7 +449,7 @@ def test_is_number_valid_wrong_characters(number, difficulty):
         ("31d", Difficulty.standard(5, 15)),
     )
 )
-def test_is_number_valid_wrong_length(number, difficulty):
+def test_is_number_valid__wrong_length(number, difficulty):
     assert not is_number_valid(number, difficulty)
 
 
@@ -477,7 +461,7 @@ def test_is_number_valid_wrong_length(number, difficulty):
         ("3b5b8", Difficulty.standard(5, 15)),
     )
 )
-def test_is_number_valid_not_unique_characters(number, difficulty):
+def test_is_number_valid__not_unique_characters(number, difficulty):
     assert not is_number_valid(number, difficulty)
 
 
