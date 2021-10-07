@@ -6,7 +6,6 @@ from bacpy.core import (
     standard_digs_label,
     standard_digs_set,
     Difficulty,
-    DIGITS_SEQUENCE,
     draw_number,
     FileRankingManager,
     is_number_valid,
@@ -17,7 +16,6 @@ from bacpy.core import (
     GuessHandler,
     _ScoreData,
     SimpleDifficulty,
-    _validate_digs_num_for_standard_difficulty,
 )
 
 
@@ -280,33 +278,6 @@ def test_SimpleDifficulty_ordering():
 
 
 @pytest.mark.parametrize(
-    "digs_num",
-    (
-        MIN_NUM_SIZE,
-        MIN_NUM_SIZE + 3,
-        len(DIGITS_SEQUENCE),
-        len(DIGITS_SEQUENCE) - 3,
-    ),
-)
-def test_validate_digs_num_for_standard_difficulty__valid(digs_num):
-    _validate_digs_num_for_standard_difficulty(digs_num)
-
-
-@pytest.mark.parametrize(
-    "digs_num",
-    (
-        MIN_NUM_SIZE - 1,
-        MIN_NUM_SIZE - 2,
-        len(DIGITS_SEQUENCE) + 1,
-        len(DIGITS_SEQUENCE) + 3,
-    ),
-)
-def test_validate_digs_num_for_standard_difficulty__invalid(digs_num):
-    with pytest.raises(ValueError):
-        _validate_digs_num_for_standard_difficulty(digs_num)
-
-
-@pytest.mark.parametrize(
     ("digs_num", "digits"),
     (
         (4, "1234"),
@@ -323,7 +294,7 @@ def test_standard_digs_set(digs_num, digits):
 @pytest.mark.parametrize(
     ("digs_num", "expected"),
     (
-        (4, "1-4"),
+        (2, "1-2"),
         (8, "1-8"),
         (10, "1-9,a"),
         (13, "1-9,a-d"),
@@ -332,20 +303,6 @@ def test_standard_digs_set(digs_num, digits):
 )
 def test_standard_digs_label(digs_num, expected):
     assert standard_digs_label(digs_num) == expected
-
-
-@pytest.mark.parametrize(
-    "digs_num",
-    (
-        MIN_NUM_SIZE - 1,
-        len(DIGITS_SEQUENCE) + 1,
-    ),
-)
-def test_standard_validation(digs_num):
-    with pytest.raises(ValueError):
-        standard_digs_set(digs_num)
-    with pytest.raises(ValueError):
-        standard_digs_label(digs_num)
 
 
 def test_Difficulty_init():

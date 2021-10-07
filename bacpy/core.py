@@ -177,31 +177,19 @@ class SimpleDifficulty:
 
 
 def standard_digs_set(digs_num: int) -> FrozenSet[str]:
-    _validate_digs_num_for_standard_difficulty(digs_num)
     return frozenset(DIGITS_SEQUENCE[:digs_num])
 
 
 def standard_digs_label(digs_num: int) -> str:
-    _validate_digs_num_for_standard_difficulty(digs_num)
+    if digs_num <= 1:
+        raise ValueError("Can't generate label for `digs_num` less than 2 ({digs_num})")
+
     if digs_num <= 9:
         return f"1-{digs_num}"
     elif digs_num == 10:
         return "1-9,a"
     else:
         return f"1-9,a-{DIGITS_SEQUENCE[digs_num - 1]}"
-
-
-def _validate_digs_num_for_standard_difficulty(digs_num: int) -> None:
-    if digs_num < MIN_NUM_SIZE:
-        raise ValueError(
-            f"`digs_num` ({digs_num}) less than `MIN_NUM_SIZE`"
-            f" ({MIN_NUM_SIZE})"
-        )
-    if digs_num > len(DIGITS_SEQUENCE):
-        raise ValueError(
-            f"`digs_num` ({digs_num}) over length of `DIGITS_SEQUENCE`"
-            f" ({len(DIGITS_SEQUENCE)})"
-        )
 
 
 @dataclass(order=True, frozen=True)
