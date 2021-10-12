@@ -11,7 +11,6 @@ import sys
 from typing import (
     Callable,
     ClassVar,
-    Container,
     Iterable,
     Iterator,
     KeysView,
@@ -182,78 +181,6 @@ class Game:
             yield
         finally:
             self._guess_handler = None
-
-
-# ============
-# Difficulties
-# ============
-
-
-class SimpleDifficulties:
-
-    def __init__(self, data: Iterable[SimpleDifficulty]) -> None:
-        self.data = tuple(data)
-        self.by_attrs = {
-            (dif.num_size, dif.digs_num): dif
-            for dif in self.data
-        }
-        self.indexes = range(IDX_START, len(self.data) + IDX_START)
-
-    def __iter__(self) -> Iterator[SimpleDifficulty]:
-        return iter(self.data)
-
-    def __len__(self) -> int:
-        return len(self.data)
-
-    def __getitem__(self, key: Union[Tuple[int, int], int]) -> SimpleDifficulty:
-        """Return Difficulty by given attributes (`num_size`, `digs_num`)
-        or index.
-        """
-        if isinstance(key, int):
-            try:
-                index = self.indexes.index(key)
-            except ValueError:
-                raise IndexError(key) from None
-            return self.data[index]
-        return self.by_attrs[key]
-
-    @property
-    def attrs(self) -> KeysView[Tuple[int, int]]:
-        return self.by_attrs.keys()
-
-
-class Difficulties:
-    """Keeps available difficulties."""
-
-    def __init__(self, data: Iterable[Difficulty]) -> None:
-        self.data = data = tuple(data)
-        self.by_name = {dif.name: dif for dif in data if dif.name}
-        self.indexes = range(IDX_START, len(data) + IDX_START)
-
-    def __iter__(self) -> Iterator[Difficulty]:
-        return iter(self.data)
-
-    def __len__(self) -> int:
-        return len(self.data)
-
-    def __getitem__(self, key: Union[str, int]) -> Difficulty:
-        """Return Difficulty by given name or index."""
-        if isinstance(key, int):
-            try:
-                index = self.indexes.index(key)
-            except ValueError:
-                raise IndexError(key) from None
-            return self.data[index]
-        if isinstance(key, str):
-            return self.by_name[key]
-        raise TypeError(
-            f"Given key have wrong type ({type(key)}). "
-            "'str' or 'int' needed."
-        )
-
-    @property
-    def names(self) -> KeysView[str]:
-        return self.by_name.keys()
 
 
 # =========
@@ -438,9 +365,77 @@ class PlayerNameValidator(Validator):
             )
 
 
-# =====
-# Menus
-# =====
+# ============
+# Difficulties
+# ============
+
+
+class SimpleDifficulties:
+
+    def __init__(self, data: Iterable[SimpleDifficulty]) -> None:
+        self.data = tuple(data)
+        self.by_attrs = {
+            (dif.num_size, dif.digs_num): dif
+            for dif in self.data
+        }
+        self.indexes = range(IDX_START, len(self.data) + IDX_START)
+
+    def __iter__(self) -> Iterator[SimpleDifficulty]:
+        return iter(self.data)
+
+    def __len__(self) -> int:
+        return len(self.data)
+
+    def __getitem__(self, key: Union[Tuple[int, int], int]) -> SimpleDifficulty:
+        """Return Difficulty by given attributes (`num_size`, `digs_num`) or index."""
+        if isinstance(key, int):
+            try:
+                index = self.indexes.index(key)
+            except ValueError:
+                raise IndexError(key) from None
+            return self.data[index]
+        return self.by_attrs[key]
+
+    @property
+    def attrs(self) -> KeysView[Tuple[int, int]]:
+        return self.by_attrs.keys()
+
+
+class Difficulties:
+
+    def __init__(self, data: Iterable[Difficulty]) -> None:
+        self.data = data = tuple(data)
+        self.by_name = {dif.name: dif for dif in data if dif.name}
+        self.indexes = range(IDX_START, len(data) + IDX_START)
+
+    def __iter__(self) -> Iterator[Difficulty]:
+        return iter(self.data)
+
+    def __len__(self) -> int:
+        return len(self.data)
+
+    def __getitem__(self, key: Union[str, int]) -> Difficulty:
+        """Return Difficulty by given name or index."""
+        if isinstance(key, int):
+            try:
+                index = self.indexes.index(key)
+            except ValueError:
+                raise IndexError(key) from None
+            return self.data[index]
+        if isinstance(key, str):
+            return self.by_name[key]
+        raise TypeError(
+            f"Given key have wrong type ({type(key)}). `str` or `int` needed."
+        )
+
+    @property
+    def names(self) -> KeysView[str]:
+        return self.by_name.keys()
+
+
+# =========
+# selection
+# =========
 
 
 @cli_window("Difficulty Selection")
@@ -448,60 +443,109 @@ def simple_difficulty_selection(
         difficulties: SimpleDifficulties
 ) -> SimpleDifficulty:
     """SimpleDifficulty selection.
-
     Can raise EOFError.
     """
-    print(simple_difficulties_table(difficulties))
+    print(f"\n{simple_difficulties_table(difficulties)}\n")
 
     while True:
         try:
             input_ = prompt(
                 "Enter key: ",
-                validator=MenuValidator(difficulties.indexes),
+                validator=SimpleDifficultySelectionValidator(difficulties),
                 validate_while_typing=False,
-            ).strip()
+            )
         except KeyboardInterrupt:
             continue
 
-        return difficulties[int(input_)]
+        return parse_simple_difficulty_selection(input_, difficulties)
 
 
 @cli_window("Difficulty Selection")
 def difficulty_selection(difficulties: Difficulties) -> Difficulty:
     """Difficulty selection.
-
     Can raise EOFError.
     """
-    print(difficulties_table(difficulties))
+    print(f"\n{difficulties_table(difficulties)}\n")
 
     while True:
         try:
             input_ = prompt(
                 "Enter key: ",
-                validator=MenuValidator(difficulties.indexes),
+                validator=DifficultySelectionValidator(difficulties),
                 validate_while_typing=False,
-            ).strip()
+            )
         except KeyboardInterrupt:
             continue
 
-        return difficulties[int(input_)]
+        return parse_difficulty_selection(input_, difficulties)
 
 
-class MenuValidator(Validator):
+class SimpleDifficultySelectionValidator(Validator):
 
-    def __init__(self, index: Container[int]) -> None:
-        self.index = index
+    def __init__(self, difficulties: SimpleDifficulties) -> None:
+        self.difficulties = difficulties
 
     def validate(self, document: Document) -> None:
-        text: str = document.text.strip()
+        try:
+            parse_simple_difficulty_selection(document.text, self.difficulties)
+        except ValueError as err:
+            raise ValidationError(
+                message="Invalid input",
+                cursor_position=document.cursor_position,
+            ) from err
 
-        if text.isdigit() and int(text) in self.index:
-            return
 
-        raise ValidationError(
-            message="Invalid key",
-            cursor_position=document.cursor_position,
-        )
+class DifficultySelectionValidator(Validator):
+
+    def __init__(self, difficulties: Difficulties) -> None:
+        self.difficulties = difficulties
+
+    def validate(self, document: Document) -> None:
+        try:
+            parse_difficulty_selection(document.text, self.difficulties)
+        except ValueError as err:
+            raise ValidationError(
+                message="Invalid input",
+                cursor_position=document.cursor_position,
+            ) from err
+
+
+def parse_simple_difficulty_selection(
+        input_: str,
+        difficulties: SimpleDifficulties,
+) -> SimpleDifficulty:
+    input_ = input_.strip()
+
+    if input_.isdigit() and int(input_) in difficulties.indexes:
+        return difficulties[int(input_)]
+
+    splited = input_.split()
+    if (
+            len(splited) == 2
+            and all(elem.isdigit() for elem in splited)
+            and tuple(map(int, splited)) in difficulties.attrs
+    ):
+        num_size, digs_num = splited
+        return difficulties[int(num_size), int(digs_num)]
+
+    raise ValueError("Invalid input")
+
+
+def parse_difficulty_selection(
+        input_: str,
+        difficulties: Difficulties,
+) -> Difficulty:
+    input_ = input_.strip()
+
+    if input_.isdigit() and int(input_) in difficulties.indexes:
+        return difficulties[int(input_)]
+
+    try:
+        return difficulties[input_]
+    except KeyError:
+        pass
+
+    raise ValueError("Invalid input")
 
 
 # ======
@@ -526,23 +570,21 @@ def ranking_table(ranking: Ranking) -> str:
 
 
 def simple_difficulties_table(difficulties: SimpleDifficulties) -> str:
-    table = tabulate(
+    return tabulate(
         map(attrgetter("num_size", "digs_num"), difficulties),
         headers=("Key", "Size", "Digits"),
         colalign=("right", "center", "center"),
         showindex=difficulties.indexes,
     )
-    return f"\n{table}\n"
 
 
 def difficulties_table(difficulties: Difficulties) -> str:
-    table = tabulate(
+    return tabulate(
         map(attrgetter("name", "num_size", "digs_label"), difficulties),
         headers=("Key", "Difficulty", "Size", "Digits"),
         colalign=("right", "left", "center", "center"),
         showindex=difficulties.indexes,
     )
-    return f"\n{table}\n"
 
 
 # ========
