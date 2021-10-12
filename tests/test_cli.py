@@ -11,12 +11,13 @@ import pytest
 from bacpy.cli import (
     ask_ok,
     cli_window,
+    Difficulty,
     get_toolbar,
     MainPromptValidator,
     player_name_getter,
     PlayerNameValidator,
 )
-from bacpy.core import Difficulty
+from bacpy.core import NumberParams
 
 
 ARROW_UP = "\u001b[A"
@@ -241,9 +242,9 @@ def test_player_name_getter(mock_input):
 
 
 def test_get_toolbar():
-    difficulty = Difficulty(4, 9, set(range(1, 10)), "1-9", "standard")
+    difficulty = NumberParams(Difficulty(4, 9), set(range(1, 10)), "1-9", "standard")
     assert get_toolbar(difficulty) == (
-        "Difficulty: standard | Size: 4 | Digits: 1-9"
+        "Label: standard | Size: 4 | Digits: 1-9"
     )
 
 
@@ -254,8 +255,8 @@ def test_get_toolbar():
 @pytest.mark.parametrize(
     ("input_", "difficulty"),
     (
-        ("3621", Difficulty.standard(4, 8)),
-        (" 1482 ", Difficulty.standard(4, 8)),
+        ("3621", NumberParams.standard(Difficulty(4, 8))),
+        (" 1482 ", NumberParams.standard(Difficulty(4, 8))),
     )
 )
 def test_MainPromptValidator__pass_on_valid_number(input_, difficulty):
@@ -267,7 +268,7 @@ def test_MainPromptValidator__pass_on_valid_number(input_, difficulty):
     ("3622", "14823", "1492")
 )
 def test_MainPromptValidator__raise_ValidationError_on_invalid_number(input_):
-    difficulty = Difficulty.standard(4, 8)
+    difficulty = NumberParams.standard(Difficulty(4, 8))
     with pytest.raises(ValidationError):
         MainPromptValidator(difficulty).validate(Document(input_))
 
@@ -283,7 +284,7 @@ def test_MainPromptValidator__raise_ValidationError_on_invalid_number(input_):
     )
 )
 def test_MainPromptValidator__pass_on_valid_command(input_):
-    difficulty = Difficulty.standard(5, 10)
+    difficulty = NumberParams.standard(Difficulty(5, 10))
     MainPromptValidator(difficulty).validate(Document(input_))
 
 
@@ -295,6 +296,6 @@ def test_MainPromptValidator__pass_on_valid_command(input_):
     )
 )
 def test_MainPromptValidator__raise_ValidationError_on_invalid_command(input_):
-    difficulty = Difficulty.standard(3, 4)
+    difficulty = NumberParams.standard(Difficulty(3, 4))
     with pytest.raises(ValidationError):
         MainPromptValidator(difficulty).validate(Document(input_))

@@ -3,19 +3,19 @@ from datetime import datetime
 import pytest
 
 from bacpy.core import (
-    standard_digs_label,
-    standard_digs_set,
     Difficulty,
     draw_number,
     FileRankingManager,
+    GuessHandler,
     is_number_valid,
     is_player_name_valid,
     MIN_NUM_SIZE,
+    NumberParams,
     Ranking,
     _RankingRecord,
-    GuessHandler,
     _ScoreData,
-    SimpleDifficulty,
+    standard_digs_label,
+    standard_digs_set,
 )
 
 
@@ -33,12 +33,12 @@ from bacpy.core import (
 
 def test_FileRankingManager_load__not_existing_ranking(tmp_path):
     ranking_manager = FileRankingManager(tmp_path)
-    difficulty = SimpleDifficulty(4, 6)
+    difficulty = Difficulty(4, 6)
     assert ranking_manager.load(difficulty) == Ranking((), difficulty)
 
 
 def test_FileRankingManager_is_score_fit_into__not_full(tmp_path):
-    difficulty = SimpleDifficulty(3, 6)
+    difficulty = Difficulty(3, 6)
     ranking_manager = FileRankingManager(tmp_path)
 
     for score_data, player in (
@@ -56,7 +56,7 @@ def test_FileRankingManager_is_score_fit_into__not_full(tmp_path):
 
 
 def test_FileRankingManager_is_score_fit_into__full(tmp_path):
-    difficulty = SimpleDifficulty(3, 6)
+    difficulty = Difficulty(3, 6)
     ranking_manager = FileRankingManager(tmp_path)
 
     for score_data, player in (
@@ -82,7 +82,7 @@ def test_FileRankingManager_is_score_fit_into__full(tmp_path):
 
 
 def test_FileRankingManager_update__not_full(tmp_path):
-    difficulty = SimpleDifficulty(5, 8)
+    difficulty = Difficulty(5, 8)
     ranking_manager = FileRankingManager(tmp_path)
 
     for score_data, player in (
@@ -106,7 +106,7 @@ def test_FileRankingManager_update__not_full(tmp_path):
 
 
 def test_FileRankingMamager_update__full(tmp_path):
-    difficulty = SimpleDifficulty(3, 6)
+    difficulty = Difficulty(3, 6)
     ranking_manager = FileRankingManager(tmp_path)
 
     for score_data, player in (
@@ -145,7 +145,7 @@ def test_FileRankingMamager_update__full(tmp_path):
 
 
 def test_FileRankingManager_update__overflow(tmp_path):
-    difficulty = SimpleDifficulty(3, 6)
+    difficulty = Difficulty(3, 6)
     ranking_manager = FileRankingManager(tmp_path)
 
     for score_data, player in (
@@ -184,9 +184,9 @@ def test_FileRankingManager_update__overflow(tmp_path):
 
 
 def test_FileRankingManager_available_difficulties(tmp_path):
-    difficulty1 = SimpleDifficulty(4, 8)
-    difficulty2 = SimpleDifficulty(4, 10)
-    difficulty3 = SimpleDifficulty(3, 5)
+    difficulty1 = Difficulty(4, 8)
+    difficulty2 = Difficulty(4, 10)
+    difficulty3 = Difficulty(3, 5)
     ranking_manager = FileRankingManager(tmp_path)
     ranking_manager.load(difficulty1)
     ranking_manager.update(
@@ -232,7 +232,7 @@ def test_validate_player_name__invalid(name):
 def test_SimpleDifficulty_init():
     num_size = 3
     digs_num = 6
-    difficulty = SimpleDifficulty(num_size, digs_num)
+    difficulty = Difficulty(num_size, digs_num)
     assert difficulty.num_size == num_size
     assert difficulty.digs_num == digs_num
 
@@ -247,38 +247,38 @@ def test_SimpleDifficulty_init():
 )
 def test_SimpleDifficulty__not_valid_arguments(num_size, digs_num):
     with pytest.raises(ValueError):
-        SimpleDifficulty(num_size, digs_num)
+        Difficulty(num_size, digs_num)
 
 
 def test_SimpleDifficulty_eq():
     assert (
-        SimpleDifficulty(3, 6)
-        == SimpleDifficulty(3, 6)
+        Difficulty(3, 6)
+        == Difficulty(3, 6)
     )
 
 
 def test_SimpleDifficulty_ne():
     assert (
-        SimpleDifficulty(3, 6)
-        != SimpleDifficulty(3, 7)
+        Difficulty(3, 6)
+        != Difficulty(3, 7)
     )
 
 
 def test_SimpleDifficulty_ordering():
     difficulties = [
-        SimpleDifficulty(5, 10),
-        SimpleDifficulty(6, 10),
-        SimpleDifficulty(3, 6),
+        Difficulty(5, 10),
+        Difficulty(6, 10),
+        Difficulty(3, 6),
     ]
     assert sorted(difficulties) == [
-        SimpleDifficulty(3, 6),
-        SimpleDifficulty(5, 10),
-        SimpleDifficulty(6, 10),
+        Difficulty(3, 6),
+        Difficulty(5, 10),
+        Difficulty(6, 10),
     ]
 
 
 @pytest.mark.parametrize(
-    ("digs_num", "digits"),
+    "digs_num, digits",
     (
         (4, "1234"),
         (8, "12345678"),
@@ -292,13 +292,13 @@ def test_standard_digs_set(digs_num, digits):
 
 
 @pytest.mark.parametrize(
-    ("digs_num", "expected"),
+    "digs_num, expected",
     (
-        (2, "1-2"),
-        (8, "1-8"),
-        (10, "1-9,a"),
-        (13, "1-9,a-d"),
-        (35, "1-9,a-z"),
+        (2, "[1-2]"),
+        (8, "[1-8]"),
+        (10, "[1-9a]"),
+        (13, "[1-9a-d]"),
+        (35, "[1-9a-z]"),
     ),
 )
 def test_standard_digs_label(digs_num, expected):
@@ -308,57 +308,59 @@ def test_standard_digs_label(digs_num, expected):
 def test_Difficulty_init():
     num_size = 3
     digs_num = 6
+    difficulty = Difficulty(num_size, digs_num)
     digs_set = frozenset("123456")
     digs_label = "1-6"
-    name = "name_str"
-    difficulty = Difficulty(num_size, digs_num, digs_set, digs_label, name)
-    assert difficulty.num_size == num_size
-    assert difficulty.digs_num == digs_num
-    assert difficulty.digs_set == digs_set
-    assert difficulty.digs_label == digs_label
-    assert difficulty.name == name
+    label = "label_str"
+    number_params = NumberParams(
+        Difficulty(num_size, digs_num), digs_set, digs_label, label
+    )
+    assert number_params.difficulty == difficulty
+    assert number_params.num_size == num_size
+    assert number_params.digs_num == digs_num
+    assert number_params.digs_set == digs_set
+    assert number_params.digs_label == digs_label
+    assert number_params.label == label
 
 
 def test_Difficulty_standard():
-    difficulty = Difficulty.standard(3, 6, "some name")
-    assert difficulty.num_size == 3
-    assert difficulty.digs_num == 6
-    assert difficulty.digs_set == frozenset("123456")
-    assert difficulty.digs_label == "1-6"
-    assert difficulty.name == "some name"
+    number_params = NumberParams.standard(Difficulty(3, 6), "some label")
+    assert number_params.num_size == 3
+    assert number_params.digs_num == 6
+    assert number_params.digs_set == frozenset("123456")
+    assert number_params.digs_label == "[1-6]"
+    assert number_params.label == "some label"
 
 
 @pytest.mark.parametrize(
-    ("num_size", "digs_num", "digs", "digs_label"),
+    "difficulty, digs, digs_label",
     (
-        (6, 6, "123456", "1-6"),  # num_size == digs_num
-        (7, 5, "12345", "1-5"),  # num_size > digs_num
-        (MIN_NUM_SIZE - 1, 5, "12345", "1-5"),
-        (3, 6, "12345", "1-6"),  # digs_num != len(digs_set)
+        (Difficulty(3, 6), "12345", "1-6"),  # digs_num != len(digs_set)
+        (Difficulty(4, 5), "1234567", "1-6"),  # digs_num != len(digs_set)
     ),
 )
-def test_Difficulty__invalid_arguments(num_size, digs_num, digs, digs_label):
+def test_Difficulty__invalid_arguments(difficulty, digs, digs_label):
     with pytest.raises(ValueError):
-        Difficulty(num_size, digs_num, frozenset(digs), digs_label)
+        NumberParams(difficulty, frozenset(digs), digs_label)
 
 
-def test_Difficulty_eq():
+def test_Difficulty__eq():
     assert (
-        Difficulty(3, 6, frozenset("123456"), "1-6", "a")
-        == Difficulty(3, 6, frozenset("abcdef"), "a-f", "b")
+        NumberParams(Difficulty(3, 6), frozenset("123456"), "1-6", "a")
+        == NumberParams(Difficulty(3, 6), frozenset("abcdef"), "a-f", "b")
     )
 
 
-def test_Difficulty_ordering():
+def test_Difficulty__ordering():
     difficulties = [
-        Difficulty.standard(5, 10, "abcd"),
-        Difficulty.standard(6, 10),
-        Difficulty.standard(3, 5),
+        NumberParams.standard(Difficulty(5, 10), "abcd"),
+        NumberParams.standard(Difficulty(6, 10)),
+        NumberParams.standard(Difficulty(3, 5)),
     ]
     assert sorted(difficulties) == [
-        Difficulty.standard(3, 5),
-        Difficulty.standard(5, 10, "abcd"),
-        Difficulty.standard(6, 10),
+        NumberParams.standard(Difficulty(3, 5)),
+        NumberParams.standard(Difficulty(5, 10), "abcd"),
+        NumberParams.standard(Difficulty(6, 10)),
     ]
 
 
@@ -372,54 +374,54 @@ def test_Difficulty_ordering():
 
 
 @pytest.mark.parametrize(
-    ("number", "difficulty"),
+    "number, number_params",
     (
-        ("163", Difficulty.standard(3, 6)),
-        ("1593", Difficulty.standard(4, 9)),
-        ("2f5a9", Difficulty.standard(5, 15)),
+        ("163", NumberParams.standard(Difficulty(3, 6))),
+        ("1593", NumberParams.standard(Difficulty(4, 9))),
+        ("2f5a9", NumberParams.standard(Difficulty(5, 15))),
     )
 )
-def test_is_number_valid(number, difficulty):
-    assert is_number_valid(number, difficulty)
+def test_is_number_valid(number, number_params):
+    assert is_number_valid(number, number_params)
 
 
 @pytest.mark.parametrize(
-    ("number", "difficulty"),
+    "number, number_params",
     (
-        ("301", Difficulty.standard(3, 6)),
-        ("51a9", Difficulty.standard(4, 9)),
-        ("1g4a8", Difficulty.standard(5, 15)),
+        ("301", NumberParams.standard(Difficulty(3, 6))),
+        ("51a9", NumberParams.standard(Difficulty(4, 9))),
+        ("1g4a8", NumberParams.standard(Difficulty(5, 15))),
     )
 )
-def test_is_number_valid__wrong_characters(number, difficulty):
-    assert not is_number_valid(number, difficulty)
+def test_is_number_valid__wrong_characters(number, number_params):
+    assert not is_number_valid(number, number_params)
 
 
 @pytest.mark.parametrize(
-    ("number", "difficulty"),
+    "number, number_params",
     (
-        ("1234", Difficulty.standard(3, 5)),
-        ("34", Difficulty.standard(3, 5)),
-        ("12349", Difficulty.standard(4, 9)),
-        ("31", Difficulty.standard(4, 9)),
-        ("12f3a49b", Difficulty.standard(5, 15)),
-        ("31d", Difficulty.standard(5, 15)),
+        ("1234", NumberParams.standard(Difficulty(3, 5))),
+        ("34", NumberParams.standard(Difficulty(3, 5))),
+        ("12349", NumberParams.standard(Difficulty(4, 9))),
+        ("31", NumberParams.standard(Difficulty(4, 9))),
+        ("12f3a49b", NumberParams.standard(Difficulty(5, 15))),
+        ("31d", NumberParams.standard(Difficulty(5, 15))),
     )
 )
-def test_is_number_valid__wrong_length(number, difficulty):
-    assert not is_number_valid(number, difficulty)
+def test_is_number_valid__wrong_length(number, number_params):
+    assert not is_number_valid(number, number_params)
 
 
 @pytest.mark.parametrize(
-    ("number", "difficulty"),
+    "number, number_params",
     (
-        ("232", Difficulty.standard(3, 5)),
-        ("3727", Difficulty.standard(4, 9)),
-        ("3b5b8", Difficulty.standard(5, 15)),
+        ("232", NumberParams.standard(Difficulty(3, 5))),
+        ("3727", NumberParams.standard(Difficulty(4, 9))),
+        ("3b5b8", NumberParams.standard(Difficulty(5, 15))),
     )
 )
-def test_is_number_valid__not_unique_characters(number, difficulty):
-    assert not is_number_valid(number, difficulty)
+def test_is_number_valid__not_unique_characters(number, number_params):
+    assert not is_number_valid(number, number_params)
 
 
 # draw_number
@@ -427,16 +429,16 @@ def test_is_number_valid__not_unique_characters(number, difficulty):
 
 
 @pytest.mark.parametrize(
-    "difficulty",
+    "number_params",
     (
-        Difficulty.standard(3, 6),
-        Difficulty.standard(4, 9),
-        Difficulty.standard(5, 15),
+        NumberParams.standard(Difficulty(3, 6)),
+        NumberParams.standard(Difficulty(4, 9)),
+        NumberParams.standard(Difficulty(5, 15)),
     )
 )
-def test_draw_number(difficulty):
-    number = draw_number(difficulty)
-    assert is_number_valid(number, difficulty)
+def test_draw_number(number_params):
+    number = draw_number(number_params)
+    assert is_number_valid(number, number_params)
 
 
 # RoundCore
@@ -445,11 +447,11 @@ def test_draw_number(difficulty):
 
 def test_GuessHandler():
     number = "1234"
-    difficulty = Difficulty.standard(4, 8)
-    guess_handler = GuessHandler(number, difficulty)
+    number_params = NumberParams.standard(Difficulty(4, 8))
+    guess_handler = GuessHandler(number, number_params)
 
     # After initiation
-    assert guess_handler.difficulty == difficulty
+    assert guess_handler.number_params == number_params
     assert not guess_handler.history
     assert not guess_handler.steps_done
     assert not guess_handler.closed
@@ -489,5 +491,5 @@ def test_GuessHandler():
         guess_handler.send(number)
     score_data = guess_handler.score_data
     assert score_data.dt
-    assert score_data.difficulty == difficulty.to_simple()
+    assert score_data.difficulty == number_params.difficulty
     assert score_data.score == 4

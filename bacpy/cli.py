@@ -30,18 +30,18 @@ from prompt_toolkit.validation import Validator, ValidationError
 from tabulate import tabulate
 
 from .core import (
-    DEFAULT_DIFFICULTIES,
-    Difficulty,
+    DEFAULT_NUMBER_PARAMETERS,
     draw_number,
     FileRankingManager,
+    GuessHandler,
+    NumberParams,
     QuitGame,
     Ranking,
     RankingManager,
     RANKINGS_DIR,
     RANKING_SIZE,
     RestartGame,
-    GuessHandler,
-    SimpleDifficulty,
+    Difficulty,
     StopPlaying,
     validate_number,
     validate_player_name,
@@ -96,7 +96,7 @@ def run_game() -> None:
     print(starting_header(PROGRAM_VERSION))
 
     try:
-        difficulty = difficulty_selection(game.difficulties)
+        number_params = number_params_selection(game.number_params_container)
     except EOFError:
         return
 
@@ -105,15 +105,15 @@ def run_game() -> None:
     while True:
         print()
         try:
-            secret_number = draw_number(difficulty)
+            secret_number = draw_number(number_params)
 
             if sys.flags.dev_mode:  # logging on console
                 print(f"secret number: {secret_number}")
 
-            guess_handler = GuessHandler(secret_number, difficulty)
+            guess_handler = GuessHandler(secret_number, number_params)
             with game.set_guess_handler(guess_handler):
                 number_iter = number_getter(
-                    difficulty,
+                    number_params,
                     lambda: guess_handler.steps_done,
                     game.commands,
                 )
@@ -124,8 +124,8 @@ def run_game() -> None:
                     game.ranking_manager,
                 )
         except RestartGame as rg:
-            if rg.difficulty is not None:
-                difficulty = rg.difficulty
+            if rg.number_params is not None:
+                number_params = rg.number_params
             continue
         except (StopPlaying, QuitGame):
             return
@@ -164,7 +164,7 @@ class Game:
 
     def __init__(self, ranking_manager: RankingManager) -> None:
         self._guess_handler: Optional[GuessHandler] = None
-        self.difficulties = Difficulties(DEFAULT_DIFFICULTIES)
+        self.number_params_container = NumberParamsContainer(DEFAULT_NUMBER_PARAMETERS)
         self.commands = get_commands(self)
         self.ranking_manager = ranking_manager
 
@@ -250,7 +250,7 @@ def pager(text: str) -> None:
 
 
 def number_getter(
-        difficulty: Difficulty,
+        number_params: NumberParams,
         get_steps_done: Callable[[], int],
         commands: Commands,
 ) -> Iterator[str]:
@@ -259,8 +259,8 @@ def number_getter(
     Supports special input. Can raise `StopPlaying`.
     """
     prompt_session: PromptSession[str] = PromptSession(
-        bottom_toolbar=get_toolbar(difficulty),
-        validator=MainPromptValidator(difficulty),
+        bottom_toolbar=get_toolbar(number_params),
+        validator=MainPromptValidator(number_params),
         validate_while_typing=False,
     )
     while True:
@@ -298,8 +298,8 @@ def number_getter(
 
 class MainPromptValidator(Validator):
 
-    def __init__(self, difficulty: Difficulty) -> None:
-        self.difficulty = difficulty
+    def __init__(self, number_params: NumberParams) -> None:
+        self.number_params = number_params
 
     def validate(self, document: Document) -> None:
         input_: str = document.text.strip()
@@ -308,7 +308,7 @@ class MainPromptValidator(Validator):
             if input_.startswith(COMMAND_PREFIX):
                 validate_command(input_[len(COMMAND_PREFIX):].lstrip())
             else:
-                validate_number(input_, self.difficulty)
+                validate_number(input_, self.number_params)
         except ValueError as err:
             raise ValidationError(
                 message=str(err),
@@ -316,12 +316,12 @@ class MainPromptValidator(Validator):
             ) from err
 
 
-def get_toolbar(difficulty: Difficulty) -> str:
+def get_toolbar(number_params: NumberParams) -> str:
     return " | ".join(
         [
-            f"Difficulty: {difficulty.name}",
-            f"Size: {difficulty.num_size}",
-            f"Digits: {difficulty.digs_label}",
+            f"Label: {number_params.label}",
+            f"Size: {number_params.num_size}",
+            f"Digits: {number_params.digs_label}",
         ]
     )
 
@@ -370,9 +370,9 @@ class PlayerNameValidator(Validator):
 # ============
 
 
-class SimpleDifficulties:
+class DifficultyContainer:
 
-    def __init__(self, data: Iterable[SimpleDifficulty]) -> None:
+    def __init__(self, data: Iterable[Difficulty]) -> None:
         self.data = tuple(data)
         self.by_attrs = {
             (dif.num_size, dif.digs_num): dif
@@ -380,13 +380,13 @@ class SimpleDifficulties:
         }
         self.indexes = range(IDX_START, len(self.data) + IDX_START)
 
-    def __iter__(self) -> Iterator[SimpleDifficulty]:
+    def __iter__(self) -> Iterator[Difficulty]:
         return iter(self.data)
 
     def __len__(self) -> int:
         return len(self.data)
 
-    def __getitem__(self, key: Union[Tuple[int, int], int]) -> SimpleDifficulty:
+    def __getitem__(self, key: Union[Tuple[int, int], int]) -> Difficulty:
         """Return Difficulty by given attributes (`num_size`, `digs_num`) or index."""
         if isinstance(key, int):
             try:
@@ -401,21 +401,21 @@ class SimpleDifficulties:
         return self.by_attrs.keys()
 
 
-class Difficulties:
+class NumberParamsContainer:
 
-    def __init__(self, data: Iterable[Difficulty]) -> None:
+    def __init__(self, data: Iterable[NumberParams]) -> None:
         self.data = data = tuple(data)
-        self.by_name = {dif.name: dif for dif in data if dif.name}
+        self.by_label = {dif.label: dif for dif in data if dif.label}
         self.indexes = range(IDX_START, len(data) + IDX_START)
 
-    def __iter__(self) -> Iterator[Difficulty]:
+    def __iter__(self) -> Iterator[NumberParams]:
         return iter(self.data)
 
     def __len__(self) -> int:
         return len(self.data)
 
-    def __getitem__(self, key: Union[str, int]) -> Difficulty:
-        """Return Difficulty by given name or index."""
+    def __getitem__(self, key: Union[str, int]) -> NumberParams:
+        """Return `NumberParams` by given label or index."""
         if isinstance(key, int):
             try:
                 index = self.indexes.index(key)
@@ -423,14 +423,14 @@ class Difficulties:
                 raise IndexError(key) from None
             return self.data[index]
         if isinstance(key, str):
-            return self.by_name[key]
+            return self.by_label[key]
         raise TypeError(
             f"Given key have wrong type ({type(key)}). `str` or `int` needed."
         )
 
     @property
-    def names(self) -> KeysView[str]:
-        return self.by_name.keys()
+    def labels(self) -> KeysView[str]:
+        return self.by_label.keys()
 
 
 # =========
@@ -439,70 +439,57 @@ class Difficulties:
 
 
 @cli_window("Difficulty Selection")
-def simple_difficulty_selection(
-        difficulties: SimpleDifficulties
-) -> SimpleDifficulty:
-    """SimpleDifficulty selection.
-    Can raise EOFError.
-    """
-    print(f"\n{simple_difficulties_table(difficulties)}\n")
-
-    while True:
-        try:
-            input_ = prompt(
-                "Enter key: ",
-                validator=SimpleDifficultySelectionValidator(difficulties),
-                validate_while_typing=False,
-            )
-        except KeyboardInterrupt:
-            continue
-
-        return parse_simple_difficulty_selection(input_, difficulties)
-
-
-@cli_window("Difficulty Selection")
-def difficulty_selection(difficulties: Difficulties) -> Difficulty:
+def difficulty_selection(
+        difficulty_container: DifficultyContainer
+) -> Difficulty:
     """Difficulty selection.
     Can raise EOFError.
     """
-    print(f"\n{difficulties_table(difficulties)}\n")
+    print(f"\n{difficulty_table(difficulty_container)}\n")
 
     while True:
         try:
             input_ = prompt(
                 "Enter key: ",
-                validator=DifficultySelectionValidator(difficulties),
+                validator=DifficultySelectionValidator(difficulty_container),
                 validate_while_typing=False,
             )
         except KeyboardInterrupt:
             continue
 
-        return parse_difficulty_selection(input_, difficulties)
+        return parse_difficulty_selection(input_, difficulty_container)
 
 
-class SimpleDifficultySelectionValidator(Validator):
+@cli_window("Number Parameters Selection")
+def number_params_selection(
+        number_params_container: NumberParamsContainer,
+) -> NumberParams:
+    """`NumberParams` selection.
+    Can raise EOFError.
+    """
+    print(f"\n{number_params_table(number_params_container)}\n")
 
-    def __init__(self, difficulties: SimpleDifficulties) -> None:
-        self.difficulties = difficulties
-
-    def validate(self, document: Document) -> None:
+    while True:
         try:
-            parse_simple_difficulty_selection(document.text, self.difficulties)
-        except ValueError as err:
-            raise ValidationError(
-                message="Invalid input",
-                cursor_position=document.cursor_position,
-            ) from err
+            input_ = prompt(
+                "Enter key: ",
+                validator=NumberParamsSelectionValidator(number_params_container),
+                validate_while_typing=False,
+            )
+        except KeyboardInterrupt:
+            continue
+
+        return parse_number_params_selection(input_, number_params_container)
 
 
 class DifficultySelectionValidator(Validator):
 
-    def __init__(self, difficulties: Difficulties) -> None:
-        self.difficulties = difficulties
+    def __init__(self, difficulty_container: DifficultyContainer) -> None:
+        self.difficulty_container = difficulty_container
 
     def validate(self, document: Document) -> None:
         try:
-            parse_difficulty_selection(document.text, self.difficulties)
+            parse_difficulty_selection(document.text, self.difficulty_container)
         except ValueError as err:
             raise ValidationError(
                 message="Invalid input",
@@ -510,38 +497,53 @@ class DifficultySelectionValidator(Validator):
             ) from err
 
 
-def parse_simple_difficulty_selection(
+class NumberParamsSelectionValidator(Validator):
+
+    def __init__(self, number_params_container: NumberParamsContainer) -> None:
+        self.number_params_container = number_params_container
+
+    def validate(self, document: Document) -> None:
+        try:
+            parse_number_params_selection(document.text, self.number_params_container)
+        except ValueError as err:
+            raise ValidationError(
+                message="Invalid input",
+                cursor_position=document.cursor_position,
+            ) from err
+
+
+def parse_difficulty_selection(
         input_: str,
-        difficulties: SimpleDifficulties,
-) -> SimpleDifficulty:
+        difficulty_container: DifficultyContainer,
+) -> Difficulty:
     input_ = input_.strip()
 
-    if input_.isdigit() and int(input_) in difficulties.indexes:
-        return difficulties[int(input_)]
+    if input_.isdigit() and int(input_) in difficulty_container.indexes:
+        return difficulty_container[int(input_)]
 
     splited = input_.split()
     if (
             len(splited) == 2
             and all(elem.isdigit() for elem in splited)
-            and tuple(map(int, splited)) in difficulties.attrs
+            and tuple(map(int, splited)) in difficulty_container.attrs
     ):
         num_size, digs_num = splited
-        return difficulties[int(num_size), int(digs_num)]
+        return difficulty_container[int(num_size), int(digs_num)]
 
     raise ValueError("Invalid input")
 
 
-def parse_difficulty_selection(
+def parse_number_params_selection(
         input_: str,
-        difficulties: Difficulties,
-) -> Difficulty:
+        number_params_container: NumberParamsContainer,
+) -> NumberParams:
     input_ = input_.strip()
 
-    if input_.isdigit() and int(input_) in difficulties.indexes:
-        return difficulties[int(input_)]
+    if input_.isdigit() and int(input_) in number_params_container.indexes:
+        return number_params_container[int(input_)]
 
     try:
-        return difficulties[input_]
+        return number_params_container[input_]
     except KeyError:
         pass
 
@@ -569,7 +571,7 @@ def ranking_table(ranking: Ranking) -> str:
     )
 
 
-def simple_difficulties_table(difficulties: SimpleDifficulties) -> str:
+def difficulty_table(difficulties: DifficultyContainer) -> str:
     return tabulate(
         map(attrgetter("num_size", "digs_num"), difficulties),
         headers=("Key", "Size", "Digits"),
@@ -578,12 +580,12 @@ def simple_difficulties_table(difficulties: SimpleDifficulties) -> str:
     )
 
 
-def difficulties_table(difficulties: Difficulties) -> str:
+def number_params_table(number_params_container: NumberParamsContainer) -> str:
     return tabulate(
-        map(attrgetter("name", "num_size", "digs_label"), difficulties),
-        headers=("Key", "Difficulty", "Size", "Digits"),
+        map(attrgetter("label", "num_size", "digs_label"), number_params_container),
+        headers=("Key", "Label", "Size", "Digits"),
         colalign=("right", "left", "center", "center"),
-        showindex=difficulties.indexes,
+        showindex=number_params_container.indexes,
     )
 
 
@@ -776,13 +778,13 @@ class StopCmd(Command):
 
 class RestartCmd(Command):
     """
-    r[estart] [-l | -i | {difficulty_key} | {difficulty_name}]
+    r[estart] [-l | -i | {number_params_idx} | {number_params_label}]
 
-        Restart the round. If argument given change difficulty.
+        Restart the round. If argument is given, change number parameters.
 
-        -l  List difficulties.
+        -l  List number parameters.
 
-        -i  Interactively choose new difficulty.
+        -i  Interactively choose new number parameters.
     """
     name = "restart"
     shorthand = "r"
@@ -792,27 +794,29 @@ class RestartCmd(Command):
         if not arg:
             raise RestartGame
 
-        difficulties = self.game.difficulties
+        number_params_container = self.game.number_params_container
 
         if arg == "-i":
             try:
-                difficulty = difficulty_selection(difficulties)
+                number_params = number_params_selection(number_params_container)
             except EOFError:
                 return
         elif arg == "-l":
-            print(difficulties_table(difficulties))
+            print(number_params_table(number_params_container))
             return
         else:
             try:
-                difficulty = difficulties[int(arg) if arg.isdigit() else arg]
-            except KeyError:
-                print(f"No '{arg}' difficulty available")
-                return
+                number_params = parse_number_params_selection(
+                        arg, number_params_container
+                )
             except IndexError:
-                print(f"Invalid key '{arg}'")
+                print(f"Invalid key: {arg}")
+                return
+            except ValueError:
+                print(f"No '{arg}' number parameters available")
                 return
 
-        raise RestartGame(difficulty=difficulty)
+        raise RestartGame(number_params=number_params)
 
 
 class HistoryCmd(Command):
@@ -841,7 +845,7 @@ class HistoryCmd(Command):
 
 class RankingCmd(Command):
     """
-    ra[nking] [{difficulty_name} | {difficulty_key} | -l]
+    ra[nking] [{difficulty_idx} | {difficulty_key} | -l]
 
         Show ranking of given difficulty. If not given directly show
         difficulty selection.
@@ -854,26 +858,28 @@ class RankingCmd(Command):
 
     def execute(self, arg: str = "") -> None:
 
-        difficulties = SimpleDifficulties(
+        difficulty_container = DifficultyContainer(
             self.game.ranking_manager.available_difficulties()
         )
 
-        if not difficulties:
+        if not difficulty_container:
             print("\nEmpty rankings\n")
             return
 
         if arg == "-l":
-            print(simple_difficulties_table(difficulties))
+            print(difficulty_table(difficulty_container))
             return
         elif arg:
             try:
-                difficulty = difficulties[int(arg)]
+                difficulty = parse_difficulty_selection(
+                    arg, difficulty_container
+                )
             except IndexError:
                 print(f"Invalid index '{arg}'")
                 return
         else:
             try:
-                difficulty = simple_difficulty_selection(difficulties)
+                difficulty = difficulty_selection(difficulty_container)
             except EOFError:
                 return
 

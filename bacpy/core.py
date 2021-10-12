@@ -40,10 +40,10 @@ RANKING_SIZE: Final[int] = 10
 
 class GuessHandler(Generator[Tuple[int, int], str, None]):
 
-    def __init__(self, secret_number: str, difficulty: Difficulty) -> None:
-        assert is_number_valid(secret_number, difficulty)
+    def __init__(self, secret_number: str, number_params: NumberParams) -> None:
+        assert is_number_valid(secret_number, number_params)
         self._secret_number = secret_number
-        self._difficulty = difficulty
+        self._number_params = number_params
         self._history: List[GuessRecord] = []
         self._closed = False
         self._score_data: Optional[_ScoreData] = None
@@ -57,8 +57,8 @@ class GuessHandler(Generator[Tuple[int, int], str, None]):
         return len(self._history)
 
     @property
-    def difficulty(self) -> Difficulty:
-        return self._difficulty
+    def number_params(self) -> NumberParams:
+        return self._number_params
 
     @property
     def closed(self) -> bool:
@@ -75,7 +75,7 @@ class GuessHandler(Generator[Tuple[int, int], str, None]):
         if self._closed:
             raise StopIteration
 
-        assert is_number_valid(guess, self._difficulty)
+        assert is_number_valid(guess, self._number_params)
 
         bulls, cows = self._bullscows(guess, self._secret_number)
         self._history.append(GuessRecord(guess, bulls, cows))
@@ -84,7 +84,7 @@ class GuessHandler(Generator[Tuple[int, int], str, None]):
             self._score_data = _ScoreData(
                 score=self.steps_done,
                 dt=datetime.now(),
-                difficulty=self.difficulty.to_simple(),
+                difficulty=self.number_params.difficulty,
             )
             self.throw(StopIteration)
 
@@ -105,33 +105,33 @@ class GuessHandler(Generator[Tuple[int, int], str, None]):
         super().throw(typ, val, tb)
 
 
-def draw_number(difficulty: Difficulty) -> str:
+def draw_number(number_params: NumberParams) -> str:
     return "".join(
-        random.sample(difficulty.digs_set, difficulty.num_size)
+        random.sample(number_params.digs_set, number_params.num_size)
     )
 
 
-def is_number_valid(number: str, difficulty: Difficulty) -> bool:
+def is_number_valid(number: str, number_params: NumberParams) -> bool:
     try:
-        validate_number(number, difficulty)
+        validate_number(number, number_params)
     except ValueError:
         return False
     else:
         return True
 
 
-def validate_number(number: str, difficulty: Difficulty) -> None:
+def validate_number(number: str, number_params: NumberParams) -> None:
 
-    wrong_chars = set(number) - difficulty.digs_set
+    wrong_chars = set(number) - number_params.digs_set
     if wrong_chars:
         raise ValueError(
             "Wrong characters: "
             + ", ".join(f"'{char}'" for char in wrong_chars)
         )
 
-    if len(number) != difficulty.num_size:
+    if len(number) != number_params.num_size:
         raise ValueError(
-            f"Number have {len(number)} digits. {difficulty.num_size} needed",
+            f"Number have {len(number)} digits. {number_params.num_size} needed",
         )
 
     rep_digits = {digit for digit, count in Counter(number).items() if count > 1}
@@ -148,17 +148,16 @@ class GuessRecord(NamedTuple):
     cows: int
 
 
-# ============
-# Difficulties
-# ============
+# ==========
+# Difficulty
+# ==========
 
 
 MIN_NUM_SIZE: Final[int] = 3
-DIGITS_SEQUENCE: Final[str] = "123456789abcdefghijklmnopqrstuvwxyz"
 
 
 @dataclass(order=True, frozen=True)
-class SimpleDifficulty:
+class Difficulty:
 
     num_size: int
     digs_num: int
@@ -176,6 +175,47 @@ class SimpleDifficulty:
             )
 
 
+# ============
+# NumberParams
+# ============
+
+
+DIGITS_SEQUENCE: Final[str] = "123456789abcdefghijklmnopqrstuvwxyz"
+
+
+@dataclass(order=True, frozen=True)
+class NumberParams:
+
+    difficulty: Difficulty
+    digs_set: FrozenSet[str] = field(compare=False)
+    digs_label: str = field(compare=False)
+    label: str = field(compare=False, default="")
+
+    def __post_init__(self):
+        if self.digs_num != len(self.digs_set):
+            raise ValueError(
+                f"`digs_num` ({self.digs_num}) is diffrent from length of"
+                f" `digs_set` ({len(self.digs_set)})"
+            )
+
+    @property
+    def num_size(self) -> int:
+        return self.difficulty.num_size
+
+    @property
+    def digs_num(self) -> int:
+        return self.difficulty.digs_num
+
+    @classmethod
+    def standard(cls, difficulty: Difficulty, label: str = "") -> NumberParams:
+        """Constructor that sets `digs_set` and `digs_label` to standard ones
+        based on difficulty.
+        """
+        digs_set = standard_digs_set(difficulty.digs_num)
+        digs_label = standard_digs_label(difficulty.digs_num)
+        return cls(difficulty, digs_set, digs_label, label)
+
+
 def standard_digs_set(digs_num: int) -> FrozenSet[str]:
     return frozenset(DIGITS_SEQUENCE[:digs_num])
 
@@ -185,50 +225,19 @@ def standard_digs_label(digs_num: int) -> str:
         raise ValueError("Can't generate label for `digs_num` less than 2 ({digs_num})")
 
     if digs_num <= 9:
-        return f"1-{digs_num}"
+        return f"[1-{digs_num}]"
     elif digs_num == 10:
-        return "1-9,a"
+        return "[1-9a]"
     else:
-        return f"1-9,a-{DIGITS_SEQUENCE[digs_num - 1]}"
+        return f"[1-9a-{DIGITS_SEQUENCE[digs_num - 1]}]"
 
 
-@dataclass(order=True, frozen=True)
-class Difficulty(SimpleDifficulty):
-
-    digs_set: FrozenSet[str] = field(compare=False)
-    digs_label: str = field(compare=False)
-    name: str = field(default="", compare=False)
-
-    @classmethod
-    def standard(
-            cls,
-            num_size: int,
-            digs_num: int,
-            name: str = "",
-    ) -> Difficulty:
-        """Constructor that sets `digs_set` and `digs_label` to standard ones."""
-        digs_set = standard_digs_set(digs_num)
-        digs_label = standard_digs_label(digs_num)
-        return cls(num_size, digs_num, digs_set, digs_label, name)
-
-    def __post_init__(self):
-        super().__post_init__()
-        if self.digs_num != len(self.digs_set):
-            raise ValueError(
-                f"`digs_num` ({self.digs_num}) is diffrent from length of"
-                f" `digs_set` ({len(self.digs_set)})"
-            )
-
-    def to_simple(self) -> SimpleDifficulty:
-        return SimpleDifficulty(self.num_size, self.digs_num)
-
-
-DEFAULT_DIFFICULTIES: Final[Tuple[Difficulty, ...]] = tuple(
-    Difficulty.standard(num_size, digs_num, name)
-    for num_size, digs_num, name in (
-        (3, 6, "easy"),
-        (4, 9, "normal"),
-        (5, 15, "hard"),
+DEFAULT_NUMBER_PARAMETERS: Final[Tuple[NumberParams, ...]] = tuple(
+    NumberParams.standard(difficulty, label)
+    for difficulty, label in (
+        (Difficulty(3, 6), "easy"),
+        (Difficulty(4, 9), "normal"),
+        (Difficulty(5, 15), "hard"),
     )
 )
 
@@ -253,7 +262,7 @@ class StopPlaying(GameException):
 @dataclass
 class RestartGame(GameException):
     """Restart game exception."""
-    difficulty: Optional[Difficulty] = None
+    number_params: Optional[NumberParams] = None
 
 
 # =============
@@ -272,20 +281,20 @@ class Ranking:
     # Be aware that comparing different kind of sequences can return false
     # even if they contain same elements.
     data: Sequence[_RankingRecord]
-    difficulty: SimpleDifficulty
+    difficulty: Difficulty
 
 
 class _ScoreData(NamedTuple):
     """Data that can be used to save score."""
     score: int
     dt: datetime
-    difficulty: SimpleDifficulty
+    difficulty: Difficulty
 
 
 class RankingManager(metaclass=ABCMeta):
 
     @abstractmethod
-    def load(self, difficulty: SimpleDifficulty) -> Ranking:
+    def load(self, difficulty: Difficulty) -> Ranking:
         """Read and return ranking.
         If ranking is not available return empty one.
         """
@@ -312,8 +321,8 @@ class RankingManager(metaclass=ABCMeta):
         return Ranking(tuple(new_data[:RANKING_SIZE]), ranking.difficulty)
 
     @abstractmethod
-    def available_difficulties(self) -> Iterator[SimpleDifficulty]:
-        """Yields `SimpleDifficulty` for each available and not empty ranking."""
+    def available_difficulties(self) -> Iterator[Difficulty]:
+        """Yields `Difficulty` for each available and not empty ranking."""
         return
         yield
 
@@ -330,7 +339,7 @@ class FileRankingManager(RankingManager):
     def __init__(self, rankings_dir: Path) -> None:
         self._rankings_dir = rankings_dir
 
-    def load(self, difficulty: SimpleDifficulty) -> Ranking:
+    def load(self, difficulty: Difficulty) -> Ranking:
         path = self._get_path(difficulty)
         path.touch()
         with open(path, "r") as file:
@@ -364,17 +373,17 @@ class FileRankingManager(RankingManager):
             writer = csv.writer(file)
             writer.writerows(ranking.data)
 
-    def _get_path(self, difficulty: SimpleDifficulty) -> Path:
+    def _get_path(self, difficulty: Difficulty) -> Path:
         return (
             self._rankings_dir
             / f"{difficulty.num_size}_{difficulty.digs_num}.csv"
         )
 
-    def available_difficulties(self) -> Iterator[SimpleDifficulty]:
+    def available_difficulties(self) -> Iterator[Difficulty]:
         for path in self._rankings_dir.iterdir():
             if path.stat().st_size:
                 num_size, digs_num = map(int, path.stem.split("_"))
-                yield SimpleDifficulty(num_size, digs_num)
+                yield Difficulty(num_size, digs_num)
 
 
 def is_player_name_valid(name: str) -> bool:
