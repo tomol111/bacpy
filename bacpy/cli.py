@@ -320,8 +320,8 @@ def get_toolbar(number_params: NumberParams) -> str:
     return " | ".join(
         [
             f"Label: {number_params.label}",
-            f"Size: {number_params.num_size}",
-            f"Digits: {number_params.digs_label}",
+            f"Size: {number_params.number_size}",
+            f"Digits: {number_params.digits_description}",
         ]
     )
 
@@ -375,7 +375,7 @@ class DifficultyContainer:
     def __init__(self, data: Iterable[Difficulty]) -> None:
         self.data = tuple(data)
         self.by_attrs = {
-            (dif.num_size, dif.digs_num): dif
+            (dif.number_size, dif.digits_num): dif
             for dif in self.data
         }
         self.indexes = range(IDX_START, len(self.data) + IDX_START)
@@ -387,7 +387,8 @@ class DifficultyContainer:
         return len(self.data)
 
     def __getitem__(self, key: Union[Tuple[int, int], int]) -> Difficulty:
-        """Return Difficulty by given attributes (`num_size`, `digs_num`) or index."""
+        """Return Difficulty by given attributes (`number_size`, `digits_num`) or index.
+        """
         if isinstance(key, int):
             try:
                 index = self.indexes.index(key)
@@ -527,8 +528,8 @@ def parse_difficulty_selection(
             and all(elem.isdigit() for elem in splited)
             and tuple(map(int, splited)) in difficulty_container.attrs
     ):
-        num_size, digs_num = splited
-        return difficulty_container[int(num_size), int(digs_num)]
+        number_size, digits_num = splited
+        return difficulty_container[int(number_size), int(digits_num)]
 
     raise ValueError("Invalid input")
 
@@ -573,7 +574,7 @@ def ranking_table(ranking: Ranking) -> str:
 
 def difficulty_table(difficulties: DifficultyContainer) -> str:
     return tabulate(
-        map(attrgetter("num_size", "digs_num"), difficulties),
+        map(attrgetter("number_size", "digits_num"), difficulties),
         headers=("Key", "Size", "Digits"),
         colalign=("right", "center", "center"),
         showindex=difficulties.indexes,
@@ -582,7 +583,10 @@ def difficulty_table(difficulties: DifficultyContainer) -> str:
 
 def number_params_table(number_params_container: NumberParamsContainer) -> str:
     return tabulate(
-        map(attrgetter("label", "num_size", "digs_label"), number_params_container),
+        map(
+            attrgetter("label", "number_size", "digits_description"),
+            number_params_container,
+        ),
         headers=("Key", "Label", "Size", "Digits"),
         colalign=("right", "left", "center", "center"),
         showindex=number_params_container.indexes,

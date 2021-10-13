@@ -9,6 +9,7 @@ from pathlib import Path
 import random
 import sys
 from typing import (
+    Callable,
     FrozenSet,
     Generator,
     Iterator,
@@ -107,7 +108,7 @@ class GuessHandler(Generator[Tuple[int, int], str, None]):
 
 def draw_number(number_params: NumberParams) -> str:
     return "".join(
-        random.sample(number_params.digs_set, number_params.num_size)
+        random.sample(number_params.digits_set, number_params.number_size)
     )
 
 
@@ -122,16 +123,16 @@ def is_number_valid(number: str, number_params: NumberParams) -> bool:
 
 def validate_number(number: str, number_params: NumberParams) -> None:
 
-    wrong_chars = set(number) - number_params.digs_set
+    wrong_chars = set(number) - number_params.digits_set
     if wrong_chars:
         raise ValueError(
             "Wrong characters: "
             + ", ".join(f"'{char}'" for char in wrong_chars)
         )
 
-    if len(number) != number_params.num_size:
+    if len(number) != number_params.number_size:
         raise ValueError(
-            f"Number have {len(number)} digits. {number_params.num_size} needed",
+            f"Number have {len(number)} digits. {number_params.number_size} needed",
         )
 
     rep_digits = {digit for digit, count in Counter(number).items() if count > 1}
@@ -159,20 +160,61 @@ MIN_NUM_SIZE: Final[int] = 3
 @dataclass(order=True, frozen=True)
 class Difficulty:
 
-    num_size: int
-    digs_num: int
+    number_size: int
+    digits_num: int
 
     def __post_init__(self):
-        if self.num_size < MIN_NUM_SIZE:
+        if self.number_size < MIN_NUM_SIZE:
             raise ValueError(
-                f"`num_size` ({self.num_size}) smaller than `MIN_NUM_SIZE`"
+                f"`number_size` ({self.number_size}) smaller than `MIN_NUM_SIZE`"
                 f" ({MIN_NUM_SIZE})"
             )
-        if self.num_size >= self.digs_num:
+        if self.number_size >= self.digits_num:
             raise ValueError(
-                f"`num_size` ({self.num_size}) not less than `digs_num`"
-                f" ({self.digs_num})"
+                f"`number_size` ({self.number_size}) not less than `digits_num`"
+                f" ({self.digits_num})"
             )
+
+
+# ======
+# Digits
+# ======
+
+
+@dataclass(frozen=True)
+class Digits:
+    """Contain digits that can be in number and short description to be
+    displayed on a screan.
+    """
+    data: FrozenSet[str]
+    description: str
+
+
+DigitsFactory = Callable[[int], Digits]
+
+
+def standard_digits(digits_num: int) -> Digits:
+    DIGITS_SEQUENCE = "123456789abcdefghijklmnopqrstuvwxyz"
+
+    if digits_num < 2:
+        raise ValueError(
+            f"`digits_num` less than 2 ({digits_num})"
+        )
+    if digits_num > len(DIGITS_SEQUENCE):
+        raise ValueError(
+            f"`digits_num` grater than {len(DIGITS_SEQUENCE)} ({digits_num})"
+        )
+
+    digits_set = frozenset(DIGITS_SEQUENCE[:digits_num])
+
+    if digits_num <= 9:
+        description = f"[1-{digits_num}]"
+    elif digits_num == 10:
+        description = "[1-9a]"
+    else:
+        description = f"[1-9a-{DIGITS_SEQUENCE[digits_num - 1]}]"
+
+    return Digits(digits_set, description)
 
 
 # ============
@@ -180,56 +222,48 @@ class Difficulty:
 # ============
 
 
-DIGITS_SEQUENCE: Final[str] = "123456789abcdefghijklmnopqrstuvwxyz"
-
-
 @dataclass(order=True, frozen=True)
 class NumberParams:
 
     difficulty: Difficulty
-    digs_set: FrozenSet[str] = field(compare=False)
-    digs_label: str = field(compare=False)
+    digits: Digits = field(compare=False)
     label: str = field(compare=False, default="")
 
     def __post_init__(self):
-        if self.digs_num != len(self.digs_set):
+        if self.digits_num != len(self.digits_set):
             raise ValueError(
-                f"`digs_num` ({self.digs_num}) is diffrent from length of"
-                f" `digs_set` ({len(self.digs_set)})"
+                f"`digits_num` ({self.digits_num}) is diffrent from length of"
+                f" `digits_set` ({len(self.digits_set)})"
             )
 
     @property
-    def num_size(self) -> int:
-        return self.difficulty.num_size
+    def number_size(self) -> int:
+        return self.difficulty.number_size
 
     @property
-    def digs_num(self) -> int:
-        return self.difficulty.digs_num
+    def digits_num(self) -> int:
+        return self.difficulty.digits_num
+
+    @property
+    def digits_set(self) -> FrozenSet[str]:
+        return self.digits.data
+
+    @property
+    def digits_description(self) -> str:
+        return self.digits.description
+
+    @classmethod
+    def from_digits_factory(
+            cls,
+            difficulty: Difficulty,
+            digits_factory: DigitsFactory,
+            label: str = "",
+    ) -> NumberParams:
+        return cls(difficulty, digits_factory(difficulty.digits_num), label)
 
     @classmethod
     def standard(cls, difficulty: Difficulty, label: str = "") -> NumberParams:
-        """Constructor that sets `digs_set` and `digs_label` to standard ones
-        based on difficulty.
-        """
-        digs_set = standard_digs_set(difficulty.digs_num)
-        digs_label = standard_digs_label(difficulty.digs_num)
-        return cls(difficulty, digs_set, digs_label, label)
-
-
-def standard_digs_set(digs_num: int) -> FrozenSet[str]:
-    return frozenset(DIGITS_SEQUENCE[:digs_num])
-
-
-def standard_digs_label(digs_num: int) -> str:
-    if digs_num <= 1:
-        raise ValueError("Can't generate label for `digs_num` less than 2 ({digs_num})")
-
-    if digs_num <= 9:
-        return f"[1-{digs_num}]"
-    elif digs_num == 10:
-        return "[1-9a]"
-    else:
-        return f"[1-9a-{DIGITS_SEQUENCE[digs_num - 1]}]"
+        return cls.from_digits_factory(difficulty, standard_digits, label)
 
 
 DEFAULT_NUMBER_PARAMETERS: Final[Tuple[NumberParams, ...]] = tuple(
@@ -376,14 +410,14 @@ class FileRankingManager(RankingManager):
     def _get_path(self, difficulty: Difficulty) -> Path:
         return (
             self._rankings_dir
-            / f"{difficulty.num_size}_{difficulty.digs_num}.csv"
+            / f"{difficulty.number_size}_{difficulty.digits_num}.csv"
         )
 
     def available_difficulties(self) -> Iterator[Difficulty]:
         for path in self._rankings_dir.iterdir():
             if path.stat().st_size:
-                num_size, digs_num = map(int, path.stem.split("_"))
-                yield Difficulty(num_size, digs_num)
+                number_size, digits_num = map(int, path.stem.split("_"))
+                yield Difficulty(number_size, digits_num)
 
 
 def is_player_name_valid(name: str) -> bool:

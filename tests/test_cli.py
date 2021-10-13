@@ -17,7 +17,7 @@ from bacpy.cli import (
     player_name_getter,
     PlayerNameValidator,
 )
-from bacpy.core import NumberParams
+from bacpy.core import Digits, NumberParams
 
 
 ARROW_UP = "\u001b[A"
@@ -242,9 +242,9 @@ def test_player_name_getter(mock_input):
 
 
 def test_get_toolbar():
-    difficulty = NumberParams(Difficulty(4, 9), set(range(1, 10)), "1-9", "standard")
+    difficulty = NumberParams(Difficulty(4, 9), Digits(frozenset(range(1, 10)), "[1-9]"), "standard")
     assert get_toolbar(difficulty) == (
-        "Label: standard | Size: 4 | Digits: 1-9"
+        "Label: standard | Size: 4 | Digits: [1-9]"
     )
 
 
