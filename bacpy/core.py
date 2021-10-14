@@ -226,7 +226,8 @@ def standard_digits(digits_num: int) -> Digits:
 class NumberParams:
 
     difficulty: Difficulty
-    digits: Digits = field(compare=False)
+    digits_set: FrozenSet[str] = field(compare=False)
+    digits_description: str = field(compare=False)
     label: str = field(compare=False, default="")
 
     def __post_init__(self):
@@ -244,14 +245,6 @@ class NumberParams:
     def digits_num(self) -> int:
         return self.difficulty.digits_num
 
-    @property
-    def digits_set(self) -> FrozenSet[str]:
-        return self.digits.data
-
-    @property
-    def digits_description(self) -> str:
-        return self.digits.description
-
     @classmethod
     def from_digits_factory(
             cls,
@@ -259,7 +252,8 @@ class NumberParams:
             digits_factory: DigitsFactory,
             label: str = "",
     ) -> NumberParams:
-        return cls(difficulty, digits_factory(difficulty.digits_num), label)
+        digits = digits_factory(difficulty.digits_num)
+        return cls(difficulty, digits.data, digits.description, label)
 
     @classmethod
     def standard(cls, difficulty: Difficulty, label: str = "") -> NumberParams:

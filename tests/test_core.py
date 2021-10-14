@@ -248,7 +248,7 @@ def test_standard_digits(digits_num, digits_sequence, description):
 
 @pytest.mark.parametrize(
     "digits_num",
-    ( -2, 0, 1, 36, 50),
+    (-2, 0, 1, 36, 50),
 )
 def test_standard_digits__raise_ValueError_on_invalid_digits_num(digits_num):
     with pytest.raises(ValueError):
@@ -281,54 +281,41 @@ def test_Difficulty__not_valid_arguments(number_size, digits_num):
         Difficulty(number_size, digits_num)
 
 
-def test_Difficulty_eq():
-    assert (
-        Difficulty(3, 6)
-        == Difficulty(3, 6)
-    )
+# ============
+# NumberParams
+# ============
 
 
-def test_Difficulty_ne():
-    assert (
-        Difficulty(3, 6)
-        != Difficulty(3, 7)
-    )
-
-
-def test_Difficulty_ordering():
-    difficulties = [
-        Difficulty(5, 10),
-        Difficulty(6, 10),
-        Difficulty(3, 6),
-    ]
-    assert sorted(difficulties) == [
-        Difficulty(3, 6),
-        Difficulty(5, 10),
-        Difficulty(6, 10),
-    ]
-
-
-def test_Difficulty_init():
-    number_size = 3
-    digits_num = 6
-    difficulty = Difficulty(number_size, digits_num)
-    digits_set = frozenset("123456")
-    digits_description = "[1-6]"
-    digits = Digits(digits_set, digits_description)
-    label = "label_str"
+def test_NumberParams_init():
     number_params = NumberParams(
-        Difficulty(number_size, digits_num), digits, label
+        Difficulty(5, 7), frozenset("1234567"), "[1-7]", "number parameters"
     )
-    assert number_params.difficulty == difficulty
-    assert number_params.number_size == number_size
-    assert number_params.digits_num == digits_num
-    assert number_params.digits == digits
-    assert number_params.digits_set == digits_set
-    assert number_params.digits_description == digits_description
-    assert number_params.label == label
+    assert number_params.difficulty == Difficulty(5, 7)
+    assert number_params.number_size == 5
+    assert number_params.digits_num == 7
+    assert number_params.digits_set == frozenset("1234567")
+    assert number_params.digits_description == "[1-7]"
+    assert number_params.label == "number parameters"
 
 
-def test_Difficulty_standard():
+def test_NumberParams_from_digits_factory():
+    def digits_factory(digits_num):
+        assert digits_num == 4
+        return Digits(frozenset("1234"), "[1-4]")
+
+    number_params = NumberParams.from_digits_factory(
+        Difficulty(3, 4), digits_factory, "label"
+    )
+
+    assert number_params.difficulty == Difficulty(3, 4)
+    assert number_params.number_size == 3
+    assert number_params.digits_num == 4
+    assert number_params.digits_set == frozenset("1234")
+    assert number_params.digits_description == "[1-4]"
+    assert number_params.label == "label"
+
+
+def test_NumberParams_standard():
     number_params = NumberParams.standard(Difficulty(3, 6), "some label")
     assert number_params.number_size == 3
     assert number_params.digits_num == 6
@@ -340,33 +327,13 @@ def test_Difficulty_standard():
 @pytest.mark.parametrize(
     "difficulty, digits, digits_description",
     (
-        (Difficulty(3, 6), "12345", "[1-6]"),  # digits_num != len(digits_set)
-        (Difficulty(4, 5), "1234567", "[1-6]"),  # digits_num != len(digits_set)
+        (Difficulty(3, 6), "12345", "[1-6]"),  # digits_num > len(digits_set)
+        (Difficulty(4, 5), "1234567", "[1-6]"),  # digits_num < len(digits_set)
     ),
 )
-def test_Difficulty__invalid_arguments(difficulty, digits, digits_description):
+def test_NumberParams__invalid_arguments(difficulty, digits, digits_description):
     with pytest.raises(ValueError):
-        NumberParams(difficulty, Digits(frozenset(digits), digits_description))
-
-
-def test_Difficulty__eq():
-    assert (
-        NumberParams(Difficulty(3, 6), Digits(frozenset("123456"), "[1-6]"), "a")
-        == NumberParams(Difficulty(3, 6), Digits(frozenset("abcdef"), "[a-f]"), "b")
-    )
-
-
-def test_Difficulty__ordering():
-    difficulties = [
-        NumberParams.standard(Difficulty(5, 10), "abcd"),
-        NumberParams.standard(Difficulty(6, 10)),
-        NumberParams.standard(Difficulty(3, 5)),
-    ]
-    assert sorted(difficulties) == [
-        NumberParams.standard(Difficulty(3, 5)),
-        NumberParams.standard(Difficulty(5, 10), "abcd"),
-        NumberParams.standard(Difficulty(6, 10)),
-    ]
+        NumberParams(difficulty, frozenset(digits), digits_description)
 
 
 # =====
