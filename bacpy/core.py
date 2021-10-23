@@ -7,9 +7,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 import random
-import sys
 from typing import (
     Callable,
+    Final,
     FrozenSet,
     Generator,
     Iterator,
@@ -21,11 +21,6 @@ from typing import (
 )
 
 from bacpy.utils import SequenceView
-
-if sys.version_info >= (3, 8):
-    from typing import Final
-else:
-    from typing_extensions import Final
 
 
 # Constants

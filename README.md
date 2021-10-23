@@ -34,7 +34,6 @@ Features
 
 Dependencies
 ------------
-* Python 3.6+
-* pandas
+* Python 3.8+
 * prompt\_toolkit
 * tabulate

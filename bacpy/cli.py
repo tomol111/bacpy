@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
 from contextlib import ContextDecorator, contextmanager
+from importlib import metadata
 import inspect
 import itertools
 from operator import attrgetter
@@ -11,10 +12,12 @@ import sys
 from typing import (
     Callable,
     ClassVar,
+    Final,
     Iterable,
     Iterator,
     KeysView,
     List,
+    Literal,
     NoReturn,
     Optional,
     Tuple,
@@ -47,13 +50,6 @@ from .core import (
     validate_player_name,
 )
 
-if sys.version_info >= (3, 8):
-    import importlib.metadata as importlib_metadata
-    from typing import Final, Literal
-else:
-    import importlib_metadata
-    from typing_extensions import Final, Literal
-
 
 # Type variables
 T = TypeVar("T")
@@ -62,7 +58,7 @@ T = TypeVar("T")
 # Constants
 PROGRAM_NAME: Final[str] = "BacPy"
 PROGRAM_VERSION: Final[str] = (
-    f" {PROGRAM_NAME} v{importlib_metadata.version('bacpy')} "
+    f" {PROGRAM_NAME} v{metadata.version('bacpy')} "
 )
 IDX_START: Final[Literal[0, 1]] = 1
 
