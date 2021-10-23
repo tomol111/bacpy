@@ -143,11 +143,12 @@ def play_round(
 
     print(f"\n*** You guessed in {guess_handler.steps_done} steps ***\n")
 
-    if ranking_manager.is_score_fit_into(guess_handler.score_data):
-        player = next(player_name_iter)
-        if player:
-            ranking = ranking_manager.update(guess_handler.score_data, player)
-            pager(ranking_table(ranking))
+    if (
+            ranking_manager.is_score_fit_into(guess_handler.score_data)
+            and (player := next(player_name_iter))
+    ):
+        ranking = ranking_manager.update(guess_handler.score_data, player)
+        pager(ranking_table(ranking))
 
 
 # ====
@@ -518,9 +519,8 @@ def parse_difficulty_selection(
     if input_.isdigit() and int(input_) in difficulty_container.indexes:
         return difficulty_container[int(input_)]
 
-    splited = input_.split()
     if (
-            len(splited) == 2
+            len(splited := input_.split()) == 2
             and all(elem.isdigit() for elem in splited)
             and tuple(map(int, splited)) in difficulty_container.attrs
     ):
