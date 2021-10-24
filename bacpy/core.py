@@ -14,7 +14,6 @@ from typing import (
     List,
     NamedTuple,
     Optional,
-    Sequence,
     Tuple,
 )
 
@@ -292,18 +291,16 @@ class RestartGame(GameException):
 RANKING_SIZE: Final[int] = 10
 
 
+@dataclass(frozen=True)
+class Ranking:
+    data: Tuple[RankingRecord, ...]
+    difficulty: Difficulty
+
+
 class RankingRecord(NamedTuple):
     score: int
     dt: datetime
     player: str
-
-
-@dataclass(frozen=True)
-class Ranking:
-    # Be aware that comparing different kind of sequences can return false
-    # even if they contain same elements.
-    data: Sequence[RankingRecord]
-    difficulty: Difficulty
 
 
 class ScoreData(NamedTuple):
