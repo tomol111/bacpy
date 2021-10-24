@@ -6,7 +6,7 @@ from typing import Final, Iterator
 from bacpy.core import (
     Difficulty,
     Ranking,
-    RankingManager,
+    RankingRepo,
     RankingRecord,
     ScoreData,
 )
@@ -15,7 +15,7 @@ from bacpy.core import (
 RANKINGS_DIR: Final[Path] = Path(".rankings")
 
 
-class FileRankingManager(RankingManager):
+class FileRankingRepo(RankingRepo):
 
     def __init__(self, rankings_dir: Path) -> None:
         self._rankings_dir = rankings_dir

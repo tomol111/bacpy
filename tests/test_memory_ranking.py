@@ -6,18 +6,18 @@ from bacpy.core import (
     RankingRecord,
     ScoreData,
 )
-from bacpy.memory_ranking import MemoryRankingManager
+from bacpy.memory_ranking import MemoryRankingRepo
 
 
-def test_FileRankingManager_load__not_existing_ranking():
-    ranking_manager = MemoryRankingManager()
+def test_FileRankingRepo_load__not_existing_ranking():
+    ranking_manager = MemoryRankingRepo()
     difficulty = Difficulty(4, 6)
     assert ranking_manager.load(difficulty) == Ranking((), difficulty)
 
 
-def test_FileRankingManager_is_score_fit_into__not_full():
+def test_FileRankingRepo_is_score_fit_into__not_full():
     difficulty = Difficulty(3, 6)
-    ranking_manager = MemoryRankingManager()
+    ranking_manager = MemoryRankingRepo()
 
     for score_data, player in (
             (ScoreData(10, datetime(2021, 6, 5), difficulty), "Tomek"),
@@ -33,9 +33,9 @@ def test_FileRankingManager_is_score_fit_into__not_full():
     )
 
 
-def test_FileRankingManager_is_score_fit_into__full():
+def test_FileRankingRepo_is_score_fit_into__full():
     difficulty = Difficulty(3, 6)
-    ranking_manager = MemoryRankingManager()
+    ranking_manager = MemoryRankingRepo()
 
     for score_data, player in (
             (ScoreData(6, datetime(2021, 3, 17), difficulty), "Tomasz"),
@@ -59,9 +59,9 @@ def test_FileRankingManager_is_score_fit_into__full():
     )
 
 
-def test_FileRankingManager_update__not_full():
+def test_FileRankingRepo_update__not_full():
     difficulty = Difficulty(5, 8)
-    ranking_manager = MemoryRankingManager()
+    ranking_manager = MemoryRankingRepo()
 
     for score_data, player in (
             (ScoreData(15, datetime(2021, 6, 4), difficulty), "Tomasz"),
@@ -85,7 +85,7 @@ def test_FileRankingManager_update__not_full():
 
 def test_FileRankingMamager_update__full():
     difficulty = Difficulty(3, 6)
-    ranking_manager = MemoryRankingManager()
+    ranking_manager = MemoryRankingRepo()
 
     for score_data, player in (
             (ScoreData(32, datetime(2020, 8, 1), difficulty), "TO_DROP"),
@@ -122,9 +122,9 @@ def test_FileRankingMamager_update__full():
     assert updated_ranking == ranking_manager.load(difficulty)
 
 
-def test_FileRankingManager_update__overflow():
+def test_FileRankingRepo_update__overflow():
     difficulty = Difficulty(3, 6)
-    ranking_manager = MemoryRankingManager()
+    ranking_manager = MemoryRankingRepo()
 
     for score_data, player in (
             (ScoreData(32, datetime(2020, 8, 1), difficulty), "Tomek"),
@@ -162,11 +162,11 @@ def test_FileRankingManager_update__overflow():
     assert updated_ranking == ranking_manager.load(difficulty)
 
 
-def test_FileRankingManager_available_difficulties():
+def test_FileRankingRepo_available_difficulties():
     difficulty1 = Difficulty(4, 8)
     difficulty2 = Difficulty(4, 10)
     difficulty3 = Difficulty(3, 5)
-    ranking_manager = MemoryRankingManager()
+    ranking_manager = MemoryRankingRepo()
     ranking_manager.load(difficulty1)
     ranking_manager.update(
         ScoreData(10, datetime(2020, 12, 30), difficulty2), "Tomek"

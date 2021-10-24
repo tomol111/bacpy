@@ -4,14 +4,14 @@ from bacpy.core import (
     Difficulty,
     is_player_name_valid,
     Ranking,
-    RankingManager,
+    RankingRepo,
     RankingRecord,
     RANKING_SIZE,
     ScoreData,
 )
 
 
-class MemoryRankingManager(RankingManager):
+class MemoryRankingRepo(RankingRepo):
 
     def __init__(
             self,

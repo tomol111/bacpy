@@ -39,7 +39,7 @@ from bacpy.core import (
     NumberParams,
     QuitGame,
     Ranking,
-    RankingManager,
+    RankingRepo,
     RANKING_SIZE,
     RestartGame,
     Difficulty,
@@ -47,7 +47,7 @@ from bacpy.core import (
     validate_number,
     validate_player_name,
 )
-from bacpy.file_ranking import FileRankingManager, RANKINGS_DIR
+from bacpy.file_ranking import FileRankingRepo, RANKINGS_DIR
 
 
 # Type variables
@@ -87,7 +87,7 @@ Special commands:
 
 def run_game() -> None:
     RANKINGS_DIR.mkdir(exist_ok=True)
-    game = Game(FileRankingManager(RANKINGS_DIR))
+    game = Game(FileRankingRepo(RANKINGS_DIR))
     print(starting_header(PROGRAM_VERSION))
 
     try:
@@ -135,7 +135,7 @@ def play_round(
         guess_handler: GuessHandler,
         number_iter: Iterator[str],
         player_name_iter: Iterator[Optional[str]],
-        ranking_manager: RankingManager,
+        ranking_manager: RankingRepo,
 ) -> None:
     for bulls, cows in map(guess_handler.send, number_iter):
         print(f"bulls: {bulls:>2}, cows: {cows:>2}")
@@ -158,7 +158,7 @@ def play_round(
 class Game:
     """Game class."""
 
-    def __init__(self, ranking_manager: RankingManager) -> None:
+    def __init__(self, ranking_manager: RankingRepo) -> None:
         self._guess_handler: Optional[GuessHandler] = None
         self.number_params_container = NumberParamsContainer(DEFAULT_NUMBER_PARAMETERS)
         self.commands = get_commands(self)

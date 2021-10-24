@@ -310,7 +310,7 @@ class ScoreData(NamedTuple):
     difficulty: Difficulty
 
 
-class RankingManager(metaclass=ABCMeta):
+class RankingRepo(metaclass=ABCMeta):
 
     @abstractmethod
     def load(self, difficulty: Difficulty) -> Ranking:
