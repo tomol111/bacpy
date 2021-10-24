@@ -2,10 +2,8 @@ from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
 from collections import Counter
-import csv
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
 import random
 from typing import (
     Callable,
@@ -25,8 +23,6 @@ from bacpy.utils import SequenceView
 
 # Constants
 PLAYER_NAME_LEN_LIMS: Final[Tuple[int, int]] = (3, 20)
-RANKINGS_DIR: Final[Path] = Path(".rankings")
-RANKING_SIZE: Final[int] = 10
 
 
 # =====
@@ -42,7 +38,7 @@ class GuessHandler(Generator[Tuple[int, int], str, None]):
         self._number_params = number_params
         self._history: List[GuessRecord] = []
         self._closed = False
-        self._score_data: Optional[_ScoreData] = None
+        self._score_data: Optional[ScoreData] = None
 
     @property
     def history(self) -> SequenceView[GuessRecord]:
@@ -61,7 +57,7 @@ class GuessHandler(Generator[Tuple[int, int], str, None]):
         return self._closed
 
     @property
-    def score_data(self) -> _ScoreData:
+    def score_data(self) -> ScoreData:
         if self._score_data is None:
             raise AttributeError("`score_data` not available")
         return self._score_data
@@ -77,7 +73,7 @@ class GuessHandler(Generator[Tuple[int, int], str, None]):
         self._history.append(GuessRecord(guess, bulls, cows))
 
         if guess == self._secret_number:
-            self._score_data = _ScoreData(
+            self._score_data = ScoreData(
                 score=self.steps_done,
                 dt=datetime.now(),
                 difficulty=self.number_params.difficulty,
@@ -293,7 +289,10 @@ class RestartGame(GameException):
 # =============
 
 
-class _RankingRecord(NamedTuple):
+RANKING_SIZE: Final[int] = 10
+
+
+class RankingRecord(NamedTuple):
     score: int
     dt: datetime
     player: str
@@ -303,11 +302,11 @@ class _RankingRecord(NamedTuple):
 class Ranking:
     # Be aware that comparing different kind of sequences can return false
     # even if they contain same elements.
-    data: Sequence[_RankingRecord]
+    data: Sequence[RankingRecord]
     difficulty: Difficulty
 
 
-class _ScoreData(NamedTuple):
+class ScoreData(NamedTuple):
     """Data that can be used to save score."""
     score: int
     dt: datetime
@@ -326,7 +325,7 @@ class RankingManager(metaclass=ABCMeta):
     @abstractmethod
     def update(
             self,
-            score_data: _ScoreData,
+            score_data: ScoreData,
             player: str,
     ) -> Ranking:
         """Add new record to ranking. Save and return updated one."""
@@ -334,7 +333,7 @@ class RankingManager(metaclass=ABCMeta):
         ranking = self.load(score_data.difficulty)
         new_data = list(ranking.data)
         new_data.append(
-            _RankingRecord(
+            RankingRecord(
                 score_data.score,
                 score_data.dt,
                 player,
@@ -349,64 +348,12 @@ class RankingManager(metaclass=ABCMeta):
         return
         yield
 
-    def is_score_fit_into(self, score_data: _ScoreData) -> bool:
+    def is_score_fit_into(self, score_data: ScoreData) -> bool:
         ranking = self.load(score_data.difficulty)
         return (
             len(ranking.data) < RANKING_SIZE
             or ranking.data[-1].score > score_data.score
         )
-
-
-class FileRankingManager(RankingManager):
-
-    def __init__(self, rankings_dir: Path) -> None:
-        self._rankings_dir = rankings_dir
-
-    def load(self, difficulty: Difficulty) -> Ranking:
-        path = self._get_path(difficulty)
-        path.touch()
-        with open(path, "r") as file:
-            return Ranking(
-                data=tuple(
-                    _RankingRecord(
-                        int(score),
-                        datetime.fromisoformat(dt),
-                        player,
-                    )
-                    for score, dt, player in csv.reader(file)
-                ),
-                difficulty=difficulty,
-            )
-
-    def update(
-            self,
-            score_data: _ScoreData,
-            player: str,
-    ) -> Ranking:
-        updated_ranking = super().update(score_data, player)
-        self._save(updated_ranking)
-        return updated_ranking
-
-    def _save(
-            self,
-            ranking: Ranking,
-    ) -> None:
-        path = self._get_path(ranking.difficulty)
-        with open(path, "w") as file:
-            writer = csv.writer(file)
-            writer.writerows(ranking.data)
-
-    def _get_path(self, difficulty: Difficulty) -> Path:
-        return (
-            self._rankings_dir
-            / f"{difficulty.number_size}_{difficulty.digits_num}.csv"
-        )
-
-    def available_difficulties(self) -> Iterator[Difficulty]:
-        for path in self._rankings_dir.iterdir():
-            if path.stat().st_size:
-                number_size, digits_num = map(int, path.stem.split("_"))
-                yield Difficulty(number_size, digits_num)
 
 
 def is_player_name_valid(name: str) -> bool:

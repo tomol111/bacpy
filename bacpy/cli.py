@@ -32,16 +32,14 @@ from prompt_toolkit.shortcuts import prompt
 from prompt_toolkit.validation import Validator, ValidationError
 from tabulate import tabulate
 
-from .core import (
+from bacpy.core import (
     DEFAULT_NUMBER_PARAMETERS,
     draw_number,
-    FileRankingManager,
     GuessHandler,
     NumberParams,
     QuitGame,
     Ranking,
     RankingManager,
-    RANKINGS_DIR,
     RANKING_SIZE,
     RestartGame,
     Difficulty,
@@ -49,6 +47,7 @@ from .core import (
     validate_number,
     validate_player_name,
 )
+from bacpy.file_ranking import FileRankingManager, RANKINGS_DIR
 
 
 # Type variables
