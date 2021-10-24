@@ -220,7 +220,7 @@ def ask_ok(
     """
     while True:
         try:
-            input_ = prompt_func(prompt_message).strip().lower()
+            input_ = prompt_func(prompt_message).lower()
         except KeyboardInterrupt:
             continue
 
@@ -262,7 +262,7 @@ def number_getter(
     )
     while True:
         try:
-            input_ = prompt_session.prompt(f"[{get_steps_done() + 1}] ").lstrip()
+            input_ = prompt_session.prompt(f"[{get_steps_done() + 1}] ")
         except EOFError:
             try:
                 if ask_ok("Do you really want to quit? [Y/n]: "):
@@ -274,10 +274,10 @@ def number_getter(
             continue
 
         if not input_.startswith(COMMAND_PREFIX):
-            yield input_.rstrip()
+            yield input_
             continue
 
-        cmd_line = input_[len(COMMAND_PREFIX):].lstrip()
+        cmd_line = input_[len(COMMAND_PREFIX):]
 
         if not cmd_line:
             print(
@@ -299,11 +299,11 @@ class MainPromptValidator(Validator):
         self.number_params = number_params
 
     def validate(self, document: Document) -> None:
-        input_: str = document.text.strip()
+        input_ = document.text
 
         try:
             if input_.startswith(COMMAND_PREFIX):
-                validate_command(input_[len(COMMAND_PREFIX):].lstrip())
+                validate_command(input_[len(COMMAND_PREFIX):])
             else:
                 validate_number(input_, self.number_params)
         except ValueError as err:
@@ -338,7 +338,7 @@ def player_name_getter() -> Iterator[Optional[str]]:
     )
     while True:
         try:
-            player = prompt_session.prompt().strip()
+            player = prompt_session.prompt()
             if not ask_ok(f"Confirm player: '{player}' [Y/n] "):
                 continue
         except KeyboardInterrupt:
@@ -352,9 +352,8 @@ def player_name_getter() -> Iterator[Optional[str]]:
 class PlayerNameValidator(Validator):
 
     def validate(self, document: Document) -> None:
-        text = document.text.strip()
         try:
-            validate_player_name(text)
+            validate_player_name(document.text)
         except ValueError as err:
             raise ValidationError(
                 message=str(err),
@@ -514,7 +513,6 @@ def parse_difficulty_selection(
         input_: str,
         difficulty_container: DifficultyContainer,
 ) -> Difficulty:
-    input_ = input_.strip()
 
     if input_.isdigit() and int(input_) in difficulty_container.indexes:
         return difficulty_container[int(input_)]
@@ -534,7 +532,6 @@ def parse_number_params_selection(
         input_: str,
         number_params_container: NumberParamsContainer,
 ) -> NumberParams:
-    input_ = input_.strip()
 
     if input_.isdigit() and int(input_) in number_params_container.indexes:
         return number_params_container[int(input_)]

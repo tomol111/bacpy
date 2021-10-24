@@ -68,7 +68,7 @@ def test_ask_ok__prompt_message():
 
 @pytest.mark.parametrize(
     "input_",
-    ("yes", "ye", "y", " y", "y ", "YeS", "yEs"),
+    ("yes", "ye", "y", "YeS", "yEs"),
 )
 def test_ask_ok__yes(input_):
     assert ask_ok("some prompt", prompt_func=lambda _: input_)
@@ -76,7 +76,7 @@ def test_ask_ok__yes(input_):
 
 @pytest.mark.parametrize(
     "input_",
-    ("no", "n", " n", "n ", "No", "nO"),
+    ("no", "n", "No", "nO"),
 )
 def test_ask_ok__no(input_):
     assert not ask_ok("some prompt", prompt_func=lambda _: input_)
@@ -258,7 +258,7 @@ def test_get_toolbar():
     ("input_", "difficulty"),
     (
         ("3621", NumberParams.standard(Difficulty(4, 8))),
-        (" 1482 ", NumberParams.standard(Difficulty(4, 8))),
+        ("14829", NumberParams.standard(Difficulty(5, 9))),
     )
 )
 def test_MainPromptValidator__pass_on_valid_number(input_, difficulty):
@@ -279,7 +279,7 @@ def test_MainPromptValidator__raise_ValidationError_on_invalid_number(input_):
     "input_",
     (
         "!help",
-        " ! help ",
+        "! help ",
         "!help commands",
         "!restart -l",
         "!ra 'some difficulty'",
