@@ -254,14 +254,14 @@ def number_getter(
 
     Supports special input. Can raise `StopPlaying`.
     """
-    prompt_session: PromptSession[str] = PromptSession(
+    session: PromptSession[str] = PromptSession(
         bottom_toolbar=get_toolbar(number_params),
         validator=MainPromptValidator(number_params),
         validate_while_typing=False,
     )
     while True:
         try:
-            input_ = prompt_session.prompt(f"[{get_steps_done() + 1}] ")
+            input_ = session.prompt(f"[{get_steps_done() + 1}] ")
         except EOFError:
             try:
                 if ask_ok("Do you really want to quit? [Y/n]: "):
@@ -272,24 +272,23 @@ def number_getter(
         except KeyboardInterrupt:
             continue
 
-        if not input_.startswith(COMMAND_PREFIX):
-            yield input_
+        if input_.startswith(COMMAND_PREFIX):
+            process_command(input_[len(COMMAND_PREFIX):], commands)
             continue
 
-        cmd_line = input_[len(COMMAND_PREFIX):]
+        yield input_
 
-        if not cmd_line:
-            print(
-                f"Type '{COMMAND_PREFIX}help commands' to get "
-                "available commands"
-            )
-            continue
 
-        cmd_name, *args = shlex.split(cmd_line)
-        try:
-            commands[cmd_name].parse_args(args)
-        except KeyError:
-            print(f"No command '{cmd_name}'")
+def process_command(cmd_line: str, commands: Commands):
+    if not cmd_line.strip():
+        print(f"Type '{COMMAND_PREFIX}help commands' to get available commands")
+        return
+
+    cmd_name, *args = shlex.split(cmd_line)
+    try:
+        commands[cmd_name].parse_args(args)
+    except KeyError:
+        print(f"No command '{cmd_name}'")
 
 
 class MainPromptValidator(Validator):
