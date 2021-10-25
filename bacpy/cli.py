@@ -116,7 +116,7 @@ def run_game() -> None:
                     guess_handler,
                     number_iter,
                     player_name_iter,
-                    game.ranking_manager,
+                    game.ranking_repo,
                 )
         except RestartGame as rg:
             if rg.number_params is not None:
@@ -135,7 +135,7 @@ def play_round(
         guess_handler: GuessHandler,
         number_iter: Iterator[str],
         player_name_iter: Iterator[Optional[str]],
-        ranking_manager: RankingRepo,
+        ranking_repo: RankingRepo,
 ) -> None:
     for bulls, cows in map(guess_handler.send, number_iter):
         print(f"bulls: {bulls:>2}, cows: {cows:>2}")
@@ -143,10 +143,10 @@ def play_round(
     print(f"\n*** You guessed in {guess_handler.steps_done} steps ***\n")
 
     if (
-            ranking_manager.is_score_fit_into(guess_handler.score_data)
+            ranking_repo.is_score_fit_into(guess_handler.score_data)
             and (player := next(player_name_iter))
     ):
-        ranking = ranking_manager.update(guess_handler.score_data, player)
+        ranking = ranking_repo.update(guess_handler.score_data, player)
         pager(ranking_table(ranking))
 
 
@@ -158,11 +158,11 @@ def play_round(
 class Game:
     """Game class."""
 
-    def __init__(self, ranking_manager: RankingRepo) -> None:
+    def __init__(self, ranking_repo: RankingRepo) -> None:
         self._guess_handler: Optional[GuessHandler] = None
         self.number_params_container = NumberParamsContainer(DEFAULT_NUMBER_PARAMETERS)
         self.commands = get_commands(self)
-        self.ranking_manager = ranking_manager
+        self.ranking_repo = ranking_repo
 
     @property
     def guess_handler(self) -> GuessHandler:
@@ -855,7 +855,7 @@ class RankingCmd(Command):
     def execute(self, arg: str = "") -> None:
 
         difficulty_container = DifficultyContainer(
-            self.game.ranking_manager.available_difficulties()
+            self.game.ranking_repo.available_difficulties()
         )
 
         if not difficulty_container:
@@ -880,5 +880,5 @@ class RankingCmd(Command):
                 return
 
         pager(ranking_table(
-            self.game.ranking_manager.load(difficulty)
+            self.game.ranking_repo.load(difficulty)
         ))
