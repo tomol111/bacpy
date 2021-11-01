@@ -8,7 +8,6 @@ import itertools
 from operator import attrgetter
 import shlex
 import subprocess
-import sys
 from typing import (
     Callable,
     ClassVar,
@@ -34,15 +33,16 @@ from tabulate import tabulate
 
 from bacpy.core import (
     DEFAULT_NUMBER_PARAMETERS,
-    draw_number,
-    GuessHandler,
+    Difficulty,
+    GuessRecord,
     NumberParams,
     QuitGame,
     Ranking,
     RankingRepo,
     RANKING_SIZE,
     RestartGame,
-    Difficulty,
+    Round,
+    ScoreSaver,
     StopPlaying,
     validate_number,
     validate_player_name,
@@ -88,6 +88,7 @@ Special commands:
 def run_game() -> None:
     RANKINGS_DIR.mkdir(exist_ok=True)
     game = Game(FileRankingRepo(RANKINGS_DIR))
+
     print(starting_header(PROGRAM_VERSION))
 
     try:
@@ -95,59 +96,37 @@ def run_game() -> None:
     except EOFError:
         return
 
-    player_name_iter = player_name_getter()
+    present_score_and_saving = present_score_and_saving_factory()
 
     while True:
         print()
-        try:
-            secret_number = draw_number(number_params)
-
-            if sys.flags.dev_mode:  # logging on console
-                print(f"secret number: {secret_number}")
-
-            guess_handler = GuessHandler(secret_number, number_params)
-            with game.set_guess_handler(guess_handler):
-                number_iter = number_getter(
-                    number_params,
-                    lambda: guess_handler.steps_done,
-                    game.commands,
-                )
-                play_round(
-                    guess_handler,
-                    number_iter,
-                    player_name_iter,
-                    game.ranking_repo,
-                )
-        except RestartGame as rg:
-            if rg.number_params is not None:
-                number_params = rg.number_params
-            continue
-        except (StopPlaying, QuitGame):
-            return
+        round = Round(
+            number_params,
+            present_hints,
+            present_score_and_saving,
+            game.ranking_repo,
+        )
+        with game.set_round(round):
+            try:
+                for guess in number_getter(
+                        number_params,
+                        lambda: round.steps_done,
+                        game.commands,
+                ):
+                    round.send(guess)
+            except StopIteration:
+                continue
+            except RestartGame as rg:
+                if rg.number_params is not None:
+                    number_params = rg.number_params
+                continue
+            except (StopPlaying, QuitGame):
+                return
 
 
 def starting_header(title: str) -> str:
     line = "=" * len(title)
     return f"{line}\n{title}\n{line}"
-
-
-def play_round(
-        guess_handler: GuessHandler,
-        number_iter: Iterator[str],
-        player_name_iter: Iterator[Optional[str]],
-        ranking_repo: RankingRepo,
-) -> None:
-    for bulls, cows in map(guess_handler.send, number_iter):
-        print(f"bulls: {bulls:>2}, cows: {cows:>2}")
-
-    print(f"\n*** You guessed in {guess_handler.steps_done} steps ***\n")
-
-    if (
-            ranking_repo.is_score_fit_into(guess_handler.score_data)
-            and (player := next(player_name_iter))
-    ):
-        ranking = ranking_repo.update(guess_handler.score_data, player)
-        pager(ranking_table(ranking))
 
 
 # ====
@@ -159,24 +138,49 @@ class Game:
     """Game class."""
 
     def __init__(self, ranking_repo: RankingRepo) -> None:
-        self._guess_handler: Optional[GuessHandler] = None
+        self._round: Optional[Round] = None
         self.number_params_container = NumberParamsContainer(DEFAULT_NUMBER_PARAMETERS)
         self.commands = get_commands(self)
         self.ranking_repo = ranking_repo
 
     @property
-    def guess_handler(self) -> GuessHandler:
-        if self._guess_handler is not None:
-            return self._guess_handler
+    def round(self) -> Round:
+        if self._round is not None:
+            return self._round
         raise AttributeError("Round not set now")
 
     @contextmanager
-    def set_guess_handler(self, guess_handler: GuessHandler) -> Iterator[None]:
-        self._guess_handler = guess_handler
+    def set_round(self, round: Round) -> Iterator[None]:
+        self._round, old = round, self._round
         try:
             yield
         finally:
-            self._guess_handler = None
+            self._round = old
+
+
+# ===========
+# Round tools
+# ===========
+
+
+def present_hints(guess_record: GuessRecord) -> None:
+    _, bulls, cows = guess_record
+    print(f"bulls: {bulls:>2}, cows: {cows:>2}")
+
+
+def present_score_and_saving_factory() -> Callable[[int, Optional[ScoreSaver]], None]:
+    player_name_iter = player_name_getter()
+
+    def present_score_and_saving(score: int, save_score: Optional[ScoreSaver]) -> None:
+        print(f"\n*** You guessed in {score} steps ***\n")
+        if save_score and (player_name := next(player_name_iter)):
+            save_score(player_name, present_ranking)
+
+    return present_score_and_saving
+
+
+def present_ranking(ranking: Ranking) -> None:
+    pager(ranking_table(ranking))
 
 
 # =========
@@ -826,12 +830,12 @@ class HistoryCmd(Command):
 
     def execute(self) -> None:
 
-        if self.game.guess_handler.steps_done == 0:
+        if self.game.round.steps_done == 0:
             print("History is empty")
             return
 
         print(tabulate(
-            self.game.guess_handler.history,
+            self.game.round.history,
             headers=("Number", "Bulls", "Cows"),
             colalign=("center", "center", "center"),
             tablefmt="plain",

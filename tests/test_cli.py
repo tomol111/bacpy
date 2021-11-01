@@ -7,6 +7,7 @@ from prompt_toolkit.output import DummyOutput
 from prompt_toolkit.shortcuts import prompt as pt_prompt
 from prompt_toolkit.validation import ValidationError
 import pytest
+from unittest import mock
 
 from bacpy.cli import (
     ask_ok,
@@ -16,8 +17,11 @@ from bacpy.cli import (
     MainPromptValidator,
     player_name_getter,
     PlayerNameValidator,
+    present_hints,
+    present_ranking,
+    present_score_and_saving_factory,
 )
-from bacpy.core import NumberParams
+from bacpy.core import GuessRecord, NumberParams
 
 
 ARROW_UP = "\u001b[A"
@@ -301,3 +305,76 @@ def test_MainPromptValidator__raise_ValidationError_on_invalid_command(input_):
     difficulty = NumberParams.standard(Difficulty(3, 4))
     with pytest.raises(ValidationError):
         MainPromptValidator(difficulty).validate(Document(input_))
+
+
+# ===========
+# Round tools
+# ===========
+
+
+# present_ranking
+# ---------------
+
+
+@mock.patch("bacpy.cli.ranking_table", autospec=True)
+@mock.patch("bacpy.cli.pager", autospec=True)
+def test_present_ranking(mock_pager, mock_ranking_table):
+    ranking, table = object(), object()
+    mock_ranking_table.return_value = table
+
+    present_ranking(ranking)
+
+    assert mock_ranking_table.call_args == mock.call(ranking)
+    assert mock_pager.call_args == mock.call(table)
+
+
+# present_and_save_score_factory
+# ------------------------------
+
+
+@mock.patch("bacpy.cli.player_name_getter", autospec=True)
+def test_present_and_save_score_factory__present_score(mock_player_name_getter, capfd):
+    mock_player_name_getter.return_value = iter(["Bob"])
+
+    present_score_and_saving = present_score_and_saving_factory()
+    present_score_and_saving(7, None)
+
+    assert capfd.readouterr().out == "\n*** You guessed in 7 steps ***\n\n"
+
+
+@mock.patch("bacpy.cli.player_name_getter", autospec=True)
+def test_present_and_save_score_factory__save_score(mock_player_name_getter, capfd):
+    mock_player_name_getter.return_value = iter(["Bob"])
+    mock_save_score = mock.Mock()
+
+    present_score_and_saving = present_score_and_saving_factory()
+    present_score_and_saving(7, mock_save_score)
+
+    assert mock_save_score.call_args == mock.call("Bob", present_ranking)
+
+
+@mock.patch("bacpy.cli.player_name_getter", autospec=True)
+def test_present_and_save_score_factory__do_not_save_score_if_player_name_is_None(
+        mock_player_name_getter, capfd
+):
+    mock_player_name_getter.return_value = iter([None])
+    mock_save_score = mock.Mock()
+
+    present_score_and_saving = present_score_and_saving_factory()
+    present_score_and_saving(7, mock_save_score)
+
+    assert not mock_save_score.called
+
+
+# present_hints
+# -------------
+
+
+def test_present_hints__single_digits_hints(capfd):
+    present_hints(GuessRecord("1234", 1, 2))
+    assert capfd.readouterr().out == "bulls:  1, cows:  2\n"
+
+
+def test_present_hints__double_digits_hints(capfd):
+    present_hints(GuessRecord("123456789abcdefghijkl", 10, 11))
+    assert capfd.readouterr().out == "bulls: 10, cows: 11\n"

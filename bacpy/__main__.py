@@ -1,3 +1,3 @@
-from .main import main
+from bacpy.main import main
 
 main()

@@ -1,16 +1,23 @@
+from contextlib import suppress
+from datetime import datetime
 import pytest
+from unittest import mock
 
 from bacpy.core import (
     Difficulty,
     Digits,
     draw_number,
-    GuessHandler,
+    GuessRecord,
     is_number_valid,
     is_player_name_valid,
     MIN_NUM_SIZE,
     NumberParams,
+    Round,
+    ScoreData,
+    score_saver_factory,
     standard_digits,
 )
+from bacpy.memory_ranking import MemoryRankingRepo
 
 
 # is_player_name_valid
@@ -222,55 +229,117 @@ def test_draw_number(number_params):
     assert is_number_valid(number, number_params)
 
 
-# RoundCore
-# ---------
+# score_saver_factory
+# -------------------
+
+def test_score_saver_factory():
+    score_data = ScoreData(3, datetime(2020, 4, 12), Difficulty(4, 7))
+    ranking_repo = MemoryRankingRepo()
+    parse_ranking = mock.Mock()
+
+    score_saver = score_saver_factory(score_data, ranking_repo)
+    score_saver("player", parse_ranking)
+
+    ranking, = parse_ranking.call_args.args
+    assert ranking.data[0] == (3, datetime(2020, 4, 12), "player")
+    assert ranking_repo.load(Difficulty(4, 7)) == ranking
 
 
-def test_GuessHandler():
-    number = "1234"
+# Round
+# -----
+
+
+@mock.patch("bacpy.core.score_saver_factory", autospec=True)
+@mock.patch("bacpy.core.draw_number", autospec=True)
+def test_Round(mock_draw_number, mock_score_saver_factory):
+    mock_draw_number.return_value = "1234"
     number_params = NumberParams.standard(Difficulty(4, 8))
-    guess_handler = GuessHandler(number, number_params)
+    parse_guess_record = mock.Mock()
+    parse_score = mock.Mock()
+    ranking_repo = MemoryRankingRepo()
+    round = Round(number_params, parse_guess_record, parse_score, ranking_repo)
 
     # After initiation
-    assert guess_handler.number_params == number_params
-    assert not guess_handler.history
-    assert not guess_handler.steps_done
-    assert not guess_handler.closed
-    with pytest.raises(AttributeError):
-        guess_handler.score_data
+    assert round.number_params == number_params
+    assert not round.history
+    assert not round.steps_done
+    assert not round.closed
+    assert mock_draw_number.call_args == mock.call(number_params)
 
     # first step
-    guess1 = "5678"
-    bulls1, cows1 = 0, 0
-    assert guess_handler.send(guess1) == (bulls1, cows1)
-    assert guess_handler.history == [(guess1, bulls1, cows1)]
-    assert guess_handler.steps_done == 1
+    round.send("5678")
+    assert round.steps_done == 1
 
     # second step
-    guess2 = "3214"
-    bulls2, cows2 = 2, 2
-    assert guess_handler.send(guess2) == (bulls2, cows2)
-    assert guess_handler.history == [(guess1, bulls1, cows1), (guess2, bulls2, cows2)]
-    assert guess_handler.steps_done == 2
+    round.send("3214")
+    assert round.steps_done == 2
 
     # third step
-    guess3 = "4321"
-    bulls3, cows3 = 0, 4
-    assert guess_handler.send(guess3) == (bulls3, cows3)
-    assert guess_handler.history[-1] == (guess3, bulls3, cows3)
-    assert guess_handler.steps_done == 3
+    round.send("4321")
+    assert round.steps_done == 3
 
     # succesive guess
     with pytest.raises(StopIteration):
-        guess_handler.send(number)
-    assert guess_handler.history[-1] == (number, 4, 0)
-    assert guess_handler.steps_done == 4
-    assert guess_handler.closed
+        round.send("1234")
+    assert round.steps_done == 4
+    assert round.closed
+    assert round.history == [
+        ("5678", 0, 0),
+        ("3214", 2, 2),
+        ("4321", 0, 4),
+        ("1234", 4, 0),
+    ]
+
+    # side effects
+    assert parse_guess_record.call_args_list == [
+        mock.call(GuessRecord("5678", 0, 0)),
+        mock.call(GuessRecord("3214", 2, 2)),
+        mock.call(GuessRecord("4321", 0, 4)),
+        mock.call(GuessRecord("1234", 4, 0)),
+    ]
+    score, _ = parse_score.call_args.args
+    assert score == 4
 
     # closed
     with pytest.raises(StopIteration):
-        guess_handler.send(number)
-    score_data = guess_handler.score_data
-    assert score_data.dt
-    assert score_data.difficulty == number_params.difficulty
-    assert score_data.score == 4
+        round.send("1234")
+
+
+@mock.patch("bacpy.core.score_saver_factory", autospec=True)
+@mock.patch("bacpy.core.draw_number", autospec=True)
+def test_Round__parse_saver_with_score(mock_draw_number, mock_score_saver_factory):
+    mock_draw_number.return_value = "135"
+    mock_save_score = object()
+    mock_score_saver_factory.return_value = mock_save_score
+    number_params = NumberParams.standard(Difficulty(3, 6))
+    parse_hints = mock.Mock()
+    parse_score = mock.Mock()
+    ranking_repo = MemoryRankingRepo()
+    round = Round(number_params, parse_hints, parse_score, ranking_repo)
+
+    round.send("123")
+    round.send("456")
+    with suppress(StopIteration):
+        round.send("135")
+
+    _, save_score = parse_score.call_args.args
+    assert save_score is mock_save_score
+
+
+@mock.patch("bacpy.core.draw_number", autospec=True)
+def test_Round__do_not_parse_saver_with_score_if_score_do_not_fit_into_ranking(
+        mock_draw_number
+):
+    mock_draw_number.return_value = "135"
+    number_params = NumberParams.standard(Difficulty(3, 6))
+    parse_hints = mock.Mock()
+    parse_score = mock.Mock()
+    ranking_repo = MemoryRankingRepo()
+    ranking_repo.is_score_fit_into = (lambda score_data: False)
+    round = Round(number_params, parse_hints, parse_score, ranking_repo)
+
+    with suppress(StopIteration):
+        round.send("135")
+
+    _, save_score = parse_score.call_args.args
+    assert not save_score

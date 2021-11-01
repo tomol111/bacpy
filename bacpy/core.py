@@ -5,6 +5,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime
 import random
+import sys
 from typing import (
     Callable,
     Final,
@@ -29,15 +30,31 @@ PLAYER_NAME_LEN_LIMS: Final[Tuple[int, int]] = (3, 20)
 # =====
 
 
-class GuessHandler(Generator[Tuple[int, int], str, None]):
+RankingParser = Callable[["Ranking"], None]
+ScoreSaver = Callable[[str, RankingParser], None]
+GuessRecordParser = Callable[["GuessRecord"], None]
+ScoreAndSaverParser = Callable[[int, Optional[ScoreSaver]], None]
 
-    def __init__(self, secret_number: str, number_params: NumberParams) -> None:
-        assert is_number_valid(secret_number, number_params)
-        self._secret_number = secret_number
+
+class Round(Generator[None, str, None]):
+
+    def __init__(
+            self,
+            number_params: NumberParams,
+            parse_guess_record: GuessRecordParser,
+            parse_score_and_saver: ScoreAndSaverParser,
+            ranking_repo: RankingRepo,
+    ) -> None:
+        self._secret_number = draw_number(number_params)
         self._number_params = number_params
+        self._parse_hints = parse_guess_record
+        self._parse_score_and_saver = parse_score_and_saver
+        self._ranking_repo = ranking_repo
         self._history: List[GuessRecord] = []
         self._closed = False
-        self._score_data: Optional[ScoreData] = None
+
+        if sys.flags.dev_mode:  # logging on console
+            print(f"secret number: {self._secret_number}")
 
     @property
     def history(self) -> SequenceView[GuessRecord]:
@@ -55,13 +72,7 @@ class GuessHandler(Generator[Tuple[int, int], str, None]):
     def closed(self) -> bool:
         return self._closed
 
-    @property
-    def score_data(self) -> ScoreData:
-        if self._score_data is None:
-            raise AttributeError("`score_data` not available")
-        return self._score_data
-
-    def send(self, guess: str) -> Tuple[int, int]:
+    def send(self, guess: str) -> None:
 
         if self._closed:
             raise StopIteration
@@ -69,17 +80,13 @@ class GuessHandler(Generator[Tuple[int, int], str, None]):
         assert is_number_valid(guess, self._number_params)
 
         bulls, cows = self._bullscows(guess, self._secret_number)
-        self._history.append(GuessRecord(guess, bulls, cows))
+        guess_record = GuessRecord(guess, bulls, cows)
+        self._history.append(guess_record)
+        self._parse_hints(guess_record)
 
         if guess == self._secret_number:
-            self._score_data = ScoreData(
-                score=self.steps_done,
-                dt=datetime.now(),
-                difficulty=self.number_params.difficulty,
-            )
+            self._process_score()
             self.throw(StopIteration)
-
-        return bulls, cows
 
     @staticmethod
     def _bullscows(guess: str, secret_number: str) -> Tuple[int, int]:
@@ -90,6 +97,19 @@ class GuessHandler(Generator[Tuple[int, int], str, None]):
             elif guess_char in secret_number:
                 cows += 1
         return bulls, cows
+
+    def _process_score(self) -> None:
+        score_data = ScoreData(
+            score=self.steps_done,
+            dt=datetime.now(),
+            difficulty=self.number_params.difficulty,
+        )
+        save_score = (
+            score_saver_factory(score_data, self._ranking_repo)
+            if self._ranking_repo.is_score_fit_into(score_data)
+            else None
+        )
+        self._parse_score_and_saver(score_data.score, save_score)
 
     def throw(self, typ, val=None, tb=None):
         self._closed = True
@@ -131,6 +151,20 @@ def validate_number(number: str, number_params: NumberParams) -> None:
             "Repeated digits: "
             + ", ".join(f"'{digit}'" for digit in rep_digits)
         )
+
+
+def score_saver_factory(score_data: ScoreData, ranking_repo: RankingRepo) -> ScoreSaver:
+    saved = False
+
+    def save_score(player_name: str, parse_ranking: RankingParser) -> None:
+        nonlocal saved
+        if saved:
+            raise RuntimeError("Score has been already saved")
+        updated_ranking = ranking_repo.update(score_data, player_name)
+        saved = True
+        parse_ranking(updated_ranking)
+
+    return save_score
 
 
 class GuessRecord(NamedTuple):
