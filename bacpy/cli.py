@@ -96,7 +96,7 @@ def run_game() -> None:
     except EOFError:
         return
 
-    present_score_and_saving = present_score_and_saving_factory()
+    present_score_and_saving = present_score_and_saving_factory(player_name_getter())
 
     while True:
         print()
@@ -164,15 +164,23 @@ def present_hints(guess_record: GuessRecord) -> None:
     print(f"bulls: {bulls:>2}, cows: {cows:>2}")
 
 
-def present_score_and_saving_factory() -> Callable[[int, Optional[ScoreSaver]], None]:
-    player_name_iter = player_name_getter()
+def present_score_and_saving_factory(
+        player_name_iter: Iterator[Optional[str]]
+) -> Callable[[int, Optional[ScoreSaver]], None]:
 
     def present_score_and_saving(score: int, save_score: Optional[ScoreSaver]) -> None:
         print(f"\n*** You guessed in {score} steps ***\n")
-        if save_score and (player_name := next(player_name_iter)):
-            save_score(player_name, present_ranking)
+        if save_score:
+            control_score_saving(save_score, player_name_iter)
 
     return present_score_and_saving
+
+
+def control_score_saving(
+        save_score: ScoreSaver, player_name_iter: Iterator[Optional[str]]
+) -> None:
+    if (player_name := next(player_name_iter)):
+        save_score(player_name, present_ranking)
 
 
 def present_ranking(ranking: Ranking) -> None:

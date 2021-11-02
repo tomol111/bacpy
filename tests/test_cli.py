@@ -12,6 +12,7 @@ from unittest import mock
 from bacpy.cli import (
     ask_ok,
     cli_window,
+    control_score_saving,
     Difficulty,
     get_toolbar,
     MainPromptValidator,
@@ -328,42 +329,46 @@ def test_present_ranking(mock_pager, mock_ranking_table):
     assert mock_pager.call_args == mock.call(table)
 
 
+# control_score_saving
+# --------------------
+
+
+def test_control_score_saving__save_score():
+    mock_save_score = mock.Mock()
+    control_score_saving(mock_save_score, iter(["Bob"]))
+    assert mock_save_score.call_args == mock.call(
+        "Bob", present_ranking
+    )
+
+
+def test_control_score_saving__do_not_save_score_if_player_name_is_None():
+    mock_save_score = mock.Mock()
+    control_score_saving(mock_save_score, iter([None]))
+    assert not mock_save_score.called
+
+
 # present_and_save_score_factory
 # ------------------------------
 
 
-@mock.patch("bacpy.cli.player_name_getter", autospec=True)
-def test_present_and_save_score_factory__present_score(mock_player_name_getter, capfd):
-    mock_player_name_getter.return_value = iter(["Bob"])
-
-    present_score_and_saving = present_score_and_saving_factory()
+def test_present_and_save_score_factory__only_present_score_if_not_score_saver(capfd):
+    present_score_and_saving = present_score_and_saving_factory(iter([]))
     present_score_and_saving(7, None)
-
     assert capfd.readouterr().out == "\n*** You guessed in 7 steps ***\n\n"
 
 
-@mock.patch("bacpy.cli.player_name_getter", autospec=True)
-def test_present_and_save_score_factory__save_score(mock_player_name_getter, capfd):
-    mock_player_name_getter.return_value = iter(["Bob"])
-    mock_save_score = mock.Mock()
-
-    present_score_and_saving = present_score_and_saving_factory()
-    present_score_and_saving(7, mock_save_score)
-
-    assert mock_save_score.call_args == mock.call("Bob", present_ranking)
-
-
-@mock.patch("bacpy.cli.player_name_getter", autospec=True)
-def test_present_and_save_score_factory__do_not_save_score_if_player_name_is_None(
-        mock_player_name_getter, capfd
+@mock.patch("bacpy.cli.control_score_saving", autospec=True)
+def test_present_and_save_score_factory__call_control_score_saving_if_score_saver(
+        mock_control_score_saving, capfd
 ):
-    mock_player_name_getter.return_value = iter([None])
-    mock_save_score = mock.Mock()
+    save_score, player_name_iter = object(), object()
+    present_score_and_saving = present_score_and_saving_factory(player_name_iter)
+    present_score_and_saving(5, save_score)
 
-    present_score_and_saving = present_score_and_saving_factory()
-    present_score_and_saving(7, mock_save_score)
-
-    assert not mock_save_score.called
+    assert capfd.readouterr().out == "\n*** You guessed in 5 steps ***\n\n"
+    assert mock_control_score_saving.call_args == mock.call(
+        save_score, player_name_iter
+    )
 
 
 # present_hints
