@@ -218,16 +218,16 @@ class cli_window(ContextDecorator):
 def ask_ok(
         prompt_message: str,
         *,
-        prompt_func: Callable[[str], str] = prompt,
         default: Optional[bool] = True,
 ) -> bool:
     """Yes/No input.
 
     Can raise EOFError
     """
+
     while True:
         try:
-            input_ = prompt_func(prompt_message).lower()
+            input_ = prompt(prompt_message).lower()
         except KeyboardInterrupt:
             continue
 

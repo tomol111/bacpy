@@ -1,13 +1,11 @@
-import inspect
+from unittest import mock
 
 from prompt_toolkit.application import create_app_session
 from prompt_toolkit.document import Document
 from prompt_toolkit.input import create_pipe_input
 from prompt_toolkit.output import DummyOutput
-from prompt_toolkit.shortcuts import prompt as pt_prompt
 from prompt_toolkit.validation import ValidationError
 import pytest
-from unittest import mock
 
 from bacpy.cli import (
     ask_ok,
@@ -48,6 +46,10 @@ def mock_input():
 # =========
 
 
+# cli_window
+# ----------
+
+
 def test_cli_window(capfd):
 
     at_enter = "=== header ===\n"
@@ -61,92 +63,71 @@ def test_cli_window(capfd):
     assert capfd.readouterr().out == at_exit
 
 
-def test_ask_ok__prompt_message():
-    prompt_message = "some prompt"
+# ask_ok
+# ------
 
-    def mock_prompt(message):
-        assert message == prompt_message
-        return "y"
 
-    ask_ok(prompt_message, prompt_func=mock_prompt)
+@mock.patch("bacpy.cli.prompt", autospec=True, side_effect=StopIteration)
+def test_ask_ok__use_prompt_message(mock_prompt):
+    with pytest.raises(StopIteration):
+        ask_ok("message")
+
+    assert mock_prompt.call_args == mock.call("message")
 
 
 @pytest.mark.parametrize(
     "input_",
     ("yes", "ye", "y", "YeS", "yEs"),
 )
-def test_ask_ok__yes(input_):
-    assert ask_ok("some prompt", prompt_func=lambda _: input_)
+def test_ask_ok__yes(input_, mock_input):
+    mock_input.send_text(input_ + "\n")
+    assert ask_ok("some prompt")
 
 
 @pytest.mark.parametrize(
     "input_",
     ("no", "n", "No", "nO"),
 )
-def test_ask_ok__no(input_):
-    assert not ask_ok("some prompt", prompt_func=lambda _: input_)
+def test_ask_ok__no(input_, mock_input):
+    mock_input.send_text(input_ + "\n")
+    assert not ask_ok("some prompt")
 
 
 @pytest.mark.parametrize(
     "input_",
     ("yess", "nno", "1", ","),
 )
-def test_ask_ok__continue_when_invalid_input(input_):
-
-    def mock_prompt():
-        yield
-        yield input_
-
-    mock_prompt_iter = mock_prompt()
-    next(mock_prompt_iter)
-    with pytest.raises(StopIteration):
-        ask_ok("some prompt", prompt_func=mock_prompt_iter.send)
+def test_ask_ok__continue_when_invalid_input(input_, mock_input):
+    mock_input.send_text(input_ + "\n\n")
+    with pytest.raises(EOFError):
+        ask_ok("some prompt")
 
 
-def test_ask_ok__continue_on_KeyboardInterrupt():
-
-    def mock_prompt():
-        yield
+@mock.patch("bacpy.cli.prompt", autospec=True)
+def test_ask_ok__continue_on_KeyboardInterrupt(mock_prompt):
+    def mock_prompt_side_effect():
         raise KeyboardInterrupt
+        yield
+    mock_prompt.side_effect = mock_prompt_side_effect()
 
-    mock_prompt_iter = mock_prompt()
-    next(mock_prompt_iter)
     with pytest.raises(StopIteration):
-        ask_ok("some prompt", prompt_func=mock_prompt_iter.send)
+        ask_ok("some prompt")
 
 
 @pytest.mark.parametrize(
     "default",
     (True, False),
 )
-def test_ask_ok__default_return(default):
-    assert (
-        ask_ok("some prompt", prompt_func=lambda _: "", default=default)
-        == default
-    )
+def test_ask_ok__default_return_on_empty_input(default, mock_input):
+    mock_input.send_text("\n")
+    assert ask_ok("some prompt", default=default) is default
 
 
-def test_ask_ok__no_default_return():
-
-    def mock_prompt():
-        yield
-        yield ""
-
-    mock_prompt_iter = mock_prompt()
-    next(mock_prompt_iter)
+@mock.patch("bacpy.cli.prompt", autospec=True)
+def test_ask_ok__no_default_return_on_empty_input(mock_prompt):
+    mock_prompt.side_effect = iter([""])
     with pytest.raises(StopIteration):
-        ask_ok("some prompt", prompt_func=mock_prompt_iter.send, default=None)
-
-
-def test_ask_ok__default_prompt(mock_input):
-    assert (
-        inspect.signature(ask_ok).parameters["prompt_func"].default
-        == pt_prompt
-    )
-
-    prompt_message = "some prompt"
-    mock_input.send_text("y\n")
-    ask_ok(prompt_message)
+        ask_ok("some prompt", default=None)
 
 
 # ===================
