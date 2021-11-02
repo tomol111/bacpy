@@ -108,11 +108,7 @@ def run_game() -> None:
         )
         with game.set_round(round):
             try:
-                for guess in number_getter(
-                        number_params,
-                        lambda: round.steps_done,
-                        game.commands,
-                ):
+                for guess in number_getter(number_params, game.commands):
                     round.send(guess)
             except StopIteration:
                 continue
@@ -249,23 +245,20 @@ def pager(text: str) -> None:
 # ===========
 
 
-def number_getter(
-        number_params: NumberParams,
-        get_steps_done: Callable[[], int],
-        commands: Commands,
-) -> Iterator[str]:
+def number_getter(number_params: NumberParams, commands: Commands) -> Iterator[str]:
     """Take number from user.
-
-    Supports special input. Can raise `StopPlaying`.
+    Supports commands as special input.
+    Can raise `StopPlaying`.
     """
     session: PromptSession[str] = PromptSession(
         bottom_toolbar=get_toolbar(number_params),
         validator=MainPromptValidator(number_params),
         validate_while_typing=False,
     )
+    step = 1
     while True:
         try:
-            input_ = session.prompt(f"[{get_steps_done() + 1}] ")
+            input_ = session.prompt(f"[{step}] ")
         except EOFError:
             try:
                 if ask_ok("Do you really want to quit? [Y/n]: "):
@@ -280,6 +273,7 @@ def number_getter(
             process_command(input_[len(COMMAND_PREFIX):], commands)
             continue
 
+        step += 1
         yield input_
 
 
