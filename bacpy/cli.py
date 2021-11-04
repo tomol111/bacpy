@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
 from contextlib import ContextDecorator, contextmanager
+from functools import lru_cache
 from importlib import metadata
 import inspect
 import itertools
 from operator import attrgetter
 import shlex
-import subprocess
 from typing import (
     Callable,
     ClassVar,
@@ -26,7 +26,15 @@ from typing import (
 )
 
 from prompt_toolkit import PromptSession
+from prompt_toolkit.application import Application
+from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.document import Document
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.layout import BufferControl
+from prompt_toolkit.layout.containers import HSplit, Window
+from prompt_toolkit.layout.controls import FormattedTextControl
+from prompt_toolkit.layout.dimension import LayoutDimension
+from prompt_toolkit.layout.layout import Layout
 from prompt_toolkit.shortcuts import prompt
 from prompt_toolkit.validation import Validator, ValidationError
 from tabulate import tabulate
@@ -244,8 +252,44 @@ def ask_ok(
 
 def pager(text: str) -> None:
     """Use pager to show text."""
-    # '-C' flag prevent from showing text on bottom of the screen
-    subprocess.run(["less", "-C"], input=text.encode())
+    app, buffer = get_pager_app_and_buffer()
+    buffer.set_document(Document(text), bypass_readonly=True)
+    app.run()
+
+
+@lru_cache(maxsize=1)
+def get_pager_app_and_buffer() -> Tuple[Application, Buffer]:
+
+    text_buffer = Buffer(read_only=True)
+
+    root_container = HSplit(
+        [
+            Window(
+                content=BufferControl(text_buffer),
+                always_hide_cursor=True,
+            ),
+            Window(
+                content=FormattedTextControl([("reverse", "Press 'q' to exit")]),
+                height=LayoutDimension.exact(1),
+            ),
+        ]
+    )
+
+    bindings = KeyBindings()
+
+    @bindings.add("q")
+    def exit_action(event):
+        event.app.exit()
+
+    application: Application[None] = Application(
+        layout=Layout(root_container),
+        key_bindings=bindings,
+        enable_page_navigation_bindings=True,
+        mouse_support=True,
+        full_screen=True,
+    )
+
+    return application, text_buffer
 
 
 # ===========
