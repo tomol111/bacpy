@@ -30,7 +30,7 @@ from prompt_toolkit.application import Application
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.document import Document
 from prompt_toolkit.key_binding import KeyBindings
-from prompt_toolkit.layout import BufferControl
+from prompt_toolkit.layout import BufferControl, ScrollbarMargin
 from prompt_toolkit.layout.containers import HSplit, Window
 from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.layout.dimension import LayoutDimension
@@ -253,7 +253,7 @@ def ask_ok(
 def pager(text: str) -> None:
     """Use pager to show text."""
     app, buffer = get_pager_app_and_buffer()
-    buffer.set_document(Document(text), bypass_readonly=True)
+    buffer.set_document(Document(text, cursor_position=0), bypass_readonly=True)
     app.run()
 
 
@@ -267,6 +267,8 @@ def get_pager_app_and_buffer() -> Tuple[Application, Buffer]:
             Window(
                 content=BufferControl(text_buffer),
                 always_hide_cursor=True,
+                right_margins=[ScrollbarMargin(display_arrows=True)],
+                wrap_lines=True,
             ),
             Window(
                 content=FormattedTextControl([("reverse", "Press 'q' to exit")]),
