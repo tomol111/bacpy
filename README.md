@@ -32,6 +32,16 @@ Features
 * __Special commands__ 
 
 	Type `!help` to get basic information or `!help commands` to get information about available commands.
+	
+
+Installation
+-----------
+
+This project is not published on PyPI. To install BacPy you need to use GitHub repository. Using pip it can be done with one command:
+```
+pip install git+https://github.com/tomol111/bacpy@master
+```
+It will install version from master branch. For more information about installing package directly from github see [PIP Documentation: VCS Support](https://pip.pypa.io/en/stable/topics/vcs-support/)
 
 
 Dependencies
